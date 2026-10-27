@@ -107,13 +107,16 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 </div>
               )}
 
-              {/* Dealer Badge: أول واحد يوزع الورق */}
+              {/* Dealer Badge: علامة الموزع أكبر قليلاً وواضحة جداً (أنت الموزع وزّعت الورق وآخر من يزايد) */}
               {dealerIdx === player.id && (
                 <div
-                  className="absolute -bottom-1.5 -left-1.5 z-35 bg-amber-500 border border-slate-900 text-slate-950 rounded-full w-5 h-5 xs:w-5.5 xs:h-5.5 flex items-center justify-center font-black text-[9px] xs:text-[10px] shadow"
-                  title="الموزع (وزّعت الورق)"
+                  className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-7 h-7 xs:w-8 xs:h-8 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-2 ring-amber-300 select-none animate-pulse"
+                  title="أنت الموزع (وزّعت الورق وآخر من يزايد - ملزوم بـ 5)"
                 >
-                  🃏
+                  <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[10px] xs:text-xs">
+                    <span className="font-extrabold tracking-tighter">D</span>
+                    <span className="text-[9px] -mr-0.5">🃏</span>
+                  </div>
                 </div>
               )}
 

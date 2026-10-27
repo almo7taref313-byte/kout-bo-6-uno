@@ -77,6 +77,13 @@ export default function App() {
     return r && r.length === 4 ? r : String(Math.floor(1000 + Math.random() * 9000));
   });
   const [isRoomHost, setIsRoomHost] = useState<boolean>(true);
+  const [lastSeatReserved, setLastSeatReserved] = useState<{
+    seatIndex: number;
+    name: string;
+    team: string;
+    avatarId?: string;
+    customPhoto?: string | null;
+  } | null>(null);
 
   // Settings
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -245,39 +252,153 @@ export default function App() {
     startNewRound();
   }, [startNewRound]);
 
+  // Seat Reservation when joining via room code or link
+  const handleJoinRoomWithSeatReservation = useCallback(
+    (code: string) => {
+      setRoomCode(code);
+      setIsRoomHost(false);
+
+      // Check for saved seats for this room or generate starting table
+      const storedSeats = localStorage.getItem(`kout_room_seats_${code}`);
+      let currentSeats: SeatConfig[] = storedSeats
+        ? JSON.parse(storedSeats)
+        : JSON.parse(JSON.stringify(DEFAULT_SEATS));
+
+      // Prefer seat 1 (Team Red 🔴) or next vacant seat
+      const targetSeat = [1, 3, 5, 2, 4, 0].find((idx) => currentSeats[idx]?.isVacant) ?? 1;
+
+      currentSeats = currentSeats.map((s, idx) => {
+        if (idx === targetSeat) {
+          return {
+            id: idx,
+            name: userName,
+            team: idx % 2 === 0 ? 'A' : 'B',
+            avatarId: userAvatar,
+            customPhoto: userCustomPhoto,
+            isHuman: true,
+            isVacant: false,
+          };
+        }
+        return s;
+      });
+
+      setSeats(currentSeats);
+      setCurrentHumanSeatIndex(targetSeat);
+      setShowHostModal(true);
+
+      const teamName = targetSeat % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+      const seatInfo = {
+        seatIndex: targetSeat,
+        name: userName,
+        team: targetSeat % 2 === 0 ? 'A' : 'B',
+        avatarId: userAvatar,
+        customPhoto: userCustomPhoto,
+      };
+      setLastSeatReserved(seatInfo);
+
+      const reservationPayload = {
+        type: 'SEAT_RESERVED',
+        roomCode: code,
+        seatIndex: targetSeat,
+        player: {
+          name: userName,
+          team: targetSeat % 2 === 0 ? 'A' : 'B',
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          isHuman: true,
+        },
+        timestamp: Date.now(),
+      };
+
+      try {
+        localStorage.setItem(`kout_room_seats_${code}`, JSON.stringify(currentSeats));
+        localStorage.setItem(`kout_room_event_${code}`, JSON.stringify(reservationPayload));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel(`kout_room_${code}`);
+          bc.postMessage(reservationPayload);
+          bc.close();
+        }
+      } catch {}
+
+      soundEngine.playCardSlide();
+      showCallout(`حجزت المقعد #${targetSeat} في ${teamName}! 💺`, '💺');
+    },
+    [showCallout, userAvatar, userCustomPhoto, userName]
+  );
+
   // Handle URL Room query parameter on mount: join room and wait for host
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const r = params.get('room');
     if (r && r.length === 4) {
-      setRoomCode(r);
-      setIsRoomHost(false);
-      setShowHostModal(true);
-      showCallout(`انضممت للغرفة #${r} ⏳ بانتظار منشئ الغرفة`, '👥');
+      handleJoinRoomWithSeatReservation(r);
     }
-  }, [showCallout]);
+  }, [handleJoinRoomWithSeatReservation]);
 
-  // Real-time listener for Room Host Start Game event
+  // Real-time listener for Room events (Start Game & Seat Reservations)
   useEffect(() => {
     if (!roomCode) return;
+
+    const handleRoomMessage = (data: any) => {
+      if (!data) return;
+
+      if (data.type === 'START_GAME') {
+        setShowHostModal(false);
+        soundEngine.init();
+        soundEngine.playCardSlide();
+        startNewMatch();
+        showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
+      } else if (data.type === 'SEAT_RESERVED') {
+        const { seatIndex, oldSeatIndex, player } = data;
+        setSeats((prev) => {
+          const next = [...prev];
+          if (seatIndex !== undefined && player) {
+            next[seatIndex] = {
+              ...next[seatIndex],
+              id: seatIndex,
+              name: player.name,
+              avatarId: player.avatarId,
+              customPhoto: player.customPhoto,
+              team: player.team || (seatIndex % 2 === 0 ? 'A' : 'B'),
+              isHuman: true,
+              isVacant: false,
+            };
+          }
+          if (oldSeatIndex !== undefined && oldSeatIndex !== seatIndex && oldSeatIndex !== currentHumanSeatIndex) {
+            next[oldSeatIndex] = {
+              ...next[oldSeatIndex],
+              name: '',
+              isHuman: false,
+              isVacant: true,
+            };
+          }
+          return next;
+        });
+
+        if (player) {
+          setLastSeatReserved({
+            seatIndex,
+            name: player.name,
+            team: player.team,
+            avatarId: player.avatarId,
+            customPhoto: player.customPhoto,
+          });
+          const teamLabel = player.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+          soundEngine.playCardSlide();
+          showCallout(`💺 حجز مقعد: انضم "${player.name}" إلى المقعد #${seatIndex} (${teamLabel})`, '👥');
+        }
+      }
+    };
 
     let bc: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel(`kout_room_${roomCode}`);
         bc.onmessage = (event) => {
-          if (event.data?.type === 'START_GAME') {
-            setShowHostModal(false);
-            soundEngine.init();
-            soundEngine.playCardSlide();
-            startNewMatch();
-            showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
-          }
+          handleRoomMessage(event.data);
         };
       }
-    } catch {
-      // Ignore BroadcastChannel errors
-    }
+    } catch {}
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === `kout_room_start_${roomCode}`) {
@@ -286,6 +407,11 @@ export default function App() {
         soundEngine.playCardSlide();
         startNewMatch();
         showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
+      } else if (e.key === `kout_room_event_${roomCode}` && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleRoomMessage(data);
+        } catch {}
       }
     };
 
@@ -295,7 +421,7 @@ export default function App() {
       if (bc) bc.close();
       window.removeEventListener('storage', handleStorage);
     };
-  }, [roomCode, showCallout, startNewMatch]);
+  }, [roomCode, showCallout, startNewMatch, currentHumanSeatIndex]);
 
   // Bidding resolution
   const submitBid = useCallback(
@@ -787,6 +913,7 @@ export default function App() {
         customPhoto: userCustomPhoto,
         isHuman: true,
         isVacant: false,
+        team: targetIdx % 2 === 0 ? 'A' : 'B',
       };
       next[oldIdx] = {
         ...next[oldIdx],
@@ -795,12 +922,46 @@ export default function App() {
         customPhoto: null,
         isHuman: false,
         isVacant: true,
+        team: oldIdx % 2 === 0 ? 'A' : 'B',
       };
+
+      try {
+        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+        const eventPayload = {
+          type: 'SEAT_RESERVED',
+          roomCode,
+          seatIndex: targetIdx,
+          oldSeatIndex: oldIdx,
+          player: {
+            name: userName,
+            avatarId: userAvatar,
+            customPhoto: userCustomPhoto,
+            team: targetIdx % 2 === 0 ? 'A' : 'B',
+            isHuman: true,
+          },
+          timestamp: Date.now(),
+        };
+        localStorage.setItem(`kout_room_event_${roomCode}`, JSON.stringify(eventPayload));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel(`kout_room_${roomCode}`);
+          bc.postMessage(eventPayload);
+          bc.close();
+        }
+      } catch {}
+
       return next;
     });
 
     setCurrentHumanSeatIndex(targetIdx);
-    showCallout(`انتقلت للمقعد #${targetIdx}`, '💺');
+    setLastSeatReserved({
+      seatIndex: targetIdx,
+      name: userName,
+      team: targetIdx % 2 === 0 ? 'A' : 'B',
+      avatarId: userAvatar,
+      customPhoto: userCustomPhoto,
+    });
+    const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+    showCallout(`انتقلت للمقعد #${targetIdx} في ${teamName} 💺`, '💺');
   };
 
   // Convert seat to bot
@@ -981,10 +1142,7 @@ export default function App() {
             handleOpenPrivateTable();
           }}
           onJoinRoomCode={(code) => {
-            setRoomCode(code);
-            setIsRoomHost(false);
-            setShowHostModal(true);
-            showCallout(`انضممت للغرفة #${code} ⏳ بانتظار منشئ الغرفة`, '🚪');
+            handleJoinRoomWithSeatReservation(code);
           }}
           onOpenProfile={() => setShowProfileModal(true)}
           onOpenSettings={() => setShowSettingsModal(true)}
@@ -1113,10 +1271,12 @@ export default function App() {
           seats={seats}
           currentHumanSeatIndex={currentHumanSeatIndex}
           isHost={isRoomHost}
+          lastSeatReserved={lastSeatReserved}
           onRegenerateCode={() => {
             const nextCode = String(Math.floor(1000 + Math.random() * 9000));
             setRoomCode(nextCode);
             setIsRoomHost(true);
+            setLastSeatReserved(null);
             showCallout(`غرفة جديدة #${nextCode}`, '🔄');
           }}
           onSitInSeat={handleSitInSeat}
@@ -1219,11 +1379,8 @@ export default function App() {
             showCallout(`غرفة جديدة #${nextCode}`, '🚪');
           }}
           onJoinRoom={(code) => {
-            setRoomCode(code);
-            setIsRoomHost(false);
             setShowRoomsModal(false);
-            setShowHostModal(true);
-            showCallout(`انضممت للغرفة #${code} ⏳ بانتظار منشئ الغرفة`, '🚪');
+            handleJoinRoomWithSeatReservation(code);
           }}
           onClose={() => setShowRoomsModal(false)}
         />

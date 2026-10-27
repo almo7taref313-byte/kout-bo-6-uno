@@ -226,13 +226,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* Dealer Badge: أول واحد يوزع الورق */}
+                  {/* Dealer Badge: علامة الموزع أكبر قليلاً وواضحة جداً (أول واحد يوزع الورق وآخر من يزايد) */}
                   {isDealer && (
                     <div
-                      className="absolute -bottom-1.5 -left-1.5 z-35 bg-amber-500 border border-slate-900 text-slate-950 rounded-full w-5 h-5 flex items-center justify-center font-black text-[9px] shadow"
-                      title="الموزع (وزّع الورق)"
+                      className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-7 xs:h-7 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
+                      title="الموزع (أول واحد يوزع الورق وآخر من يزايد - ملزوم بـ 5)"
                     >
-                      🃏
+                      <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[9px] xs:text-[10px]">
+                        <span className="font-extrabold tracking-tighter">D</span>
+                        <span className="text-[8px] -mr-0.5">🃏</span>
+                      </div>
                     </div>
                   )}
 

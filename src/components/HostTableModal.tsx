@@ -7,6 +7,13 @@ interface HostTableModalProps {
   seats: SeatConfig[];
   currentHumanSeatIndex: number;
   isHost?: boolean;
+  lastSeatReserved?: {
+    seatIndex: number;
+    name: string;
+    team: string;
+    avatarId?: string;
+    customPhoto?: string | null;
+  } | null;
   onRegenerateCode: () => void;
   onSitInSeat: (idx: number) => void;
   onConvertToBot: (idx: number) => void;
@@ -23,6 +30,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   seats,
   currentHumanSeatIndex,
   isHost = true,
+  lastSeatReserved = null,
   onRegenerateCode,
   onSitInSeat,
   onConvertToBot,
@@ -78,11 +86,13 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
 
         {/* Avatar / Vacant Chair Display */}
         <div
-          className={`w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 flex items-center justify-center transition ${
+          className={`w-9 h-9 xs:w-10 xs:h-10 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 flex items-center justify-center transition ${
             isMySeat
               ? 'border-amber-400 ring-2 ring-amber-400/40'
               : isVacant
               ? 'border-dashed border-slate-600 bg-slate-900/60'
+              : seat.isHuman
+              ? 'border-emerald-400 ring-1 ring-emerald-400/40 bg-slate-900'
               : 'border-slate-700 bg-slate-900'
           }`}
         >
@@ -96,27 +106,34 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
         </div>
 
         {/* Seat Name & Status */}
-        <div className="text-center w-full px-0.5 min-h-[26px] xs:min-h-[30px] flex flex-col items-center justify-center">
+        <div className="text-center w-full px-0.5 min-h-[30px] xs:min-h-[34px] flex flex-col items-center justify-center">
           {!isVacant ? (
             <>
-              <span className="text-[9px] xs:text-[10px] sm:text-[11px] font-black block truncate text-white max-w-full">
+              <span className="text-[9.5px] xs:text-[10.5px] sm:text-[11.5px] font-black block truncate text-white max-w-full">
                 {seat.name}
               </span>
               {isMySeat ? (
-                <span className="text-[7.5px] xs:text-[8px] bg-amber-500/25 text-amber-300 font-black px-1.5 py-0.2 rounded-full inline-block mt-0.5 border border-amber-400/40">
-                  أنت 👑
+                <span className="text-[7.5px] xs:text-[8px] bg-amber-500/25 text-amber-300 font-black px-1.5 py-0.5 rounded-full inline-block mt-0.5 border border-amber-400/40">
+                  {idx === 0 && isHost ? 'منشئ الغرفة 👑' : 'أنت 👑'}
                 </span>
               ) : seat.isHuman ? (
-                <span className="text-[7.5px] xs:text-[8px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.2 rounded-full inline-block mt-0.5 border border-emerald-500/30">
-                  لاعب 👤
-                </span>
+                <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                  <span className="text-[7px] xs:text-[7.5px] bg-emerald-500/25 text-emerald-300 font-black px-1.5 py-0.5 rounded-full border border-emerald-500/40 shadow-sm inline-flex items-center gap-0.5">
+                    <span>لاعب 👤</span>
+                  </span>
+                  <span className="text-[6.5px] xs:text-[7px] font-bold text-amber-300/90 leading-none">
+                    {teamDot === '🔵' ? 'الفريق الأزرق' : 'الفريق الأحمر'}
+                  </span>
+                </div>
               ) : (
                 <span className="text-[7.5px] xs:text-[8px] bg-cyan-500/20 text-cyan-300 font-bold px-1.5 py-0.2 rounded-full inline-block mt-0.5 border border-cyan-500/30">
                   بوت 🤖
                 </span>
               )}
             </>
-          ) : null}
+          ) : (
+            <span className="text-[8px] text-slate-500 font-medium">شاغر ⏳</span>
+          )}
         </div>
 
         {/* Interactive Action Buttons */}
@@ -251,6 +268,32 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Live Reservation Alert: يظهر لصاحب الدعوة والجميع إشعار حجز المقعد واسم اللاعب وفريقه وصورته */}
+        {lastSeatReserved && (
+          <div className="bg-gradient-to-r from-blue-950/80 via-slate-900/95 to-rose-950/80 border-2 border-amber-400/80 rounded-xl p-2 mb-2 flex items-center justify-between text-right shadow-lg animate-pulse">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-amber-400 bg-slate-950 shrink-0 shadow">
+                <AvatarView avatarId={lastSeatReserved.avatarId} customPhoto={lastSeatReserved.customPhoto} />
+              </div>
+              <div className="text-right leading-tight">
+                <div className="text-[10px] xs:text-[11px] font-black text-white">
+                  💺 تم حجز مقعد بواسطة: <span className="text-amber-300 font-extrabold">{lastSeatReserved.name}</span>
+                </div>
+                <div className="text-[9px] text-slate-300 font-bold flex items-center gap-1 mt-0.5">
+                  <span>المقعد #{lastSeatReserved.seatIndex}</span>
+                  <span>•</span>
+                  <span className={lastSeatReserved.team === 'A' ? 'text-blue-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
+                    {lastSeatReserved.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <span className="text-[9px] xs:text-[10px] bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 px-2 py-1 rounded-lg font-black shrink-0">
+              حجز مؤكد ✓
+            </span>
+          </div>
+        )}
 
         {/* Quick Batch Controls Bar */}
         <div className="flex items-center justify-between gap-1.5 xs:gap-2 bg-slate-950/80 border border-slate-800/90 px-2 xs:px-2.5 py-1 xs:py-1.5 rounded-xl mb-2">
