@@ -39,6 +39,7 @@ import { ScreenModeModal } from './components/ScreenModeModal';
 import { RoomsModal } from './components/RoomsModal';
 import { ExitConfirmModal } from './components/ExitConfirmModal';
 import { SettingsModal } from './components/SettingsModal';
+import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
 const DEFAULT_BOT_PROFILES = [
   { name: 'أنت', avatarId: 'kuwaiti_ghutra_white' },
@@ -57,6 +58,32 @@ const DEFAULT_SEATS: SeatConfig[] = [
   { id: 4, name: 'بندر (بوت)', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
   { id: 5, name: 'سعود (بوت)', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
 ];
+
+// Helper to create starting table for private room with 5 vacant seats
+const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null): SeatConfig[] => {
+  return [0, 1, 2, 3, 4, 5].map((idx) => {
+    if (idx === 0) {
+      return {
+        id: 0,
+        name: hostName || 'منشئ الغرفة 👑',
+        team: 'A',
+        avatarId: hostAvatar || 'kuwaiti_ghutra_white',
+        customPhoto: hostPhoto || null,
+        isHuman: true,
+        isVacant: false,
+      };
+    }
+    return {
+      id: idx,
+      name: '',
+      team: idx % 2 === 0 ? 'A' : 'B',
+      avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+      customPhoto: null,
+      isHuman: false,
+      isVacant: true,
+    };
+  });
+};
 
 export default function App() {
   // User profile
@@ -264,14 +291,14 @@ export default function App() {
       setRoomCode(code);
       setIsRoomHost(false);
 
-      // Check for saved seats for this room or generate starting table
+      // Check for saved seats for this room or generate starting table with vacant seats
       const storedSeats = localStorage.getItem(`kout_room_seats_${code}`);
       let currentSeats: SeatConfig[] = storedSeats
         ? JSON.parse(storedSeats)
-        : JSON.parse(JSON.stringify(DEFAULT_SEATS));
+        : createVacantPrivateSeats('منشئ الغرفة 👑', 'kuwaiti_ghutra_white', null);
 
       // Prefer seat 1 (Team Red 🔴) or next vacant seat
-      const targetSeat = [1, 3, 5, 2, 4, 0].find((idx) => currentSeats[idx]?.isVacant) ?? 1;
+      const targetSeat = [1, 3, 5, 2, 4].find((idx) => currentSeats[idx]?.isVacant) ?? 1;
 
       currentSeats = currentSeats.map((s, idx) => {
         if (idx === targetSeat) {
@@ -288,6 +315,8 @@ export default function App() {
         return s;
       });
 
+      const vacantCount = currentSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+
       setSeats(currentSeats);
       setCurrentHumanSeatIndex(targetSeat);
       setShowHostModal(true);
@@ -302,9 +331,15 @@ export default function App() {
       };
       setLastSeatReserved(seatInfo);
 
-      const reservationPayload = {
+      try {
+        localStorage.setItem(`kout_room_seats_${code}`, JSON.stringify(currentSeats));
+      } catch {}
+
+      // Broadcast to host and all participants across devices and tabs
+      roomSync.publish({
         type: 'SEAT_RESERVED',
         roomCode: code,
+        senderId: roomSync.myClientId,
         seatIndex: targetSeat,
         player: {
           name: userName,
@@ -313,21 +348,13 @@ export default function App() {
           customPhoto: userCustomPhoto,
           isHuman: true,
         },
+        seats: currentSeats,
+        vacantCount,
         timestamp: Date.now(),
-      };
-
-      try {
-        localStorage.setItem(`kout_room_seats_${code}`, JSON.stringify(currentSeats));
-        localStorage.setItem(`kout_room_event_${code}`, JSON.stringify(reservationPayload));
-        if (typeof BroadcastChannel !== 'undefined') {
-          const bc = new BroadcastChannel(`kout_room_${code}`);
-          bc.postMessage(reservationPayload);
-          bc.close();
-        }
-      } catch {}
+      });
 
       soundEngine.playCardSlide();
-      showCallout(`حجزت المقعد #${targetSeat} في ${teamName}! 💺`, '💺');
+      showCallout(`انضممت للغرفة #${code}! حجزت المقعد #${targetSeat} في ${teamName} (المقاعد الشاغرة: ${vacantCount}) 💺`, '💺');
     },
     [showCallout, userAvatar, userCustomPhoto, userName]
   );
@@ -341,11 +368,11 @@ export default function App() {
     }
   }, [handleJoinRoomWithSeatReservation]);
 
-  // Real-time listener for Room events (Start Game & Seat Reservations)
+  // Real-time listener for Room events (Start Game & Seat Reservations & Live Sync across devices)
   useEffect(() => {
     if (!roomCode) return;
 
-    const handleRoomMessage = (data: any) => {
+    const handleRoomMessage = (data: RoomSyncMessage) => {
       if (!data) return;
 
       if (data.type === 'START_GAME') {
@@ -355,35 +382,39 @@ export default function App() {
         startNewMatch();
         showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
       } else if (data.type === 'SEAT_RESERVED') {
-        const { seatIndex, oldSeatIndex, player } = data;
+        const { seatIndex, oldSeatIndex, player, seats: incomingSeats } = data;
         setSeats((prev) => {
-          const next = [...prev];
-          if (seatIndex !== undefined && player) {
+          let next = incomingSeats ? [...incomingSeats] : [...prev];
+          if (!incomingSeats && seatIndex !== undefined && player) {
             next[seatIndex] = {
               ...next[seatIndex],
               id: seatIndex,
               name: player.name,
-              avatarId: player.avatarId,
-              customPhoto: player.customPhoto,
+              avatarId: player.avatarId || 'kuwaiti_ghutra_white',
+              customPhoto: player.customPhoto || null,
               team: player.team || (seatIndex % 2 === 0 ? 'A' : 'B'),
               isHuman: true,
               isVacant: false,
             };
+            if (oldSeatIndex !== undefined && oldSeatIndex !== seatIndex && oldSeatIndex !== currentHumanSeatIndex) {
+              next[oldSeatIndex] = {
+                ...next[oldSeatIndex],
+                name: '',
+                isHuman: false,
+                isVacant: true,
+              };
+            }
           }
-          if (oldSeatIndex !== undefined && oldSeatIndex !== seatIndex && oldSeatIndex !== currentHumanSeatIndex) {
-            next[oldSeatIndex] = {
-              ...next[oldSeatIndex],
-              name: '',
-              isHuman: false,
-              isVacant: true,
-            };
-          }
+          try {
+            localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+          } catch {}
           return next;
         });
 
         if (player) {
+          const vCount = data.vacantCount !== undefined ? data.vacantCount : undefined;
           setLastSeatReserved({
-            seatIndex,
+            seatIndex: seatIndex ?? 1,
             name: player.name,
             team: player.team,
             avatarId: player.avatarId,
@@ -391,20 +422,51 @@ export default function App() {
           });
           const teamLabel = player.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
           soundEngine.playCardSlide();
-          showCallout(`💺 حجز مقعد: انضم "${player.name}" إلى المقعد #${seatIndex} (${teamLabel})`, '👥');
+          showCallout(
+            `🎉 لاعب جديد دخل الغرفة: "${player.name}" في المقعد #${seatIndex} (${teamLabel})${vCount !== undefined ? ` • الشواغر: ${vCount}` : ''}`,
+            '👥'
+          );
         }
+
+        // If host, broadcast full authoritative state back so the joining player is synced with all seats
+        if (isRoomHost) {
+          setTimeout(() => {
+            setSeats((currentLatest) => {
+              const currentVacant = currentLatest.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+              roomSync.publish({
+                type: 'ROOM_STATE',
+                roomCode,
+                senderId: roomSync.myClientId,
+                seats: currentLatest,
+                vacantCount: currentVacant,
+                timestamp: Date.now(),
+              });
+              return currentLatest;
+            });
+          }, 150);
+        }
+      } else if (data.type === 'ROOM_STATE' && data.seats) {
+        setSeats(data.seats);
+        try {
+          localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(data.seats));
+        } catch {}
+      } else if (data.type === 'HEARTBEAT' && isRoomHost) {
+        setSeats((current) => {
+          const currentVacant = current.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: roomSync.myClientId,
+            seats: current,
+            vacantCount: currentVacant,
+            timestamp: Date.now(),
+          });
+          return current;
+        });
       }
     };
 
-    let bc: BroadcastChannel | null = null;
-    try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        bc = new BroadcastChannel(`kout_room_${roomCode}`);
-        bc.onmessage = (event) => {
-          handleRoomMessage(event.data);
-        };
-      }
-    } catch {}
+    const unsubscribe = roomSync.subscribeRoom(roomCode, handleRoomMessage);
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === `kout_room_start_${roomCode}`) {
@@ -424,10 +486,10 @@ export default function App() {
     window.addEventListener('storage', handleStorage);
 
     return () => {
-      if (bc) bc.close();
+      unsubscribe();
       window.removeEventListener('storage', handleStorage);
     };
-  }, [roomCode, showCallout, startNewMatch, currentHumanSeatIndex]);
+  }, [roomCode, isRoomHost, showCallout, startNewMatch, currentHumanSeatIndex]);
 
   // Bidding resolution
   const submitBid = useCallback(
@@ -913,31 +975,24 @@ export default function App() {
 
   // Open Private Table: Initialize non-human seats as VACANT
   const handleOpenPrivateTable = () => {
-    setSeats((prev) => {
-      return [0, 1, 2, 3, 4, 5].map((idx) => {
-        if (idx === currentHumanSeatIndex) {
-          return {
-            id: idx,
-            name: userName,
-            team: idx % 2 === 0 ? 'A' : 'B',
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            isHuman: true,
-            isVacant: false,
-          };
-        }
-        return {
-          id: idx,
-          name: '',
-          team: idx % 2 === 0 ? 'A' : 'B',
-          avatarId: DEFAULT_BOT_PROFILES[idx].avatarId,
-          customPhoto: null,
-          isHuman: false,
-          isVacant: true,
-        };
-      });
+    setIsRoomHost(true);
+    setCurrentHumanSeatIndex(0);
+    const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
+    setSeats(freshVacantSeats);
+    setLastSeatReserved(null);
+    try {
+      localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(freshVacantSeats));
+    } catch {}
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seats: freshVacantSeats,
+      vacantCount: 5,
+      timestamp: Date.now(),
     });
     setShowHostModal(true);
+    showCallout(`طاولتك الخاصة #${roomCode} (5 مقاعد شاغرة للدخول) 🚪`, '👥');
   };
 
   // Seat Configuration Actions: moving human into seat
@@ -966,29 +1021,29 @@ export default function App() {
         team: oldIdx % 2 === 0 ? 'A' : 'B',
       };
 
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+
       try {
         localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-        const eventPayload = {
-          type: 'SEAT_RESERVED',
-          roomCode,
-          seatIndex: targetIdx,
-          oldSeatIndex: oldIdx,
-          player: {
-            name: userName,
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            team: targetIdx % 2 === 0 ? 'A' : 'B',
-            isHuman: true,
-          },
-          timestamp: Date.now(),
-        };
-        localStorage.setItem(`kout_room_event_${roomCode}`, JSON.stringify(eventPayload));
-        if (typeof BroadcastChannel !== 'undefined') {
-          const bc = new BroadcastChannel(`kout_room_${roomCode}`);
-          bc.postMessage(eventPayload);
-          bc.close();
-        }
       } catch {}
+
+      roomSync.publish({
+        type: 'SEAT_RESERVED',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seatIndex: targetIdx,
+        oldSeatIndex: oldIdx,
+        player: {
+          name: userName,
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          team: targetIdx % 2 === 0 ? 'A' : 'B',
+          isHuman: true,
+        },
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
 
       return next;
     });
@@ -1021,6 +1076,18 @@ export default function App() {
         isHuman: false,
         isVacant: false,
       };
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      try {
+        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+      } catch {}
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
       return next;
     });
     soundEngine.playCardSlide();
@@ -1042,6 +1109,18 @@ export default function App() {
         isHuman: false,
         isVacant: true,
       };
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      try {
+        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+      } catch {}
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
       return next;
     });
     showCallout(`أصبح المقعد #${idx} شاغراً ⏳`, '⏳');
@@ -1050,7 +1129,7 @@ export default function App() {
   // Fill all vacant seats with bots
   const handleFillAllWithBots = () => {
     setSeats((prev) => {
-      return prev.map((seat, idx) => {
+      const next = prev.map((seat, idx) => {
         if (idx === currentHumanSeatIndex) return seat;
         if (seat.isVacant || !seat.name || seat.name.trim() === '') {
           return {
@@ -1064,6 +1143,18 @@ export default function App() {
         }
         return seat;
       });
+      try {
+        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+      } catch {}
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seats: next,
+        vacantCount: 0,
+        timestamp: Date.now(),
+      });
+      return next;
     });
     soundEngine.playCardSlide();
     showCallout('تم ملء الشواغر ببوتات ذكية 🤖', '🤖');
@@ -1072,7 +1163,7 @@ export default function App() {
   // Vacate all non-human seats
   const handleVacateAllSeats = () => {
     setSeats((prev) => {
-      return prev.map((seat, idx) => {
+      const next = prev.map((seat, idx) => {
         if (idx === currentHumanSeatIndex) return seat;
         return {
           ...seat,
@@ -1082,6 +1173,19 @@ export default function App() {
           isVacant: true,
         };
       });
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      try {
+        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+      } catch {}
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+      return next;
     });
     showCallout('تم إفراغ جميع المقاعد ⏳', '⏳');
   };
@@ -1318,7 +1422,21 @@ export default function App() {
             setRoomCode(nextCode);
             setIsRoomHost(true);
             setLastSeatReserved(null);
-            showCallout(`غرفة جديدة #${nextCode}`, '🔄');
+            setCurrentHumanSeatIndex(0);
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
+            setSeats(freshVacant);
+            try {
+              localStorage.setItem(`kout_room_seats_${nextCode}`, JSON.stringify(freshVacant));
+            } catch {}
+            roomSync.publish({
+              type: 'ROOM_STATE',
+              roomCode: nextCode,
+              senderId: roomSync.myClientId,
+              seats: freshVacant,
+              vacantCount: 5,
+              timestamp: Date.now(),
+            });
+            showCallout(`غرفة جديدة #${nextCode} (5 مقاعد شاغرة) 🔄`, '🔄');
           }}
           onSitInSeat={handleSitInSeat}
           onConvertToBot={handleConvertToBot}
@@ -1327,24 +1445,39 @@ export default function App() {
           onVacateAllSeats={handleVacateAllSeats}
           onEditSeat={(idx) => setEditingSeatIndex(idx)}
           onStartGame={() => {
-            handleFillAllWithBots();
+            const finalFilledSeats = seats.map((seat, idx) => {
+              if (seat.isVacant || !seat.name || seat.name.trim() === '') {
+                return {
+                  ...seat,
+                  name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
+                  avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+                  customPhoto: null,
+                  isHuman: false,
+                  isVacant: false,
+                };
+              }
+              return seat;
+            });
+            setSeats(finalFilledSeats);
             setShowHostModal(false);
             soundEngine.init();
             soundEngine.playCardSlide();
 
             try {
-              if (typeof BroadcastChannel !== 'undefined') {
-                const bc = new BroadcastChannel(`kout_room_${roomCode}`);
-                bc.postMessage({ type: 'START_GAME', roomCode });
-                bc.close();
-              }
               localStorage.setItem(`kout_room_start_${roomCode}`, String(Date.now()));
-            } catch {
-              // Ignore
-            }
+              localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(finalFilledSeats));
+            } catch {}
+
+            roomSync.publish({
+              type: 'START_GAME',
+              roomCode,
+              senderId: roomSync.myClientId,
+              seats: finalFilledSeats,
+              timestamp: Date.now(),
+            });
 
             startNewMatch();
-            showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب! 🚀`, '👥');
+            showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
           }}
           onClose={() => setShowHostModal(false)}
         />

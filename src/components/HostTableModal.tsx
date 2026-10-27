@@ -240,7 +240,13 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
         {/* Room Code & Share Header */}
         <div className="bg-slate-950 border border-slate-800 rounded-xl sm:rounded-2xl p-1.5 xs:p-2 mb-2 flex items-center justify-between">
           <div className="text-right">
-            <span className="text-[8px] xs:text-[9px] text-slate-400 block">رمز الطاولة الخاص:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] xs:text-[9px] text-slate-400 block">رمز الطاولة الخاص:</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[7.5px] xs:text-[8px] text-emerald-400 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>تحديث مباشر ⚡</span>
+              </span>
+            </div>
             <div className="font-mono font-black text-lg xs:text-xl sm:text-2xl text-amber-400 tracking-wider">
               {roomCode}
             </div>
@@ -259,71 +265,137 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             >
               📋 نسخ
             </button>
-            <button
-              onClick={onRegenerateCode}
-              className="p-1 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg xs:rounded-xl border border-slate-700 transition cursor-pointer"
-              title="رمز جديد"
-            >
-              🔄
-            </button>
+            {isHost && (
+              <button
+                onClick={onRegenerateCode}
+                className="p-1 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg xs:rounded-xl border border-slate-700 transition cursor-pointer"
+                title="إنشاء رمز غرفة جديد"
+              >
+                🔄
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Dynamic Prominent Vacant Seats Status Banner */}
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-400/80 rounded-2xl p-2 xs:p-2.5 sm:p-3 mb-2 shadow-xl text-right">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 xs:gap-2.5">
+              <div className="w-10 h-10 xs:w-11 xs:h-11 sm:w-12 sm:h-12 rounded-xl bg-amber-500/20 border-2 border-amber-400 flex flex-col items-center justify-center shadow-md shadow-amber-500/20">
+                <span className="text-xl xs:text-2xl font-black font-mono text-amber-300 leading-none">
+                  {vacantCount}
+                </span>
+                <span className="text-[7px] xs:text-[7.5px] font-black text-amber-200 mt-0.5">شاغر</span>
+              </div>
+              <div className="text-right leading-tight">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs xs:text-sm sm:text-base font-black text-white">
+                    المقاعد الشاغرة: <span className="text-amber-400 font-extrabold">{vacantCount}</span>
+                  </span>
+                  <span className="text-[8px] xs:text-[9px] text-slate-400 font-bold">
+                    ({6 - vacantCount} من 6 محجوز)
+                  </span>
+                </div>
+                <div className="text-[8.5px] xs:text-[9.5px] text-slate-300 font-bold mt-0.5">
+                  {isHost ? (
+                    <span className="text-amber-300">
+                      👑 أنت منشئ الغرفة - تنقص المقاعد الشاغرة تلقائياً فور دخول أي لاعب بالرمز #{roomCode}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-300">
+                      👤 أنت منضم للغرفة في المقعد #{currentHumanSeatIndex} - تتبقى {vacantCount} مقاعد شاغرة
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick 6-seat visual indicators */}
+            <div className="flex items-center gap-1 bg-slate-950/80 px-2 py-1.5 rounded-xl border border-slate-800 shrink-0">
+              {seats.map((s, i) => {
+                const isVac = s.isVacant || !s.name || s.name.trim() === '';
+                const isMe = i === currentHumanSeatIndex;
+                const dotCol = i % 2 === 0 ? 'bg-blue-500' : 'bg-rose-500';
+                return (
+                  <div
+                    key={i}
+                    className={`w-3.5 h-3.5 xs:w-4 xs:h-4 rounded-full flex items-center justify-center text-[7px] font-mono font-bold transition-all ${
+                      isVac
+                        ? 'border border-dashed border-slate-600 bg-slate-900 text-slate-500'
+                        : isMe
+                        ? `${dotCol} ring-2 ring-amber-400 text-white shadow`
+                        : `${dotCol} text-white shadow-sm ring-1 ring-white/30`
+                    }`}
+                    title={`المقعد #${i}: ${isVac ? 'شاغر' : s.name}`}
+                  >
+                    {isVac ? '⏳' : (i % 2 === 0 ? '🔵' : '🔴')}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Live Reservation Alert: يظهر لصاحب الدعوة والجميع إشعار حجز المقعد واسم اللاعب وفريقه وصورته */}
         {lastSeatReserved && (
-          <div className="bg-gradient-to-r from-blue-950/80 via-slate-900/95 to-rose-950/80 border-2 border-amber-400/80 rounded-xl p-2 mb-2 flex items-center justify-between text-right shadow-lg animate-pulse">
+          <div className="bg-gradient-to-r from-blue-950/90 via-slate-900 to-rose-950/90 border-2 border-emerald-400/90 rounded-xl p-2 mb-2 flex items-center justify-between text-right shadow-xl animate-pulse">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-amber-400 bg-slate-950 shrink-0 shadow">
+              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-400 bg-slate-950 shrink-0 shadow">
                 <AvatarView avatarId={lastSeatReserved.avatarId} customPhoto={lastSeatReserved.customPhoto} />
               </div>
               <div className="text-right leading-tight">
                 <div className="text-[10px] xs:text-[11px] font-black text-white">
-                  💺 تم حجز مقعد بواسطة: <span className="text-amber-300 font-extrabold">{lastSeatReserved.name}</span>
+                  🎉 <span className="text-emerald-300">لاعب جديد دخل الغرفة:</span>{' '}
+                  <span className="text-amber-300 font-extrabold">{lastSeatReserved.name}</span>
                 </div>
-                <div className="text-[9px] text-slate-300 font-bold flex items-center gap-1 mt-0.5">
+                <div className="text-[8.5px] xs:text-[9px] text-slate-300 font-bold flex items-center gap-1.5 mt-0.5">
                   <span>المقعد #{lastSeatReserved.seatIndex}</span>
                   <span>•</span>
                   <span className={lastSeatReserved.team === 'A' ? 'text-blue-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
                     {lastSeatReserved.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴'}
                   </span>
+                  <span>•</span>
+                  <span className="text-amber-300 font-black">المقاعد الشاغرة: {vacantCount}</span>
                 </div>
               </div>
             </div>
-            <span className="text-[9px] xs:text-[10px] bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 px-2 py-1 rounded-lg font-black shrink-0">
-              حجز مؤكد ✓
+            <span className="text-[9px] xs:text-[10px] bg-emerald-500/25 text-emerald-300 border border-emerald-400/60 px-2 py-1 rounded-lg font-black shrink-0">
+              انضم بنجاح ✓
             </span>
           </div>
         )}
 
-        {/* Quick Batch Controls Bar */}
-        <div className="flex items-center justify-between gap-1.5 xs:gap-2 bg-slate-950/80 border border-slate-800/90 px-2 xs:px-2.5 py-1 xs:py-1.5 rounded-xl mb-2">
-          <div className="flex items-center gap-1.5 xs:gap-2 text-right">
-            <span className="text-[9px] xs:text-[10px] text-slate-300 font-bold">المقاعد الشاغرة:</span>
-            <span
-              className="text-xs xs:text-sm font-mono font-black text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 xs:px-2.5 py-0.5 rounded-lg min-w-[24px] xs:min-w-[28px] text-center"
-              title="عدد المقاعد الشاغرة"
-            >
-              {vacantCount}
-            </span>
+        {/* Quick Batch Controls Bar for Host */}
+        {isHost && (
+          <div className="flex items-center justify-between gap-1.5 xs:gap-2 bg-slate-950/80 border border-slate-800/90 px-2 xs:px-2.5 py-1 xs:py-1.5 rounded-xl mb-2">
+            <div className="flex items-center gap-1.5 xs:gap-2 text-right">
+              <span className="text-[9px] xs:text-[10px] text-slate-300 font-bold">المقاعد الشاغرة:</span>
+              <span
+                className="text-xs xs:text-sm font-mono font-black text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 xs:px-2.5 py-0.5 rounded-lg min-w-[24px] xs:min-w-[28px] text-center"
+                title="عدد المقاعد الشاغرة"
+              >
+                {vacantCount}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 xs:gap-1.5">
+              <button
+                onClick={onFillAllWithBots}
+                className="px-2 xs:px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-300 border border-cyan-500/40 rounded-lg xs:rounded-xl text-[8px] xs:text-[9px] font-bold active:scale-95 transition cursor-pointer flex items-center gap-1"
+                title="ملء جميع المقاعد الشاغرة ببوتات"
+              >
+                <span>🤖</span>
+                <span>ملء ببوتات</span>
+              </button>
+              <button
+                onClick={onVacateAllSeats}
+                className="px-1.5 xs:px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg xs:rounded-xl text-[8px] xs:text-[9px] font-bold active:scale-95 transition cursor-pointer"
+                title="إفراغ جميع المقاعد ما عدا مقعدك"
+              >
+                <span>إفراغ الشواغر</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-1 xs:gap-1.5">
-            <button
-              onClick={onFillAllWithBots}
-              className="px-2 xs:px-2.5 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-300 border border-cyan-500/40 rounded-lg xs:rounded-xl text-[8px] xs:text-[9px] font-bold active:scale-95 transition cursor-pointer flex items-center gap-1"
-              title="ملء جميع المقاعد ببوتات"
-            >
-              <span>🤖</span>
-              <span>ملء ببوتات</span>
-            </button>
-            <button
-              onClick={onVacateAllSeats}
-              className="px-1.5 xs:px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg xs:rounded-xl text-[8px] xs:text-[9px] font-bold active:scale-95 transition cursor-pointer"
-              title="إفراغ جميع المقاعد ما عدا مقعدك"
-            >
-              <span>إفراغ</span>
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Seats Grouped by Team */}
         <div className="mb-2.5 space-y-2">
