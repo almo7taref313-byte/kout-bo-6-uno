@@ -109,7 +109,10 @@ export default function App() {
     const r = params.get('room');
     return r && r.length === 4 ? r : String(Math.floor(1000 + Math.random() * 9000));
   });
-  const [isRoomHost, setIsRoomHost] = useState<boolean>(true);
+  const [isRoomHost, setIsRoomHost] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !Boolean(params.get('room'));
+  });
   const [isMultiplayerActive, setIsMultiplayerActive] = useState<boolean>(() => {
     const params = new URLSearchParams(window.location.search);
     const r = params.get('room');
@@ -270,7 +273,7 @@ export default function App() {
 
   // Initial Deal & Start Round
   const startNewRound = useCallback(
-    (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[]) => {
+    (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[], humanSeatOverride?: number) => {
       stopTimer();
       setIsActionPending(false);
 
@@ -278,9 +281,10 @@ export default function App() {
       setDealerIdx(activeDealer);
 
       const activeSeats = seatsOverride || seats;
+      const activeHumanSeat = humanSeatOverride !== undefined ? humanSeatOverride : currentHumanSeatIndex;
       const deck = deckOverride || buildDeck();
       const freshPlayers: Player[] = activeSeats.map((seatCfg, idx) => {
-        const isMe = idx === currentHumanSeatIndex;
+        const isMe = idx === activeHumanSeat;
         const isHumanPlayer = Boolean(seatCfg.isHuman || isMe);
         return {
           ...seatCfg,
@@ -330,6 +334,9 @@ export default function App() {
     startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
+  // Message Handler Ref for persistent, zero-drop room synchronization
+  const messageHandlerRef = useRef<(msg: RoomSyncMessage) => void>(() => {});
+
   // Join Room via 4-digit code as a waiting player
   const handleJoinRoomWaiting = useCallback(
     (code: string) => {
@@ -337,6 +344,11 @@ export default function App() {
       setIsRoomHost(false);
       setIsMultiplayerActive(true);
       setShowHostModal(false);
+
+      // Immediately connect and subscribe roomSync to this room topic
+      roomSync.subscribeRoom(code, (msg) => {
+        messageHandlerRef.current(msg);
+      });
 
       // Publish JOIN_REQUEST with player details & clientId to host
       roomSync.publish({
@@ -381,6 +393,36 @@ export default function App() {
     setWaitingPlayers([]);
     showCallout('غادرت الغرفة وعدت للرئيسية 🚪', '🚪');
   }, [roomCode, showCallout]);
+
+  // Gentle retry of JOIN_REQUEST while in LOBBY until acknowledged by host in seats or waiting list
+  useEffect(() => {
+    if (!isMultiplayerActive || isRoomHost || phase !== 'LOBBY' || !roomCode) return;
+
+    const interval = setInterval(() => {
+      const isAlreadyAcknowledged =
+        waitingPlayers.some((w) => w.clientId === roomSync.myClientId) ||
+        seats.some((s) => s.clientId === roomSync.myClientId);
+
+      if (!isAlreadyAcknowledged) {
+        roomSync.publish({
+          type: 'JOIN_REQUEST',
+          roomCode,
+          senderId: roomSync.myClientId,
+          player: {
+            name: userName,
+            team: 'A',
+            avatarId: userAvatar,
+            customPhoto: userCustomPhoto,
+            isHuman: true,
+            clientId: roomSync.myClientId,
+          },
+          timestamp: Date.now(),
+        });
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isMultiplayerActive, isRoomHost, phase, roomCode, seats, userAvatar, userCustomPhoto, userName, waitingPlayers]);
 
   // Handle URL Room query parameter on mount: join room and wait for host
   useEffect(() => {
@@ -999,14 +1041,11 @@ export default function App() {
     }
   };
 
-  // Room synchronization subscription for multiplayer actions & room state
-  useEffect(() => {
-    if (!roomCode) return;
+  // Room synchronization message handler (always has freshest state in scope)
+  messageHandlerRef.current = (msg: RoomSyncMessage) => {
+    if (msg.senderId === roomSync.myClientId) return;
 
-    const unsubscribe = roomSync.subscribeRoom(roomCode, (msg: RoomSyncMessage) => {
-      if (msg.senderId === roomSync.myClientId) return;
-
-      switch (msg.type) {
+    switch (msg.type) {
         case 'JOIN_REQUEST': {
           // If this client is host, register in waiting players and broadcast current room state
           if (isRoomHost) {
@@ -1158,19 +1197,21 @@ export default function App() {
           soundEngine.playCardSlide();
 
           let activeSeats = msg.seats || seats;
+          let myAssignedIdx = currentHumanSeatIndex;
 
           if (msg.seats) {
-            const myAssignedIdx = msg.seats.findIndex(
+            const foundIdx = msg.seats.findIndex(
               (s) =>
                 (s.clientId && s.clientId === roomSync.myClientId) ||
                 (!s.clientId && s.isHuman && s.name === userName)
             );
-            if (myAssignedIdx !== -1) {
-              setCurrentHumanSeatIndex(myAssignedIdx);
-              activeSeats = msg.seats.map((s, i) =>
-                i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
-              );
+            if (foundIdx !== -1) {
+              myAssignedIdx = foundIdx;
+              setCurrentHumanSeatIndex(foundIdx);
             }
+            activeSeats = msg.seats.map((s, i) =>
+              i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
+            );
             setSeats(activeSeats);
           }
 
@@ -1184,7 +1225,7 @@ export default function App() {
           setRoundNumber(msg.roundNumber ?? 1);
 
           if (msg.deck && msg.dealerIdx !== undefined) {
-            startNewRound(msg.deck, msg.dealerIdx, activeSeats);
+            startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
           }
           showCallout('بدأ اللعب للجميع! 🃏', '🚀');
           break;
@@ -1219,7 +1260,7 @@ export default function App() {
               setMatchScoreTeamA(msg.scores.a);
               setMatchScoreTeamB(msg.scores.b);
             }
-            startNewRound(msg.deck, msg.dealerIdx);
+            startNewRound(msg.deck, msg.dealerIdx, seats, currentHumanSeatIndex);
             showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
           }
           break;
@@ -1463,12 +1504,20 @@ export default function App() {
         default:
           break;
       }
+  };
+
+  // Dedicated room subscription: only re-subscribes when roomCode changes (zero drops)
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = roomSync.subscribeRoom(roomCode, (msg: RoomSyncMessage) => {
+      messageHandlerRef.current(msg);
     });
 
     return () => {
       unsubscribe();
     };
-  }, [bidWinner, chooseTrumpColor, currentHumanSeatIndex, dealerIdx, handlePlayCard, highestBid, isRoomHost, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid, trumpColor, userName, waitingPlayers]);
+  }, [roomCode]);
 
   // Profile Save
   const handleSaveProfileName = (newName: string) => {

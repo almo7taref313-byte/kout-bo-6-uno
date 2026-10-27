@@ -177,7 +177,7 @@ class RoomSyncManager {
       }
     } catch {}
 
-    // 2. Setup MQTT over WebSocket
+    // 2. Setup MQTT over WebSocket on dedicated EMQX Serverless broker
     try {
       if (this.client) {
         try {
@@ -186,21 +186,14 @@ class RoomSyncManager {
         this.client = null;
       }
 
-      const useDedicated = !this.hasFallenBack;
-      const targetBroker = useDedicated ? PRIMARY_BROKER : FALLBACK_BROKER;
-
-      const client = mqtt.connect(targetBroker, {
+      const client = mqtt.connect(PRIMARY_BROKER, {
         clientId: this.myClientId,
         clean: true,
-        connectTimeout: 4000,
-        reconnectPeriod: 1000,
-        keepalive: 10, // 10s keepalive pings keep mobile cellular sockets alive
-        ...(useDedicated
-          ? {
-              username: BROKER_USERNAME,
-              password: BROKER_PASSWORD,
-            }
-          : {}),
+        connectTimeout: 5000,
+        reconnectPeriod: 1200,
+        keepalive: 10,
+        username: BROKER_USERNAME,
+        password: BROKER_PASSWORD,
       });
 
       this.client = client;
@@ -242,19 +235,6 @@ class RoomSyncManager {
         this.isConnecting = false;
         this.isConnected = false;
         this.failCount++;
-        if (this.failCount >= 4 && !this.hasFallenBack) {
-          this.hasFallenBack = true;
-          this.failCount = 0;
-          try {
-            this.client?.end(true);
-          } catch {}
-          this.client = null;
-          if (this.currentRoomCode) {
-            setTimeout(() => {
-              if (this.currentRoomCode) this.connect(this.currentRoomCode);
-            }, 600);
-          }
-        }
       };
 
       client.on('error', handleError);
@@ -267,13 +247,21 @@ class RoomSyncManager {
   }
 
   public publish(msg: RoomSyncMessage) {
+    const targetRoom = msg.roomCode || this.currentRoomCode;
     const fullMsg: RoomSyncMessage = {
       ...msg,
       senderId: this.myClientId,
-      timestamp: Date.now(),
+      timestamp: msg.timestamp || Date.now(),
     };
 
-    // 1. BroadcastChannel
+    if (targetRoom && (!this.currentRoomCode || this.currentRoomCode !== targetRoom)) {
+      this.currentRoomCode = targetRoom;
+      if (!this.client || !this.client.connected) {
+        this.connect(targetRoom);
+      }
+    }
+
+    // 1. BroadcastChannel (same browser tab-to-tab)
     try {
       if (this.bc) {
         this.bc.postMessage(fullMsg);
@@ -282,26 +270,30 @@ class RoomSyncManager {
 
     // 2. LocalStorage for same-device cross-tab event
     try {
-      localStorage.setItem(`kout_room_event_${msg.roomCode}`, JSON.stringify(fullMsg));
+      localStorage.setItem(`kout_room_event_${targetRoom}`, JSON.stringify(fullMsg));
     } catch {}
 
-    // 3. Queue and flush via MQTT
+    // 3. Queue and flush via dedicated MQTT broker
     this.outboundQueue.push(fullMsg);
     this.flushQueue();
   }
 
   private flushQueue() {
-    if (!this.client || !this.client.connected || !this.currentRoomCode) {
-      // If disconnected, trigger connect
+    if (!this.client || !this.client.connected) {
       if (this.currentRoomCode && !this.isConnecting) {
         this.connect(this.currentRoomCode);
       }
       return;
     }
 
-    const topic = `kout_bo6/room_${this.currentRoomCode}`;
     while (this.outboundQueue.length > 0) {
       const msg = this.outboundQueue[0];
+      const targetRoom = msg.roomCode || this.currentRoomCode;
+      if (!targetRoom) {
+        this.outboundQueue.shift();
+        continue;
+      }
+      const topic = `kout_bo6/room_${targetRoom}`;
       try {
         this.client.publish(topic, JSON.stringify(msg), { qos: 0 });
         this.outboundQueue.shift();
@@ -313,7 +305,9 @@ class RoomSyncManager {
 
   private notifyListeners(msg: RoomSyncMessage) {
     // Deduplicate identical packets
-    const hash = `${msg.senderId}_${msg.type}_${msg.timestamp}_${msg.playerId ?? ''}_${msg.card?.id ?? ''}_${msg.roundNumber ?? ''}`;
+    const seatsSummary = msg.seats ? msg.seats.map((s) => `${s.id}:${s.name}:${s.isHuman ? 1 : 0}`).join(',') : '';
+    const waitingSummary = msg.waitingPlayers ? msg.waitingPlayers.map((w) => w.clientId).join(',') : '';
+    const hash = `${msg.senderId}_${msg.type}_${msg.timestamp}_${msg.playerId ?? ''}_${msg.card?.id ?? ''}_${msg.roundNumber ?? ''}_${seatsSummary}_${waitingSummary}`;
     if (this.seenMessageHashes.has(hash)) {
       return;
     }
@@ -329,7 +323,9 @@ class RoomSyncManager {
     this.listeners.forEach((cb) => {
       try {
         cb(msg);
-      } catch {}
+      } catch (err) {
+        console.error('RoomSync listener error:', err);
+      }
     });
   }
 
