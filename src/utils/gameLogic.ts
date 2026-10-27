@@ -93,11 +93,9 @@ export function buildDeck(): Card[] {
 
 export function getEffectiveLeadColor(trick: TrickPlay[]): SuitColor | null {
   if (!trick || trick.length === 0) return null;
-  if (trick[0].card.isJoker) {
-    const next = trick.find((p) => !p.card.isJoker);
-    return next ? next.card.color : null;
-  }
-  return trick[0].card.color;
+  // If led with Joker or Maker, the first suited card determines the lead color
+  const suited = trick.find((p) => !p.card.isJoker && !p.card.isMaker);
+  return suited ? suited.card.color : null;
 }
 
 export function getCardPower(
@@ -111,9 +109,17 @@ export function getCardPower(
 
   const lead = getEffectiveLeadColor(trick);
 
-  // خال الحكم (1 of Trump suit) is stronger than Maker and never breaks to Maker!
+  // خال الحكم (1 of Trump suit) is strictly higher than Maker, Maker NEVER eats خال الحكم!
   if (trumpColor && card.color === trumpColor && card.rank === '1') return 950;
-  if (card.isMaker) return 850;
+
+  if (card.isMaker) {
+    // If خال الحكم is in the trick, Maker NEVER beats خال الحكم
+    const hasTrumpKing = trick.some(
+      (t) => trumpColor && t.card.color === trumpColor && t.card.rank === '1'
+    );
+    if (hasTrumpKing) return 50;
+    return 850;
+  }
 
   const base = SUIT_RANKS.indexOf(card.rank);
   if (trumpColor && card.color === trumpColor) return 100 + base;
@@ -123,6 +129,33 @@ export function getCardPower(
 
 export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | null): number {
   if (!trick || trick.length === 0) return 0;
+
+  // 1. If Joker (+4) was played (and not as opening when other cards held), Joker ALWAYS wins!
+  const validJokerPlay = trick.find((t, idx) => t.card.isJoker && (idx > 0 || trick.length === 1));
+  if (validJokerPlay) {
+    return validJokerPlay.playerId;
+  }
+
+  // 2. If خال الحكم (1 of trumpColor) is in the trick:
+  // "الميكر لا يأكل خال الحكم أبداً!"
+  // خال الحكم ALWAYS wins against the Maker and all other trumps / suited cards!
+  if (trumpColor) {
+    const trumpKingPlay = trick.find(
+      (t) => t.card.color === trumpColor && t.card.rank === '1'
+    );
+    if (trumpKingPlay) {
+      return trumpKingPlay.playerId;
+    }
+  }
+
+  // 3. If Maker (Rainbow 🌈) is in the trick:
+  // Maker beats all other trumps and suited cards (except Joker and خال الحكم)!
+  const makerPlay = trick.find((t) => t.card.isMaker);
+  if (makerPlay) {
+    return makerPlay.playerId;
+  }
+
+  // 4. Regular trick resolution by card power
   let winning = trick[0];
   let maxP = getCardPower(winning.card, trick, trumpColor, 0);
 
@@ -272,10 +305,10 @@ export function selectBotMove(bot: Player, trick: TrickPlay[], trumpColor: SuitC
  */
 export function getCardRankValue(card: Card, trumpColor: SuitColor | null): number {
   if (card.isJoker) return 1000;
-  if (card.isMaker) return 900;
 
   const isTrump = trumpColor && card.color === trumpColor;
-  if (isTrump && card.rank === '1') return 500; // خال الحكم
+  if (isTrump && card.rank === '1') return 950; // خال الحكم أعلى من الميكر ولا يأكله الميكر أبداً
+  if (card.isMaker) return 900;
 
   switch (card.rank) {
     case '1': return 100; // الواحد (الخال) - أعلى قيمة لكل لون

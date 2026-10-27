@@ -469,16 +469,19 @@ export default function App() {
 
       // If Baoon (9), finish bidding immediately
       if (effectiveVal === 9) {
+        stopTimer();
         setBidWinner(playerId);
         setHighestBid(9);
-        setTimeout(() => {
-          setPhase('CHOOSE_TRUMP');
-          const buyer = players[playerId];
-          if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+        setCurrentTurn(playerId);
+        setPhase('CHOOSE_TRUMP');
+
+        const buyer = players[playerId];
+        if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+          setTimeout(() => {
             const bestCol = selectBotBestTrump(buyer.hand);
             chooseTrumpColor(bestCol, playerId);
-          }
-        }, 1400);
+          }, 900);
+        }
         return;
       }
 
@@ -521,6 +524,7 @@ export default function App() {
   // Bot bidding automation
   useEffect(() => {
     if (phase !== 'BIDDING') return;
+    if (highestBid >= 9) return;
 
     const bot = players[currentTurn];
     if (!bot) return;
@@ -1487,6 +1491,7 @@ export default function App() {
             callout={callout}
             collectingWinnerId={collectingWinnerId}
             dealerIdx={dealerIdx}
+            isBaoonPendingTrump={highestBid === 9 && trumpColor === null}
           />
 
           <PlayerHand

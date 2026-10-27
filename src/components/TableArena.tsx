@@ -20,6 +20,7 @@ interface TableArenaProps {
   humanSeatIndex?: number;
   collectingWinnerId?: number | null;
   dealerIdx?: number;
+  isBaoonPendingTrump?: boolean;
 }
 
 interface CardCoord {
@@ -63,7 +64,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
   callout,
   collectingWinnerId = null,
   dealerIdx = 0,
+  isBaoonPendingTrump,
 }) => {
+  // Festive lights appear when Baoon is selected (highestBid === 9) and disappear once trumpColor is chosen!
+  const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
+
   // Other seat indices around the table perimeter relative to human player
   const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
   const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
@@ -72,8 +77,72 @@ export const TableArena: React.FC<TableArenaProps> = ({
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-1 xs:px-2 py-0.5 sm:py-2 relative overflow-hidden">
       
       {/* Jawaker Vertical Stadium Table - Dynamically bounded for Fold, Flip, Landscape & Tablet */}
-      <div className="jawaker-table-felt rounded-[36px] xs:rounded-[44px] sm:rounded-[56px] md:rounded-[64px] w-[80%] xs:w-[82%] sm:w-[85%] md:w-[88%] max-w-[420px] sm:max-w-[480px] md:max-w-[540px] h-[94%] max-h-[460px] sm:max-h-[520px] relative flex items-center justify-center p-1.5 xs:p-2 select-none shadow-2xl">
+      <div className={`jawaker-table-felt rounded-[36px] xs:rounded-[44px] sm:rounded-[56px] md:rounded-[64px] w-[80%] xs:w-[82%] sm:w-[85%] md:w-[88%] max-w-[420px] sm:max-w-[480px] md:max-w-[540px] h-[94%] max-h-[460px] sm:max-h-[520px] relative flex items-center justify-center p-1.5 xs:p-2 select-none shadow-2xl transition-all duration-300 ${
+        isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
+      }`}>
         
+        {/* Festive Baoon Running Lights Around Table - Disappears upon choosing trump color */}
+        {isBaoonActive && (
+          <>
+            {/* Revolving Rainbow Neon Frame */}
+            <div className="baoon-lights-frame" />
+
+            {/* Perimeter Festive Colored Light Bulbs */}
+            <div className="absolute inset-1 pointer-events-none z-30 rounded-[34px] xs:rounded-[42px] sm:rounded-[54px] md:rounded-[62px] overflow-hidden">
+              {/* Top row of colored bulbs */}
+              <div className="absolute top-1.5 left-6 right-6 flex justify-around">
+                {['#ea1d2d', '#fed000', '#2eb844', '#0063b0', '#e11d48', '#a855f7', '#f97316', '#38bdf8'].map((col, i) => (
+                  <div
+                    key={`top-${i}`}
+                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
+                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.12}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Bottom row of colored bulbs */}
+              <div className="absolute bottom-1.5 left-6 right-6 flex justify-around">
+                {['#38bdf8', '#f97316', '#a855f7', '#e11d48', '#0063b0', '#2eb844', '#fed000', '#ea1d2d'].map((col, i) => (
+                  <div
+                    key={`bottom-${i}`}
+                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
+                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.12 + 0.06}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Left side bulbs */}
+              <div className="absolute top-10 bottom-10 left-1.5 flex flex-col justify-around">
+                {['#ea1d2d', '#2eb844', '#fed000', '#a855f7'].map((col, i) => (
+                  <div
+                    key={`left-${i}`}
+                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
+                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.18}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Right side bulbs */}
+              <div className="absolute top-10 bottom-10 right-1.5 flex flex-col justify-around">
+                {['#0063b0', '#e11d48', '#38bdf8', '#f97316'].map((col, i) => (
+                  <div
+                    key={`right-${i}`}
+                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
+                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.18 + 0.08}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Festive Crown Banner in Baoon */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500 text-slate-950 font-black px-3.5 py-1 rounded-full text-[11px] sm:text-xs shadow-2xl border border-yellow-200 animate-bounce flex items-center gap-1.5 z-40">
+                <span>👑</span>
+                <span>باون كاسح! تحديد الحكم...</span>
+                <span>✨</span>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Subtle Felt Watermark: كوت بو ٦ أونو (باهتة ومنسقة لا تشتت اللاعبين) */}
         <div className="table-felt-watermark">
           <span className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest">
