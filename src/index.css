@@ -1,0 +1,400 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Tajawal', -apple-system, sans-serif;
+    --font-uno: 'Fredoka', 'Impact', sans-serif;
+    --font-callout: 'Changa', 'Tajawal', sans-serif;
+  }
+
+  html, body, #root {
+    font-family: var(--font-sans);
+    height: 100%;
+    height: 100dvh;
+    width: 100%;
+    max-height: 100dvh;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    overflow: hidden;
+    background: #22252a; /* Jawaker dark matte charcoal background */
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.font-uno {
+  font-family: 'Fredoka', 'Impact', sans-serif;
+}
+
+.font-callout {
+  font-family: 'Changa', 'Tajawal', sans-serif;
+}
+
+.safe-top {
+  padding-top: max(4px, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+/* No scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Jawaker Green Felt Stadium Table */
+.jawaker-table-felt {
+  background: radial-gradient(ellipse at 50% 45%, #2fa53e 0%, #258c33 55%, #1e7529 100%);
+  box-shadow: 
+    0 12px 30px rgba(0, 0, 0, 0.7),
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    inset 0 0 40px rgba(18, 65, 25, 0.6),
+    inset 0 2px 6px rgba(255, 255, 255, 0.15);
+  border: 5px solid #1a5c24;
+  outline: 2px solid #124419;
+  position: relative;
+  transition: all 0.25s ease-out;
+}
+@media (min-width: 480px) {
+  .jawaker-table-felt {
+    border: 7px solid #1a5c24;
+  }
+}
+
+/* Subtle Table Watermark - Elegant, non-distracting felt imprint */
+.table-felt-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(12, 50, 18, 0.24);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.07);
+  font-family: 'Tajawal', 'Changa', sans-serif;
+  font-weight: 900;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  white-space: nowrap;
+}
+
+/* UNO Cards Styling - Matching Reference Image 2 */
+.uno-card-ref {
+  position: relative;
+  background: #ffffff;
+  border-radius: 7px;
+  padding: 2.5px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  transform-origin: center bottom;
+  flex-shrink: 0;
+  display: inline-block;
+  user-select: none;
+}
+
+/* Dimensions for Uno Cards in Hand - Fluid for Fold, Flip, Normal & Tablet */
+.uno-card-hand {
+  width: 44px;
+  height: 68px;
+  border-radius: 6px;
+  padding: 2px;
+}
+@media (min-width: 360px) {
+  .uno-card-hand {
+    width: 50px;
+    height: 78px;
+    border-radius: 8px;
+    padding: 2.5px;
+  }
+}
+@media (min-width: 440px) {
+  .uno-card-hand {
+    width: 60px;
+    height: 92px;
+    border-radius: 9px;
+    padding: 3px;
+  }
+}
+@media (min-width: 640px) {
+  .uno-card-hand {
+    width: 72px;
+    height: 110px;
+    border-radius: 11px;
+    padding: 3.5px;
+  }
+}
+@media (min-width: 1024px) {
+  .uno-card-hand {
+    width: 82px;
+    height: 124px;
+    border-radius: 13px;
+    padding: 4px;
+  }
+}
+/* Short viewports (landscape mobile or split screens) */
+@media (max-height: 520px) and (orientation: landscape) {
+  .uno-card-hand {
+    width: 42px !important;
+    height: 64px !important;
+    border-radius: 6px !important;
+    padding: 2px !important;
+  }
+}
+
+/* Table played card dimensions */
+.uno-card-table {
+  width: 46px;
+  height: 70px;
+}
+@media (min-width: 360px) {
+  .uno-card-table {
+    width: 52px;
+    height: 80px;
+  }
+}
+@media (min-width: 640px) {
+  .uno-card-table {
+    width: 66px;
+    height: 100px;
+  }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .uno-card-table {
+    width: 40px !important;
+    height: 60px !important;
+  }
+}
+
+.uno-card-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Colors matching UNO Reference */
+.uno-bg-red { background: #ea1d2d; }
+.uno-bg-yellow { background: #ffd000; }
+.uno-bg-green { background: #009e49; }
+.uno-bg-blue { background: #0082c8; }
+.uno-bg-black { background: #111111; }
+
+/* The Iconic Tilted White Oval */
+.uno-center-oval {
+  position: absolute;
+  width: 84%;
+  height: 74%;
+  background: #ffffff;
+  border-radius: 50%;
+  transform: rotate(26deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Clean UNO Numerals - Ultra Crisp, High Contrast, Zero Stroke */
+.uno-number-text {
+  font-family: 'Fredoka', 'Changa', 'Tajawal', sans-serif;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  filter: none;
+  text-shadow: none;
+}
+
+.uno-corner-text {
+  font-family: 'Fredoka', 'Changa', 'Tajawal', sans-serif;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  filter: none;
+  text-shadow: none;
+}
+
+/* Holographic / Special Glows */
+.holo-card {
+  position: relative;
+  overflow: hidden;
+}
+.holo-card::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(115deg, 
+    transparent 20%, 
+    rgba(255, 215, 0, 0.45) 35%, 
+    rgba(255, 0, 128, 0.45) 50%, 
+    rgba(0, 255, 240, 0.5) 65%, 
+    transparent 80%);
+  transform: rotate(25deg);
+  animation: holoShine 3.2s infinite linear;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+  z-index: 20;
+}
+
+@keyframes holoShine {
+  0% { transform: translateY(-80%) rotate(25deg); }
+  100% { transform: translateY(80%) rotate(25deg); }
+}
+
+.card-joker-glow {
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.9), 0 6px 14px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(254, 240, 138, 0.9);
+}
+
+.card-maker-glow {
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.9), 0 6px 14px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(186, 230, 253, 0.9);
+}
+
+/* Interactive Player Hand Cards */
+.player-card {
+  opacity: 1 !important;
+  filter: none !important;
+  cursor: pointer;
+}
+.player-card:hover, .player-card:active {
+  transform: translateY(-20px) scale(1.1) !important;
+  box-shadow: 0 16px 26px rgba(0, 0, 0, 0.65), 0 0 14px rgba(245, 158, 11, 0.8) !important;
+  z-index: 70 !important;
+}
+.player-card.active-playable {
+  animation: bounceCard 2.1s infinite ease-in-out;
+}
+@keyframes bounceCard {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* 3D Flying Slide for Played Cards */
+@keyframes slideDeal {
+  0% {
+    transform: translateY(35px) scale(0.7) rotate(-8deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+.card-played-anim {
+  animation: slideDeal 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Neon Turn Timer Ring */
+.timer-ring-neon {
+  stroke-dasharray: 125.6;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.18s linear, stroke 0.3s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 6px #f59e0b);
+}
+
+/* Yellow phosphor pulse */
+.glow-turn-phosphor {
+  box-shadow: 0 0 14px 2px rgba(250, 204, 21, 0.85), inset 0 0 6px rgba(250, 204, 21, 0.45) !important;
+  animation: pulsePhosphor 1.5s infinite ease-in-out alternate;
+}
+@keyframes pulsePhosphor {
+  0% { box-shadow: 0 0 6px 1px rgba(250, 204, 21, 0.65); }
+  100% { box-shadow: 0 0 16px 3px rgba(250, 204, 21, 0.95); }
+}
+
+/* Red critical timer pulse */
+.glow-turn-critical-red {
+  box-shadow: 0 0 18px 3px rgba(239, 68, 68, 0.95), inset 0 0 8px rgba(239, 68, 68, 0.6) !important;
+  animation: flashCriticalRed 0.45s infinite alternate ease-in-out;
+}
+@keyframes flashCriticalRed {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.06); }
+}
+
+/* Jawaker HUD Elements */
+.jawaker-pill-badge {
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.jawaker-score-dial {
+  background: radial-gradient(circle at 50% 40%, #1e2229 0%, #111419 100%);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5);
+  border: 2px solid #374151;
+}
+
+/* Lobby Styling */
+.lobby-bg {
+  background: radial-gradient(circle at 50% 20%, #1c232d 0%, #14171d 70%, #0d0f12 100%);
+}
+.btn-glow-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.5);
+}
+.btn-glow-blue {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5);
+}
+
+/* Forced landscape mode */
+body.forced-landscape-mode {
+  overflow: hidden;
+}
+body.forced-landscape-mode #gameMainWrapper {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 100dvh !important;
+  height: 100dvw !important;
+  transform: translate(-50%, -50%) rotate(90deg) !important;
+  transform-origin: center center !important;
+  z-index: 100;
+}
+
+/* Responsive ScoreBoard HUD utilities to guarantee zero-overlap on all mobile screens and widescreen */
+.hud-sub-bar {
+  display: flex;
+}
+.hud-widescreen-only {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .hud-sub-bar {
+    display: none !important;
+  }
+  .hud-widescreen-only {
+    display: flex !important;
+  }
+}
+
+@media (orientation: landscape) and (min-height: 280px) {
+  .hud-sub-bar {
+    display: none !important;
+  }
+  .hud-widescreen-only {
+    display: flex !important;
+  }
+}
+
+

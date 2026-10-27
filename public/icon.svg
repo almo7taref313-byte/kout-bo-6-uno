@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#2c3545" />
+      <stop offset="60%" stop-color="#181d26" />
+      <stop offset="100%" stop-color="#0e1117" />
+    </radialGradient>
+    <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Base App Background with Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="108" fill="none" stroke="url(#goldBorder)" stroke-width="8"/>
+
+  <!-- Centered Uno Card Visual -->
+  <g transform="translate(256, 240) rotate(-8) translate(-90, -130)" filter="url(#cardShadow)">
+    <rect width="180" height="260" rx="24" fill="#ffffff" stroke="#000000" stroke-width="5"/>
+    <rect width="168" height="248" x="6" y="6" rx="20" fill="#ea1d2d"/>
+    <ellipse cx="90" cy="130" rx="72" ry="46" fill="#ffffff" transform="rotate(-26 90 130)"/>
+    <text x="90" y="160" font-family="'Fredoka', 'Impact', sans-serif" font-size="96" font-style="italic" font-weight="900" fill="#ea1d2d" text-anchor="middle">6</text>
+  </g>
+
+  <!-- Crown on Top of Card -->
+  <path d="M216 110 L256 70 L296 110 L320 85 L310 130 L202 130 L192 85 Z" fill="#fbbf24" stroke="#d97706" stroke-width="4"/>
+  <circle cx="216" cy="110" r="5" fill="#ffffff"/>
+  <circle cx="256" cy="70" r="6" fill="#ffffff"/>
+  <circle cx="296" cy="110" r="5" fill="#ffffff"/>
+
+  <!-- App Title Text -->
+  <text x="256" y="435" font-family="'Tajawal', sans-serif" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle">كوت بو ستة</text>
+  <text x="256" y="475" font-family="'Fredoka', sans-serif" font-size="26" font-weight="700" fill="#fbbf24" text-anchor="middle" letter-spacing="2">UNO EDITION</text>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "name": "Kout Bu 6 - كوت بو ستة أونو",
+  "description": "لعبة كوت بو ستة أونو الكويتية الأصيلة بقواعد الديوانية، كروت أونو المميزة، تحديات الذكاء الاصطناعي، ونظام الغرف والمقاعد التفاعلي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
