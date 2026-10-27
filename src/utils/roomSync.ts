@@ -61,18 +61,19 @@ export interface RoomSyncMessage {
 
 export type RoomMessageCallback = (msg: RoomSyncMessage) => void;
 
-const BROKER_URLS = [
-  'wss://broker.emqx.io:8084/mqtt',
-  'wss://broker.hivemq.com:8884/mqtt',
-];
+// High-speed globally distributed MQTT broker
+const PRIMARY_BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 class RoomSyncManager {
   private client: MqttClient | null = null;
   private currentRoomCode: string | null = null;
   private bc: BroadcastChannel | null = null;
   private listeners: Set<RoomMessageCallback> = new Set();
-  private brokerIndex: number = 0;
   private isConnecting: boolean = false;
+  private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private outboundQueue: RoomSyncMessage[] = [];
+  private seenMessageHashes: Set<string> = new Set();
+  public isConnected: boolean = false;
   public myClientId: string = 'kout_' + Math.random().toString(36).substring(2, 9);
 
   constructor() {
@@ -109,7 +110,7 @@ class RoomSyncManager {
   public subscribeRoom(roomCode: string, onMessage: RoomMessageCallback): () => void {
     this.listeners.add(onMessage);
 
-    if (this.currentRoomCode !== roomCode) {
+    if (this.currentRoomCode !== roomCode || !this.client || !this.client.connected) {
       this.disconnect();
       this.currentRoomCode = roomCode;
       this.connect(roomCode);
@@ -123,12 +124,15 @@ class RoomSyncManager {
   public handleWakeup() {
     if (!this.currentRoomCode) return;
 
-    // If client is dead, reconnect immediately
+    // Reset connecting lock if it got hung
+    this.isConnecting = false;
+
+    // If client is disconnected, reconnect immediately
     if (!this.client || !this.client.connected) {
       this.connect(this.currentRoomCode);
     }
 
-    // Immediately ask host for full state sync
+    // Immediately queue full state sync request
     this.publish({
       type: 'SYNC_REQUEST',
       roomCode: this.currentRoomCode,
@@ -138,9 +142,20 @@ class RoomSyncManager {
   }
 
   private connect(roomCode: string) {
-    if (this.isConnecting && this.client) return;
+    if (this.client && this.client.connected && this.currentRoomCode === roomCode) {
+      return;
+    }
+
     this.isConnecting = true;
     const topic = `kout_bo6/room_${roomCode}`;
+
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer);
+    }
+    // Safety watchdog: never let isConnecting stay stuck
+    this.connectTimeoutTimer = setTimeout(() => {
+      this.isConnecting = false;
+    }, 4500);
 
     // 1. Setup local BroadcastChannel
     try {
@@ -154,35 +169,43 @@ class RoomSyncManager {
       }
     } catch {}
 
-    // 2. Setup MQTT over WebSocket with broker fallback and fast keepalive for mobile
+    // 2. Setup MQTT over WebSocket
     try {
-      const brokerUrl = BROKER_URLS[this.brokerIndex % BROKER_URLS.length];
       if (this.client) {
         try {
           this.client.end(true);
         } catch {}
+        this.client = null;
       }
 
-      const client = mqtt.connect(brokerUrl, {
+      const client = mqtt.connect(PRIMARY_BROKER, {
         clientId: this.myClientId,
         clean: true,
         connectTimeout: 4000,
-        reconnectPeriod: 1500,
-        keepalive: 15, // 15s keepalive pings prevent mobile cellular socket drops
+        reconnectPeriod: 1000,
+        keepalive: 10, // 10s keepalive pings keep mobile cellular sockets alive
       });
 
       this.client = client;
 
       client.on('connect', () => {
         this.isConnecting = false;
-        client.subscribe(topic, { qos: 1 }, () => {
-          // Send request for current room state
-          this.publish({
-            type: 'SYNC_REQUEST',
-            roomCode,
-            senderId: this.myClientId,
-            timestamp: Date.now(),
-          });
+        this.isConnected = true;
+        if (this.connectTimeoutTimer) clearTimeout(this.connectTimeoutTimer);
+
+        client.subscribe(topic, { qos: 0 }, (err) => {
+          if (!err) {
+            // Flush any actions that occurred while connecting
+            this.flushQueue();
+
+            // Request state sync
+            this.publish({
+              type: 'SYNC_REQUEST',
+              roomCode,
+              senderId: this.myClientId,
+              timestamp: Date.now(),
+            });
+          }
         });
       });
 
@@ -199,15 +222,21 @@ class RoomSyncManager {
 
       client.on('error', () => {
         this.isConnecting = false;
-        // Rotate to fallback broker if available
-        this.brokerIndex++;
+        this.isConnected = false;
       });
 
       client.on('close', () => {
         this.isConnecting = false;
+        this.isConnected = false;
+      });
+
+      client.on('offline', () => {
+        this.isConnecting = false;
+        this.isConnected = false;
       });
     } catch {
       this.isConnecting = false;
+      this.isConnected = false;
     }
   }
 
@@ -230,16 +259,47 @@ class RoomSyncManager {
       localStorage.setItem(`kout_room_event_${msg.roomCode}`, JSON.stringify(fullMsg));
     } catch {}
 
-    // 3. MQTT
-    try {
-      if (this.client && this.client.connected && this.currentRoomCode) {
-        const topic = `kout_bo6/room_${this.currentRoomCode}`;
-        this.client.publish(topic, JSON.stringify(fullMsg), { qos: 1 });
+    // 3. Queue and flush via MQTT
+    this.outboundQueue.push(fullMsg);
+    this.flushQueue();
+  }
+
+  private flushQueue() {
+    if (!this.client || !this.client.connected || !this.currentRoomCode) {
+      // If disconnected, trigger connect
+      if (this.currentRoomCode && !this.isConnecting) {
+        this.connect(this.currentRoomCode);
       }
-    } catch {}
+      return;
+    }
+
+    const topic = `kout_bo6/room_${this.currentRoomCode}`;
+    while (this.outboundQueue.length > 0) {
+      const msg = this.outboundQueue[0];
+      try {
+        this.client.publish(topic, JSON.stringify(msg), { qos: 0 });
+        this.outboundQueue.shift();
+      } catch {
+        break;
+      }
+    }
   }
 
   private notifyListeners(msg: RoomSyncMessage) {
+    // Deduplicate identical packets
+    const hash = `${msg.senderId}_${msg.type}_${msg.timestamp}_${msg.playerId ?? ''}_${msg.card?.id ?? ''}_${msg.roundNumber ?? ''}`;
+    if (this.seenMessageHashes.has(hash)) {
+      return;
+    }
+    this.seenMessageHashes.add(hash);
+    if (this.seenMessageHashes.size > 200) {
+      const it = this.seenMessageHashes.values();
+      for (let i = 0; i < 50; i++) {
+        const val = it.next().value;
+        if (val) this.seenMessageHashes.delete(val);
+      }
+    }
+
     this.listeners.forEach((cb) => {
       try {
         cb(msg);
@@ -249,6 +309,11 @@ class RoomSyncManager {
 
   public disconnect() {
     this.isConnecting = false;
+    this.isConnected = false;
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer);
+      this.connectTimeoutTimer = null;
+    }
     if (this.bc) {
       try {
         this.bc.close();

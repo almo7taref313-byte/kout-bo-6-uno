@@ -845,8 +845,8 @@ export default function App() {
       return;
     }
 
-    // If trick is currently being swept, wait for animation
-    if (collectingWinnerId !== null || currentTrick.length >= 6) {
+    // If full trick of 6 cards is being swept, wait for animation
+    if (currentTrick.length >= 6) {
       showCallout('لحظة، جاري لمّ الأكلة... 🧹', '⏳');
       return;
     }
