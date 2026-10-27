@@ -888,7 +888,7 @@ export default function App() {
       submitBid(currentTurn, 0); // Force pass
     } else if (phase === 'PLAYING') {
       if (cur.hand.length > 0) {
-        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor);
+        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players);
         handlePlayCard(cur.id, chosen);
       }
     }

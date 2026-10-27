@@ -333,7 +333,9 @@ export function selectSmartDiscard(
 export function getTimeoutFallbackMove(
   hand: Card[],
   trick: TrickPlay[],
-  trumpColor: SuitColor | null
+  trumpColor: SuitColor | null,
+  playerId?: number,
+  players?: Player[]
 ): Card {
   const legal = hand.filter((c) => isLegalMove(hand, c, trick));
   if (legal.length === 0) return hand[0];
@@ -344,6 +346,32 @@ export function getTimeoutFallbackMove(
   // If responding to an existing trick:
   if (trick.length > 0 && lead) {
     const hasLeadSuit = lead !== 'special' && hand.some((c) => c.color === lead);
+
+    // User Rule: إذا لعب أحد أعضاء الفريق حكماً على لون آخر فالبوت/اللاعب لا يلعب جيكر/ميكر لأن الأكلة أصبحت للفريق
+    const isLeadOtherColor = Boolean(lead && lead !== 'special' && trumpColor && lead !== trumpColor);
+    const me = playerId !== undefined && players ? players[playerId] : null;
+    const teammateCutWithTrump = isLeadOtherColor && trick.some((p) => {
+      const pPlayer = players ? players[p.playerId] : null;
+      const isTeammate = playerId !== undefined && p.playerId !== playerId && (
+        (pPlayer && me && pPlayer.team === me.team) ||
+        (p.playerId % 2 === playerId % 2)
+      );
+      if (!isTeammate) return false;
+      return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
+    });
+
+    if (teammateCutWithTrump) {
+      const nonSupreme = legal.filter((c) => !c.isJoker && !c.isMaker);
+      const safePool = nonSupreme.length > 0 ? nonSupreme : legal;
+      if (hasLeadSuit) {
+        const leadCards = safePool.filter((c) => c.color === lead);
+        if (leadCards.length > 0) {
+          leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+          return leadCards[0];
+        }
+      }
+      return selectSmartDiscard(safePool, trick, trumpColor);
+    }
 
     // 1. User Rule: إذا كان اللون لا يملكه ويملك كرتاً من الحكم يلعبه!
     if (!hasLeadSuit) {
@@ -430,13 +458,53 @@ export function selectBotMove(
 
   const isLead = trick.length === 0;
 
-  // 1. TACTICAL RULES WHEN BUYER PLAYS SMALL TRUMP (BID >= 6):
+  // 1. TACTICAL RULES:
   if (!isLead) {
+    const leadSuit = getEffectiveLeadColor(trick);
+    const isLeadOtherColor = Boolean(
+      leadSuit &&
+      leadSuit !== 'special' &&
+      trumpColor &&
+      leadSuit !== trumpColor
+    );
+
+    // User Rule:
+    // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
+    const teammateCutWithTrump = isLeadOtherColor && trick.some((p) => {
+      const isTeammate = p.playerId !== bot.id && (
+        (context?.players && context.players[p.playerId]?.team === bot.team) ||
+        (bot.team ? (context?.players?.[p.playerId]?.team === bot.team) : (p.playerId % 2 === bot.id % 2))
+      );
+      if (!isTeammate) return false;
+      return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
+    });
+
+    if (teammateCutWithTrump) {
+      // The teammate already cut the trick with trump on another suit.
+      // The trick is secured for the team with this trump ("لان الاكلة ستصبح للفريق بوجود حكم").
+      // The bot in the same team MUST NOT play Joker or Maker!
+      const nonSupremeMoves = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
+      const safePool = nonSupremeMoves.length > 0 ? nonSupremeMoves : legalMoves;
+
+      // If bot has the lead suit, play lowest card of lead suit (follow suit cleanly, no wasting honors)
+      const leadCards = safePool.filter((c) => c.color === leadSuit);
+      if (leadCards.length > 0) {
+        leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return leadCards[0];
+      }
+
+      // If bot doesn't have lead suit, discard safely with smallest card (protecting kings and supreme cards)
+      return selectSmartDiscard(safePool, trick, trumpColor);
+    }
+
+    // 1b. TACTICAL RULES WHEN BUYER PLAYS SMALL TRUMP (BID >= 6) ON A TRUMP LEAD:
     const buyerPlayInTrick = buyerId !== null && buyerId !== undefined
       ? trick.find((p) => p.playerId === buyerId)
       : null;
 
+    const isTrumpLead = leadSuit === trumpColor;
     const isSmallTrumpPlayedByBuyer =
+      isTrumpLead &&
       buyerPlayInTrick &&
       trumpColor &&
       buyerPlayInTrick.card.color === trumpColor &&
@@ -538,6 +606,10 @@ export function selectBotMove(
   // 3. FOLLOWING / RESPONDING STRATEGY (!isLead):
   const isPartnerWinning = () => {
     const currentWinnerId = evaluateTrickWinner(trick, trumpColor);
+    const winnerPlayer = context?.players ? context.players[currentWinnerId] : null;
+    if (winnerPlayer && bot.team) {
+      return winnerPlayer.team === bot.team;
+    }
     return currentWinnerId % 2 === bot.id % 2;
   };
 
