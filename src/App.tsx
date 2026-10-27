@@ -104,6 +104,11 @@ export default function App() {
     return r && r.length === 4 ? r : String(Math.floor(1000 + Math.random() * 9000));
   });
   const [isRoomHost, setIsRoomHost] = useState<boolean>(true);
+  const [isMultiplayerActive, setIsMultiplayerActive] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const r = params.get('room');
+    return Boolean(r && r.length === 4);
+  });
   const [lastSeatReserved, setLastSeatReserved] = useState<{
     seatIndex: number;
     name: string;
@@ -228,22 +233,24 @@ export default function App() {
 
   // Initial Deal & Start Round
   const startNewRound = useCallback(
-    (deckOverride?: Card[], forcedDealerIdx?: number) => {
+    (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[]) => {
       stopTimer();
       setIsActionPending(false);
 
       const activeDealer = forcedDealerIdx !== undefined ? forcedDealerIdx : dealerIdx;
       setDealerIdx(activeDealer);
 
+      const activeSeats = seatsOverride || seats;
       const deck = deckOverride || buildDeck();
-      const freshPlayers: Player[] = seats.map((seatCfg, idx) => {
-        const isHuman = idx === currentHumanSeatIndex;
+      const freshPlayers: Player[] = activeSeats.map((seatCfg, idx) => {
+        const isMe = idx === currentHumanSeatIndex;
+        const isHumanPlayer = Boolean(seatCfg.isHuman || isMe);
         return {
           ...seatCfg,
-          name: isHuman ? userName : (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : DEFAULT_BOT_PROFILES[idx].name),
-          avatarId: isHuman ? userAvatar : (seatCfg.avatarId || DEFAULT_BOT_PROFILES[idx].avatarId),
-          customPhoto: isHuman ? userCustomPhoto : seatCfg.customPhoto,
-          isHuman,
+          name: isMe ? userName : (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : DEFAULT_BOT_PROFILES[idx].name),
+          avatarId: isMe ? userAvatar : (seatCfg.avatarId || DEFAULT_BOT_PROFILES[idx].avatarId),
+          customPhoto: isMe ? userCustomPhoto : seatCfg.customPhoto,
+          isHuman: isHumanPlayer,
           isVacant: false,
           hand: sortHandCards(deck.slice(idx * 9, (idx + 1) * 9), null),
         };
@@ -290,6 +297,7 @@ export default function App() {
     (code: string) => {
       setRoomCode(code);
       setIsRoomHost(false);
+      setIsMultiplayerActive(true);
 
       // Check for saved seats for this room or generate starting table with vacant seats
       const storedSeats = localStorage.getItem(`kout_room_seats_${code}`);
@@ -368,132 +376,39 @@ export default function App() {
     }
   }, [handleJoinRoomWithSeatReservation]);
 
-  // Real-time listener for Room events (Start Game & Seat Reservations & Live Sync across devices)
-  useEffect(() => {
-    if (!roomCode) return;
+  // Choose Trump Color
+  const chooseTrumpColor = useCallback(
+    (color: SuitColor, winnerId?: number, isFromRemote = false) => {
+      stopTimer();
+      setTrumpColor(color);
+      setPhase('PLAYING');
 
-    const handleRoomMessage = (data: RoomSyncMessage) => {
-      if (!data) return;
+      const winner = winnerId !== undefined ? winnerId : bidWinner !== null ? bidWinner : currentHumanSeatIndex;
+      setCurrentTurn(winner);
+      setIsActionPending(false);
 
-      if (data.type === 'START_GAME') {
-        setShowHostModal(false);
-        soundEngine.init();
-        soundEngine.playCardSlide();
-        startNewMatch();
-        showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
-      } else if (data.type === 'SEAT_RESERVED') {
-        const { seatIndex, oldSeatIndex, player, seats: incomingSeats } = data;
-        setSeats((prev) => {
-          let next = incomingSeats ? [...incomingSeats] : [...prev];
-          if (!incomingSeats && seatIndex !== undefined && player) {
-            next[seatIndex] = {
-              ...next[seatIndex],
-              id: seatIndex,
-              name: player.name,
-              avatarId: player.avatarId || 'kuwaiti_ghutra_white',
-              customPhoto: player.customPhoto || null,
-              team: player.team || (seatIndex % 2 === 0 ? 'A' : 'B'),
-              isHuman: true,
-              isVacant: false,
-            };
-            if (oldSeatIndex !== undefined && oldSeatIndex !== seatIndex && oldSeatIndex !== currentHumanSeatIndex) {
-              next[oldSeatIndex] = {
-                ...next[oldSeatIndex],
-                name: '',
-                isHuman: false,
-                isVacant: true,
-              };
-            }
-          }
-          try {
-            localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-          } catch {}
-          return next;
-        });
+      soundEngine.playCardSlide();
+      showCallout(`الحكم ${SUIT_COLORS[color].name}! العب يا بطل`, '♠️');
 
-        if (player) {
-          const vCount = data.vacantCount !== undefined ? data.vacantCount : undefined;
-          setLastSeatReserved({
-            seatIndex: seatIndex ?? 1,
-            name: player.name,
-            team: player.team,
-            avatarId: player.avatarId,
-            customPhoto: player.customPhoto,
-          });
-          const teamLabel = player.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-          soundEngine.playCardSlide();
-          showCallout(
-            `🎉 لاعب جديد دخل الغرفة: "${player.name}" في المقعد #${seatIndex} (${teamLabel})${vCount !== undefined ? ` • الشواغر: ${vCount}` : ''}`,
-            '👥'
-          );
-        }
-
-        // If host, broadcast full authoritative state back so the joining player is synced with all seats
-        if (isRoomHost) {
-          setTimeout(() => {
-            setSeats((currentLatest) => {
-              const currentVacant = currentLatest.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-              roomSync.publish({
-                type: 'ROOM_STATE',
-                roomCode,
-                senderId: roomSync.myClientId,
-                seats: currentLatest,
-                vacantCount: currentVacant,
-                timestamp: Date.now(),
-              });
-              return currentLatest;
-            });
-          }, 150);
-        }
-      } else if (data.type === 'ROOM_STATE' && data.seats) {
-        setSeats(data.seats);
-        try {
-          localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(data.seats));
-        } catch {}
-      } else if (data.type === 'HEARTBEAT' && isRoomHost) {
-        setSeats((current) => {
-          const currentVacant = current.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-          roomSync.publish({
-            type: 'ROOM_STATE',
-            roomCode,
-            senderId: roomSync.myClientId,
-            seats: current,
-            vacantCount: currentVacant,
-            timestamp: Date.now(),
-          });
-          return current;
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'TRUMP_CHOSEN',
+          roomCode,
+          senderId: roomSync.myClientId,
+          color,
+          playerId: winner,
+          timestamp: Date.now(),
         });
       }
-    };
 
-    const unsubscribe = roomSync.subscribeRoom(roomCode, handleRoomMessage);
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === `kout_room_start_${roomCode}`) {
-        setShowHostModal(false);
-        soundEngine.init();
-        soundEngine.playCardSlide();
-        startNewMatch();
-        showCallout('بدأ منشئ الغرفة اللعبة! 🚀', '🚀');
-      } else if (e.key === `kout_room_event_${roomCode}` && e.newValue) {
-        try {
-          const data = JSON.parse(e.newValue);
-          handleRoomMessage(data);
-        } catch {}
-      }
-    };
-
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, [roomCode, isRoomHost, showCallout, startNewMatch, currentHumanSeatIndex]);
+      startTimer();
+    },
+    [bidWinner, currentHumanSeatIndex, isMultiplayerActive, roomCode, showCallout, startTimer, stopTimer]
+  );
 
   // Bidding resolution
   const submitBid = useCallback(
-    (playerId: number, val: number, forced = false) => {
+    (playerId: number, val: number, forced = false, isFromRemote = false) => {
       stopTimer();
       const player = players[playerId];
       const pName = player ? player.name : `لاعب ${playerId + 1}`;
@@ -526,7 +441,8 @@ export default function App() {
         showCallout(`${pName} شرا بـ ${effectiveVal}!`, '🔥');
       }
 
-      setBiddingHistory((prev) => [...prev, { playerId, val: effectiveVal }]);
+      const nextBids = [...biddingHistory, { playerId, val: effectiveVal }];
+      setBiddingHistory(nextBids);
 
       let newHighest = highestBid;
       let newWinner = bidWinner;
@@ -538,16 +454,28 @@ export default function App() {
         setBidWinner(playerId);
       }
 
+      // Broadcast bid action to other devices
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'PLAYER_BID',
+          roomCode,
+          senderId: roomSync.myClientId,
+          playerId,
+          val: effectiveVal,
+          forced: isDealerForced,
+          timestamp: Date.now(),
+        });
+      }
+
       // If Baoon (9), finish bidding immediately
       if (effectiveVal === 9) {
         setBidWinner(playerId);
         setHighestBid(9);
         setTimeout(() => {
-          if (playerId === currentHumanSeatIndex) {
-            setPhase('CHOOSE_TRUMP');
-          } else {
-            // Bot picks best trump
-            const bestCol = selectBotBestTrump(players[playerId].hand);
+          setPhase('CHOOSE_TRUMP');
+          const buyer = players[playerId];
+          if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+            const bestCol = selectBotBestTrump(buyer.hand);
             chooseTrumpColor(bestCol, playerId);
           }
         }, 1400);
@@ -555,7 +483,7 @@ export default function App() {
       }
 
       // Check if all 6 players finished bidding
-      const historyLength = biddingHistory.length + 1;
+      const historyLength = nextBids.length;
       if (historyLength === 6) {
         setTimeout(() => {
           if (newWinner === null) {
@@ -564,19 +492,19 @@ export default function App() {
             setHighestBid(5);
             setBidWinner(dealerIdx);
             const dealer = players[dealerIdx];
-            showCallout(`الموزع ${dealer.name} ملزوم بـ 5 وتحديد الحكم ⚡`, '⚡');
+            showCallout(`الموزع ${dealer?.name || ''} ملزوم بـ 5 وتحديد الحكم ⚡`, '⚡');
 
-            if (dealerIdx === currentHumanSeatIndex) {
-              setPhase('CHOOSE_TRUMP');
-            } else {
+            setPhase('CHOOSE_TRUMP');
+            if (dealer && !dealer.isHuman && (!isMultiplayerActive || isRoomHost)) {
               const bestCol = selectBotBestTrump(dealer.hand);
               chooseTrumpColor(bestCol, dealerIdx);
             }
           } else {
-            if (newWinner === currentHumanSeatIndex) {
-              setPhase('CHOOSE_TRUMP');
-            } else {
-              const bestCol = selectBotBestTrump(players[newWinner].hand);
+            const buyer = players[newWinner];
+            setPhase('CHOOSE_TRUMP');
+            showCallout(`رسا المزاد على ${buyer?.name || ''} بـ ${newHighest}! تحديد الحكم... 🎯`, '🎯');
+            if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+              const bestCol = selectBotBestTrump(buyer.hand);
               chooseTrumpColor(bestCol, newWinner);
             }
           }
@@ -587,39 +515,24 @@ export default function App() {
         startTimer();
       }
     },
-    [biddingHistory.length, bidWinner, currentHumanSeatIndex, currentTurn, dealerIdx, highestBid, players, showCallout, startTimer, stopTimer]
+    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, showCallout, startTimer, stopTimer]
   );
-
-  const chooseTrumpColor = (color: SuitColor, winnerId?: number) => {
-    stopTimer();
-    setTrumpColor(color);
-    setPhase('PLAYING');
-
-    const winner = winnerId !== undefined ? winnerId : bidWinner !== null ? bidWinner : currentHumanSeatIndex;
-    setCurrentTurn(winner);
-    setIsActionPending(false);
-
-    soundEngine.playCardSlide();
-    showCallout(`الحكم ${SUIT_COLORS[color].name}! العب يا بطل`, '♠️');
-
-    startTimer();
-  };
 
   // Bot bidding automation
   useEffect(() => {
     if (phase !== 'BIDDING') return;
-    if (currentTurn === currentHumanSeatIndex) return; // Human turn
 
     const bot = players[currentTurn];
     if (!bot) return;
+
+    // Never automate human players, and in multiplayer ONLY the host automates bots!
+    if (bot.isHuman) return;
+    if (isMultiplayerActive && !isRoomHost) return;
 
     const botTimer = setTimeout(() => {
       let bidVal = 0;
       let isForced = false;
       if (bot.id === dealerIdx && highestBid <= 4) {
-        // If bot is dealer and all previous players passed:
-        // If bot hand estimate is >= 5, bot voluntarily bids (doubles upon loss).
-        // Otherwise, bot takes forced 5 (only 5 pts upon loss).
         const estBid = calculateBotBid(bot.hand, 4);
         if (estBid >= 5) {
           bidVal = estBid;
@@ -635,7 +548,7 @@ export default function App() {
     }, 1700);
 
     return () => clearTimeout(botTimer);
-  }, [currentHumanSeatIndex, currentTurn, dealerIdx, highestBid, phase, players, submitBid]);
+  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, submitBid]);
 
   // Round Completion logic
   const handleRoundFinish = useCallback(
@@ -714,12 +627,11 @@ export default function App() {
     (trick: TrickPlay[], precomputedWinnerId?: number) => {
       const winnerId = precomputedWinnerId !== undefined ? precomputedWinnerId : evaluateTrickWinner(trick, trumpColor);
       const winnerPlayer = players[winnerId];
-      const wName = winnerPlayer ? winnerPlayer.name : `لاعب ${winnerId + 1}`;
 
       let nextA = tricksTeamA;
       let nextB = tricksTeamB;
 
-      if (winnerPlayer.team === 'A') {
+      if (winnerPlayer && winnerPlayer.team === 'A') {
         nextA++;
         setTricksTeamA(nextA);
       } else {
@@ -732,7 +644,7 @@ export default function App() {
 
       // Early victory check
       const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
-      const buyerTeam = buyerPlayer.team;
+      const buyerTeam = buyerPlayer ? buyerPlayer.team : 'A';
       const target = highestBid;
       const buyerTricks = buyerTeam === 'A' ? nextA : nextB;
       const oppTricks = buyerTeam === 'A' ? nextB : nextA;
@@ -754,15 +666,17 @@ export default function App() {
 
       // Next trick leader
       setCurrentTurn(winnerId);
-      setIsActionPending(false);
+      if (winnerId === currentHumanSeatIndex) {
+        setIsActionPending(false);
+      }
       startTimer();
     },
-    [bidWinner, handleRoundFinish, highestBid, players, showCallout, startTimer, tricksTeamA, tricksTeamB, trumpColor]
+    [bidWinner, currentHumanSeatIndex, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
   );
 
   // Card play action
   const handlePlayCard = useCallback(
-    (playerId: number, card: Card) => {
+    (playerId: number, card: Card, isFromRemote = false) => {
       stopTimer();
 
       if (card.isJoker) {
@@ -791,12 +705,21 @@ export default function App() {
       const nextTrick = [...currentTrick, { playerId, card }];
       setCurrentTrick(nextTrick);
 
+      // Broadcast card play to other devices if played locally
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'CARD_PLAYED',
+          roomCode,
+          senderId: roomSync.myClientId,
+          playerId,
+          card,
+          timestamp: Date.now(),
+        });
+      }
+
       if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor);
-        const winnerPlayer = players[winnerId];
-        const wName = winnerPlayer ? winnerPlayer.name : `لاعب ${winnerId + 1}`;
-        const isTeamA = winnerPlayer ? winnerPlayer.team === 'A' : false;
 
         // Step 1: Wait 600ms so players see the last played card
         setTimeout(() => {
@@ -812,13 +735,13 @@ export default function App() {
       } else {
         const nextTurn = (currentTurn + 1) % 6;
         setCurrentTurn(nextTurn);
-        if (nextTurn === 0) {
+        if (nextTurn === currentHumanSeatIndex) {
           setIsActionPending(false);
         }
         startTimer();
       }
     },
-    [currentTrick, currentTurn, resolveTrick, showCallout, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, currentTurn, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
   );
 
   // Human card click
@@ -867,11 +790,15 @@ export default function App() {
   // Bot card play automation
   useEffect(() => {
     if (phase !== 'PLAYING') return;
-    if (currentTurn === currentHumanSeatIndex) return;
     if (currentTrick.length === 6) return;
 
     const bot = players[currentTurn];
     if (!bot || bot.hand.length === 0) return;
+
+    // Never automate human player seats
+    if (bot.isHuman) return;
+    // In multiplayer, ONLY the room host automates bot moves to prevent duplicate turns
+    if (isMultiplayerActive && !isRoomHost) return;
 
     const botTimer = setTimeout(() => {
       const move = selectBotMove(bot, currentTrick, trumpColor);
@@ -879,43 +806,264 @@ export default function App() {
     }, 850);
 
     return () => clearTimeout(botTimer);
-  }, [currentTrick, currentTurn, handlePlayCard, phase, players, trumpColor]);
+  }, [currentTrick, currentTurn, handlePlayCard, isMultiplayerActive, isRoomHost, phase, players, trumpColor]);
 
   // Timeout handler for active turn
   useEffect(() => {
     if (timerRemaining > 0) return;
 
+    const cur = players[currentTurn];
+    if (!cur) return;
+
+    // In multiplayer, remote human players manage their own timeout, and only host handles bots
+    if (isMultiplayerActive) {
+      if (cur.isHuman && currentTurn !== currentHumanSeatIndex) {
+        return;
+      }
+      if (!cur.isHuman && !isRoomHost) {
+        return;
+      }
+    }
+
     if (phase === 'BIDDING') {
       submitBid(currentTurn, 0); // Force pass
     } else if (phase === 'PLAYING') {
-      const cur = players[currentTurn];
-      if (cur && cur.hand.length > 0) {
+      if (cur.hand.length > 0) {
         const legal = cur.hand.filter((c) => isLegalMove(cur.hand, c, currentTrick));
         const chosen = legal.length > 0 ? legal[0] : cur.hand[0];
         handlePlayCard(cur.id, chosen);
       }
     }
-  }, [currentTrick, currentTurn, handlePlayCard, phase, players, submitBid, timerRemaining]);
+  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining]);
 
   // Next round / Next match
   const handleNextRoundOrMatch = () => {
     const isBaoon = highestBid === 9;
     const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
-    const buyerTricks = buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB;
+    const buyerTricks = buyerPlayer ? (buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB) : 0;
     const isAsamFirstRound = isBaoon && buyerTricks >= 9 && roundNumber === 1;
     const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
     const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
 
+    if (isMultiplayerActive && !isRoomHost) {
+      showCallout('في انتظار المضيف لبدء الجولة القادمة ⏳', '⏳');
+      return;
+    }
+
     if (isMatchOver) {
-      startNewMatch();
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        const randDealer = Math.floor(Math.random() * 6);
+        setMatchScoreTeamA(0);
+        setMatchScoreTeamB(0);
+        setRoundNumber(1);
+        setDealerIdx(randDealer);
+
+        roomSync.publish({
+          type: 'START_GAME',
+          roomCode,
+          senderId: roomSync.myClientId,
+          seats,
+          deck: sharedDeck,
+          dealerIdx: randDealer,
+          roundNumber: 1,
+          scores: { a: 0, b: 0 },
+          timestamp: Date.now(),
+        });
+
+        startNewRound(sharedDeck, randDealer);
+      } else {
+        startNewMatch();
+      }
     } else {
-      setRoundNumber((prev) => prev + 1);
-      // Move dealer counter-clockwise by 1 for the next round
+      const nextR = roundNumber + 1;
       const nextDealer = (dealerIdx + 1) % 6;
+      setRoundNumber(nextR);
       setDealerIdx(nextDealer);
-      startNewRound(undefined, nextDealer);
+
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        roomSync.publish({
+          type: 'NEW_ROUND',
+          roomCode,
+          senderId: roomSync.myClientId,
+          roundNumber: nextR,
+          dealerIdx: nextDealer,
+          deck: sharedDeck,
+          scores: { a: matchScoreTeamA, b: matchScoreTeamB },
+          timestamp: Date.now(),
+        });
+        startNewRound(sharedDeck, nextDealer);
+      } else {
+        startNewRound(undefined, nextDealer);
+      }
     }
   };
+
+  // Room synchronization subscription for multiplayer actions & room state
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = roomSync.subscribeRoom(roomCode, (msg: RoomSyncMessage) => {
+      if (msg.senderId === roomSync.myClientId) return;
+
+      switch (msg.type) {
+        case 'JOIN_REQUEST': {
+          // If this client is host, broadcast current seats table back
+          if (isRoomHost) {
+            const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+            roomSync.publish({
+              type: 'ROOM_STATE',
+              roomCode,
+              senderId: roomSync.myClientId,
+              seats,
+              vacantCount: vCount,
+              timestamp: Date.now(),
+            });
+          }
+          break;
+        }
+
+        case 'SEAT_RESERVED': {
+          if (msg.seats) {
+            setSeats(msg.seats);
+          } else if (msg.seatIndex !== undefined && msg.player) {
+            setSeats((prev) => {
+              const next = [...prev];
+              next[msg.seatIndex!] = {
+                id: msg.seatIndex!,
+                name: msg.player!.name,
+                team: msg.player!.team,
+                avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
+                customPhoto: msg.player!.customPhoto || null,
+                isHuman: true,
+                isVacant: false,
+              };
+              if (msg.oldSeatIndex !== undefined && msg.oldSeatIndex !== msg.seatIndex) {
+                next[msg.oldSeatIndex] = {
+                  ...next[msg.oldSeatIndex],
+                  name: '',
+                  customPhoto: null,
+                  isHuman: false,
+                  isVacant: true,
+                };
+              }
+              return next;
+            });
+          }
+
+          if (msg.player && msg.seatIndex !== undefined) {
+            setLastSeatReserved({
+              seatIndex: msg.seatIndex,
+              name: msg.player.name,
+              team: msg.player.team,
+              avatarId: msg.player.avatarId,
+              customPhoto: msg.player.customPhoto,
+            });
+            const teamName = msg.player.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+            showCallout(`انضم ${msg.player.name} إلى المقعد #${msg.seatIndex} (${teamName}) 💺`, '💺');
+            soundEngine.playCardSlide();
+          }
+
+          // If host, sync state to all devices
+          if (isRoomHost && msg.seats) {
+            const vCount = msg.seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+            roomSync.publish({
+              type: 'ROOM_STATE',
+              roomCode,
+              senderId: roomSync.myClientId,
+              seats: msg.seats,
+              vacantCount: vCount,
+              timestamp: Date.now(),
+            });
+          }
+          break;
+        }
+
+        case 'ROOM_STATE': {
+          if (msg.seats) {
+            setSeats((prev) => {
+              return msg.seats!.map((s, idx) => {
+                if (idx === currentHumanSeatIndex && prev[idx]?.isHuman) {
+                  return prev[idx];
+                }
+                return s;
+              });
+            });
+          }
+          break;
+        }
+
+        case 'START_GAME': {
+          setShowHostModal(false);
+          setShowRoomsModal(false);
+          setIsMultiplayerActive(true);
+          soundEngine.init();
+          soundEngine.playCardSlide();
+
+          if (msg.seats) {
+            setSeats(msg.seats);
+          }
+          if (msg.scores) {
+            setMatchScoreTeamA(msg.scores.a);
+            setMatchScoreTeamB(msg.scores.b);
+          } else {
+            setMatchScoreTeamA(0);
+            setMatchScoreTeamB(0);
+          }
+          setRoundNumber(msg.roundNumber ?? 1);
+
+          if (msg.deck && msg.dealerIdx !== undefined) {
+            startNewRound(msg.deck, msg.dealerIdx, msg.seats);
+          }
+          showCallout('بدأ اللعب للجميع! 🃏', '🚀');
+          break;
+        }
+
+        case 'PLAYER_BID': {
+          if (msg.playerId !== undefined && msg.val !== undefined) {
+            submitBid(msg.playerId, msg.val, msg.forced ?? false, true);
+          }
+          break;
+        }
+
+        case 'TRUMP_CHOSEN': {
+          if (msg.color) {
+            chooseTrumpColor(msg.color, msg.playerId, true);
+          }
+          break;
+        }
+
+        case 'CARD_PLAYED': {
+          if (msg.playerId !== undefined && msg.card) {
+            handlePlayCard(msg.playerId, msg.card, true);
+          }
+          break;
+        }
+
+        case 'NEW_ROUND': {
+          if (msg.deck && msg.dealerIdx !== undefined) {
+            setRoundNumber(msg.roundNumber ?? (roundNumber + 1));
+            setDealerIdx(msg.dealerIdx);
+            if (msg.scores) {
+              setMatchScoreTeamA(msg.scores.a);
+              setMatchScoreTeamB(msg.scores.b);
+            }
+            startNewRound(msg.deck, msg.dealerIdx);
+            showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [chooseTrumpColor, currentHumanSeatIndex, handlePlayCard, isRoomHost, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid]);
 
   // Profile Save
   const handleSaveProfileName = (newName: string) => {
@@ -1468,15 +1616,27 @@ export default function App() {
               localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(finalFilledSeats));
             } catch {}
 
+            const sharedDeck = buildDeck();
+            const randDealer = Math.floor(Math.random() * 6);
+
+            setIsMultiplayerActive(true);
+            setMatchScoreTeamA(0);
+            setMatchScoreTeamB(0);
+            setRoundNumber(1);
+
             roomSync.publish({
               type: 'START_GAME',
               roomCode,
               senderId: roomSync.myClientId,
               seats: finalFilledSeats,
+              deck: sharedDeck,
+              dealerIdx: randDealer,
+              roundNumber: 1,
+              scores: { a: 0, b: 0 },
               timestamp: Date.now(),
             });
 
-            startNewMatch();
+            startNewRound(sharedDeck, randDealer, finalFilledSeats);
             showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
           }}
           onClose={() => setShowHostModal(false)}

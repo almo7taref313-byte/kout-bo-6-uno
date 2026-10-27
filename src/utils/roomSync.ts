@@ -1,8 +1,18 @@
 import mqtt, { MqttClient } from 'mqtt';
-import { SeatConfig } from '../types';
+import { Card, SeatConfig, SuitColor } from '../types';
 
 export interface RoomSyncMessage {
-  type: 'JOIN_REQUEST' | 'SEAT_RESERVED' | 'ROOM_STATE' | 'START_GAME' | 'HEARTBEAT';
+  type:
+    | 'JOIN_REQUEST'
+    | 'SEAT_RESERVED'
+    | 'ROOM_STATE'
+    | 'START_GAME'
+    | 'HEARTBEAT'
+    | 'PLAYER_BID'
+    | 'TRUMP_CHOSEN'
+    | 'CARD_PLAYED'
+    | 'TRICK_RESOLVED'
+    | 'NEW_ROUND';
   roomCode: string;
   senderId: string;
   seatIndex?: number;
@@ -17,6 +27,20 @@ export interface RoomSyncMessage {
   seats?: SeatConfig[];
   vacantCount?: number;
   timestamp: number;
+
+  // In-Game Multiplayer Action Fields
+  deck?: Card[];
+  dealerIdx?: number;
+  roundNumber?: number;
+  scores?: { a: number; b: number };
+  playerId?: number;
+  val?: number;
+  forced?: boolean;
+  color?: SuitColor;
+  card?: Card;
+  winnerId?: number;
+  nextA?: number;
+  nextB?: number;
 }
 
 export type RoomMessageCallback = (msg: RoomSyncMessage) => void;
