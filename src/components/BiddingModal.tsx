@@ -122,18 +122,24 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
                 )}
               </div>
 
-              {/* طاف / ملزوم للموزع */}
-              <button
-                onClick={onPass}
-                className={`border text-white active:scale-95 hover:brightness-110 py-2.5 sm:py-3 rounded-2xl font-black text-sm sm:text-base transition shadow-lg flex items-center justify-center cursor-pointer ${
-                  isDealer && noBidsYet
-                    ? 'bg-amber-600 hover:bg-amber-500 border-amber-300 ring-2 ring-amber-400/50'
-                    : 'btn-glow-green border-emerald-300/40'
-                }`}
-                title={isDealer && noBidsYet ? 'بصفتك الموزع تصبح ملزوماً بالشراء بـ 5 إذا طوّف الجميع' : 'طاف'}
-              >
-                {isDealer && noBidsYet ? 'طاف (ملزوم بـ 5) ⚡' : 'طاف'}
-              </button>
+              {/* طاف / ملزوم للموزع (الموزع ملزوم بـ 5 ولا يقول طاف) */}
+              {isDealer && noBidsYet ? (
+                <button
+                  onClick={() => onBid(5)}
+                  className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-2 border-amber-300 ring-2 ring-amber-400/60 text-white active:scale-95 hover:brightness-110 py-2.5 sm:py-3 rounded-2xl font-black text-sm sm:text-base transition shadow-xl flex items-center justify-center cursor-pointer"
+                  title="بصفتك الموزع وطوّف الجميع، أنت ملزوم بالشراء بـ 5 وتحديد الحكم"
+                >
+                  ملزوم بـ 5 ⚡
+                </button>
+              ) : (
+                <button
+                  onClick={onPass}
+                  className="btn-glow-green border border-emerald-300/40 text-white active:scale-95 hover:brightness-110 py-2.5 sm:py-3 rounded-2xl font-black text-sm sm:text-base transition shadow-lg flex items-center justify-center cursor-pointer"
+                  title="طاف"
+                >
+                  طاف
+                </button>
+              )}
             </div>
           </div>
         )}

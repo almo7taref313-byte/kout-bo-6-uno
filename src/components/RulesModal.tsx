@@ -165,7 +165,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                 </p>
               </div>
 
-              {/* 5. شارة المشتري وعدد الكروت عند صورة اللاعب */}
+              {/* 5. شارة المشتري (أيقونة رقم الشراء - عدد الأكلات المطلوبة) */}
               <div className="bg-slate-950 p-2.5 rounded-xl border border-rose-500/40 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -175,21 +175,18 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                     <div className="w-7 h-7 rounded-full bg-[#EA1D2D] border-2 border-white shadow-md flex items-center justify-center text-white font-black text-xs font-mono">
                       👑
                     </div>
-                    <span className="text-[9px] bg-[#1e232c] text-amber-300 border border-slate-700 px-1 py-0.5 rounded-full font-mono">
-                      🃏 6
-                    </span>
                   </div>
                   <div>
                     <h4 className="font-black text-rose-300 text-xs sm:text-sm">
-                      شارة المشتري وعدد الكروت
+                      أيقونة رقم الشراء (عدد الأكلات المطلوبة)
                     </h4>
                     <span className="text-[9.5px] text-slate-400 font-medium">
-                      مثبتة عند صورة كل لاعب
+                      شارة دائرية بارزة بلون الفريق عند المشتري
                     </span>
                   </div>
                 </div>
                 <p className="text-slate-300 text-[10.5px]">
-                  <b>التعريف:</b> الدائرة البارزة الملصقة بصورة اللاعب بلون فريقه (أزرق أو أحمر) تُعلن أنه المشتري وتوضح رقم الشراء (5 إلى 8، أو 👑 للباون). كما تظهر شارة صغيرة أسفل الصورة توضح عدد الكروت المتبقية في يد اللاعب والأكلات المحققة.
+                  <b>التعريف:</b> الدائرة البارزة المثبتة عند صورة اللاعب بلون فريقه (أزرق للفريق الأزرق 🔵 أو أحمر للفريق الأحمر 🔴) تُعلن أنه المشتري وتوضح رقم المزايدة وعدد الأكلات المطلوبة لتحقيق العقد (من 5 إلى 8 أكلات، أو 👑 باون كامل 9 أكلات).
                 </p>
               </div>
 

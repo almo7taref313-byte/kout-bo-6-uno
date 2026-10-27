@@ -71,21 +71,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           })}
         </div>
 
-        {/* Jawaker Bottom HUD Bar: [Tricks Icon] - [Player Avatar with Yellow Badge] - [Chat / Gift Icons] */}
-        <div className="w-full flex items-center justify-between px-1.5 xs:px-3 sm:px-8 mt-0.5 sm:mt-1">
-          
-          {/* Bottom Left: Mini Card Deck / Hand Indicator */}
-          <div className="flex items-center gap-1 xs:gap-1.5 bg-[#232731] border border-slate-700/80 px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-xl shadow">
-            <span className="text-sm xs:text-base sm:text-lg">🃏</span>
-            <div className="flex flex-col text-right leading-none">
-              <span className="text-[7px] xs:text-[8px] text-slate-400 font-bold">باقي معك</span>
-              <span className="text-[9px] xs:text-[10px] font-black text-amber-400 font-uno">
-                {player.hand.length} كروت
-              </span>
-            </div>
-          </div>
-
-          {/* Bottom Center: Player Circular Avatar with Yellow Capsule Badge */}
+        {/* Bottom HUD: Player Avatar with Buyer & Dealer Badges */}
+        <div className="w-full flex items-center justify-center px-1.5 xs:px-3 sm:px-8 mt-0.5 sm:mt-1">
+          {/* Bottom Center: Player Circular Avatar with Buyer & Dealer Badges */}
           <div className="relative flex flex-col items-center">
 
             {/* Circular Avatar with Neon Turn Ring */}

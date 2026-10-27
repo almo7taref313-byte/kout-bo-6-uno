@@ -271,13 +271,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     {player.name}
                   </span>
                 </div>
-
-                {/* Remaining Cards Count */}
-                {phase === 'PLAYING' && player.hand && player.hand.length > 0 && (
-                  <span className="text-[7.5px] xs:text-[8px] font-mono font-bold bg-[#1e232c] text-amber-300 border border-slate-700 px-1 xs:px-1.5 rounded-full mt-0.5 shadow">
-                    🃏 {player.hand.length}
-                  </span>
-                )}
               </div>
             </div>
           );

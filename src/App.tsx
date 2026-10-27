@@ -201,9 +201,12 @@ export default function App() {
 
   // Initial Deal & Start Round
   const startNewRound = useCallback(
-    (deckOverride?: Card[]) => {
+    (deckOverride?: Card[], forcedDealerIdx?: number) => {
       stopTimer();
       setIsActionPending(false);
+
+      const activeDealer = forcedDealerIdx !== undefined ? forcedDealerIdx : dealerIdx;
+      setDealerIdx(activeDealer);
 
       const deck = deckOverride || buildDeck();
       const freshPlayers: Player[] = seats.map((seatCfg, idx) => {
@@ -231,13 +234,16 @@ export default function App() {
       setTricksTeamB(0);
       setRoundResult(null);
 
-      const firstBidder = (dealerIdx + 1) % 6;
+      // In Kout Bo 6: Dealing and bidding go Counter-Clockwise (عكس عقارب الساعة).
+      // First bidder is the player immediately to the dealer's right: (activeDealer + 1) % 6.
+      // Bidding proceeds: (activeDealer + 1) % 6 -> ... -> activeDealer is the 6th and LAST bidder.
+      const firstBidder = (activeDealer + 1) % 6;
       setCurrentTurn(firstBidder);
       setPhase('BIDDING');
 
-      const dealerPlayer = freshPlayers[dealerIdx];
-      const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${dealerIdx + 1}`;
-      showCallout(`الموزع ${dealerName} وزّع الورق! منو يشري؟ 🃏`, '🃏');
+      const dealerPlayer = freshPlayers[activeDealer];
+      const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${activeDealer + 1}`;
+      showCallout(`الموزع ${dealerName} وزّع الورق! المزاد يبدأ والموزع آخر من يزايد 🃏`, '🃏');
       startTimer();
     },
     [currentHumanSeatIndex, dealerIdx, seats, showCallout, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
@@ -249,7 +255,7 @@ export default function App() {
     setRoundNumber(1);
     const randDealer = Math.floor(Math.random() * 6);
     setDealerIdx(randDealer);
-    startNewRound();
+    startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
   // Seat Reservation when joining via room code or link
@@ -430,31 +436,43 @@ export default function App() {
       const player = players[playerId];
       const pName = player ? player.name : `لاعب ${playerId + 1}`;
 
-      if (val === 0) {
-        soundEngine.playPassTone();
-        showCallout(`${pName}: طـوف!`, '✋');
-      } else if (val === 9) {
-        soundEngine.playBidTone(true);
-        showCallout(`بااااون من ${pName}! 👑`, '👑');
-      } else {
-        soundEngine.playBidTone(false);
-        showCallout(`${pName} شرا بـ ${val}!`, '🔥');
+      // In Kout Bo 6: If the dealer is bidding, and all 5 previous players passed (highestBid <= 4),
+      // the dealer CANNOT say pass ("طـوف")! The dealer is forced ("ملزوم") to buy at 5!
+      let effectiveVal = val;
+      const isDealerForcedNow = playerId === dealerIdx && highestBid <= 4 && (val === 0 || val < 5);
+      if (isDealerForcedNow) {
+        effectiveVal = 5;
+        setIsForcedBid(true);
       }
 
-      setBiddingHistory((prev) => [...prev, { playerId, val }]);
+      if (effectiveVal === 0) {
+        soundEngine.playPassTone();
+        showCallout(`${pName}: طـوف!`, '✋');
+      } else if (effectiveVal === 9) {
+        soundEngine.playBidTone(true);
+        showCallout(`بااااون من ${pName}! 👑`, '👑');
+      } else if (isDealerForcedNow) {
+        soundEngine.playBidTone(false);
+        showCallout(`الموزع ${pName} ملزوم بـ 5! ⚡`, '⚡');
+      } else {
+        soundEngine.playBidTone(false);
+        showCallout(`${pName} شرا بـ ${effectiveVal}!`, '🔥');
+      }
+
+      setBiddingHistory((prev) => [...prev, { playerId, val: effectiveVal }]);
 
       let newHighest = highestBid;
       let newWinner = bidWinner;
 
-      if (val > highestBid) {
-        newHighest = val;
+      if (effectiveVal > highestBid) {
+        newHighest = effectiveVal;
         newWinner = playerId;
-        setHighestBid(val);
+        setHighestBid(effectiveVal);
         setBidWinner(playerId);
       }
 
       // If Baoon (9), finish bidding immediately
-      if (val === 9) {
+      if (effectiveVal === 9) {
         setBidWinner(playerId);
         setHighestBid(9);
         setTimeout(() => {
@@ -479,7 +497,7 @@ export default function App() {
             setHighestBid(5);
             setBidWinner(dealerIdx);
             const dealer = players[dealerIdx];
-            showCallout(`الكل طوّف! إجباري على الموزع ${dealer.name} (ملزوم بـ 5)`, '⚡');
+            showCallout(`الموزع ${dealer.name} ملزوم بـ 5 وتحديد الحكم ⚡`, '⚡');
 
             if (dealerIdx === currentHumanSeatIndex) {
               setPhase('CHOOSE_TRUMP');
@@ -529,12 +547,19 @@ export default function App() {
     if (!bot) return;
 
     const botTimer = setTimeout(() => {
-      const bidVal = calculateBotBid(bot.hand, highestBid);
+      // If bot is dealer and all previous players passed (highestBid <= 4), bot cannot pass!
+      let bidVal = 0;
+      if (bot.id === dealerIdx && highestBid <= 4) {
+        const estBid = calculateBotBid(bot.hand, 4);
+        bidVal = Math.max(5, estBid);
+      } else {
+        bidVal = calculateBotBid(bot.hand, highestBid);
+      }
       submitBid(bot.id, bidVal);
     }, 1700);
 
     return () => clearTimeout(botTimer);
-  }, [currentHumanSeatIndex, currentTurn, highestBid, phase, players, submitBid]);
+  }, [currentHumanSeatIndex, currentTurn, dealerIdx, highestBid, phase, players, submitBid]);
 
   // Round Completion logic
   const handleRoundFinish = useCallback(
@@ -809,8 +834,10 @@ export default function App() {
       startNewMatch();
     } else {
       setRoundNumber((prev) => prev + 1);
-      setDealerIdx((prev) => (prev + 1) % 6);
-      startNewRound();
+      // Move dealer counter-clockwise by 1 for the next round
+      const nextDealer = (dealerIdx + 1) % 6;
+      setDealerIdx(nextDealer);
+      startNewRound(undefined, nextDealer);
     }
   };
 
