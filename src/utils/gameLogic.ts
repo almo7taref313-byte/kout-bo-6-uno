@@ -91,9 +91,19 @@ export function buildDeck(): Card[] {
   return deck;
 }
 
-export function getEffectiveLeadColor(trick: TrickPlay[]): SuitColor | null {
+export function getEffectiveLeadColor(
+  trick: TrickPlay[],
+  highestBid?: number,
+  trumpColor?: SuitColor | null
+): SuitColor | null {
   if (!trick || trick.length === 0) return null;
-  // If led with Joker or Maker, the first suited card determines the lead color
+  // User Rule:
+  // "في حال الباون:يلعب اللاعب ١،باش،ميم،غلام،وبعدها يستطيع لعب الجيكر/الميكر ويعتبران حكما لا يوقفهما شي"
+  // In Baoon, if led with Joker or Maker, they count as Trump!
+  if (highestBid === 9 && (trick[0].card.isJoker || trick[0].card.isMaker)) {
+    return trumpColor || null;
+  }
+  // In non-Baoon play, if led with Joker or Maker (خاس يالردي), the first suited card determines the lead color
   const suited = trick.find((p) => !p.card.isJoker && !p.card.isMaker);
   return suited ? suited.card.color : null;
 }
@@ -102,15 +112,24 @@ export function getCardPower(
   card: Card,
   trick: TrickPlay[],
   trumpColor: SuitColor | null,
-  playIndex: number
+  playIndex: number,
+  highestBid?: number
 ): number {
-  // Opening rule: If Joker or Maker is led at playIndex 0, it spoils ("خاس يالردي") and becomes a regular card with 0 power!
-  if ((card.isJoker || card.isMaker) && playIndex === 0) return 0;
+  const isBaoon = highestBid === 9;
+  // Opening rule: If Joker or Maker is led at playIndex 0:
+  // In NON-BAOON play, it spoils ("خاس يالردي") and becomes 0 power!
+  // In BAOON play: "يعتبران حكما لا يوقفهما شي في حال امتلاكه لهما" -> retain full supreme power!
+  if ((card.isJoker || card.isMaker) && playIndex === 0) {
+    if (!isBaoon) return 0;
+  }
   if (card.isJoker) return 1000;
 
-  const lead = getEffectiveLeadColor(trick);
+  const lead = getEffectiveLeadColor(trick, highestBid, trumpColor);
 
-  // خال الحكم (1 of Trump suit) is strictly higher than Maker, Maker NEVER eats خال الحكم!
+  // In Baoon: Maker led or played has supreme winning power ("لا يوقفهما شيء")
+  if (isBaoon && card.isMaker) return 990;
+
+  // خال الحكم (1 of Trump suit) is strictly higher than Maker, Maker NEVER eats خال الحكم in normal play!
   if (trumpColor && card.color === trumpColor && card.rank === '1') return 950;
 
   if (card.isMaker) {
@@ -128,15 +147,31 @@ export function getCardPower(
   return 0;
 }
 
-export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | null): number {
+export function evaluateTrickWinner(
+  trick: TrickPlay[],
+  trumpColor: SuitColor | null,
+  highestBid?: number
+): number {
   if (!trick || trick.length === 0) return 0;
+  const isBaoon = highestBid === 9;
+
+  // In Baoon:
+  // "ويعتبران حكما لا يوقفهما شي في حال امتلاكه لهما"
+  // Joker and Maker cannot be stopped!
+  if (isBaoon) {
+    const jokerPlay = trick.find((t) => t.card.isJoker);
+    if (jokerPlay) return jokerPlay.playerId;
+
+    const makerPlay = trick.find((t) => t.card.isMaker);
+    if (makerPlay) return makerPlay.playerId;
+  }
 
   // 1. If Joker was played at index > 0, it ALWAYS wins!
-  // (If Joker was led at index 0, it is "خاس يالردي" and cannot win if other cards are played!)
+  // (If Joker was led at index 0 in non-Baoon, it is "خاس يالردي" and cannot win if other cards are played!)
   if (trick.length === 1 && trick[0].card.isJoker) {
     return trick[0].playerId;
   }
-  const validJokerPlay = trick.find((t, idx) => t.card.isJoker && idx > 0);
+  const validJokerPlay = trick.find((t, idx) => t.card.isJoker && (isBaoon || idx > 0));
   if (validJokerPlay) {
     return validJokerPlay.playerId;
   }
@@ -154,25 +189,25 @@ export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | 
   }
 
   // 3. If Maker was played at index > 0, Maker wins!
-  // (If Maker was led at index 0, it is "خاس يالردي" and cannot win if other cards are played!)
+  // (If Maker was led at index 0 in non-Baoon, it is "خاس يالردي" and cannot win if other cards are played!)
   if (trick.length === 1 && trick[0].card.isMaker) {
     return trick[0].playerId;
   }
-  const validMakerPlay = trick.find((t, idx) => t.card.isMaker && idx > 0);
+  const validMakerPlay = trick.find((t, idx) => t.card.isMaker && (isBaoon || idx > 0));
   if (validMakerPlay) {
     return validMakerPlay.playerId;
   }
 
   // 4. Regular trick resolution by card power:
-  // If index 0 was spoiled (Joker or Maker led) and other cards were played, start evaluation from index 1!
-  const isSpoiledOpening = (trick[0].card.isJoker || trick[0].card.isMaker) && trick.length > 1;
+  // If index 0 was spoiled in non-Baoon (Joker or Maker led) and other cards were played, start evaluation from index 1!
+  const isSpoiledOpening = !isBaoon && (trick[0].card.isJoker || trick[0].card.isMaker) && trick.length > 1;
   const startIdx = isSpoiledOpening ? 1 : 0;
 
   let winning = trick[startIdx];
-  let maxP = getCardPower(winning.card, trick, trumpColor, startIdx);
+  let maxP = getCardPower(winning.card, trick, trumpColor, startIdx, highestBid);
 
   for (let i = startIdx + 1; i < trick.length; i++) {
-    const p = getCardPower(trick[i].card, trick, trumpColor, i);
+    const p = getCardPower(trick[i].card, trick, trumpColor, i, highestBid);
     if (p > maxP) {
       maxP = p;
       winning = trick[i];
@@ -181,25 +216,50 @@ export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | 
   return winning.playerId;
 }
 
-export function isLegalMove(hand: Card[], card: Card, trick: TrickPlay[]): boolean {
+export function isLegalMove(
+  hand: Card[],
+  card: Card,
+  trick: TrickPlay[],
+  highestBid?: number,
+  trumpColor?: SuitColor | null
+): boolean {
   if (trick.length === 0) {
-    // Opening rule: Cannot lead Joker or Maker if you have another suit card
-    if ((card.isJoker || card.isMaker) && hand.length > 1) {
-      const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
-      if (hasAlternative) return false;
+    if (card.isJoker || card.isMaker) {
+      if (highestBid === 9) {
+        // User Rule in Baoon:
+        // "في حال الباون:يلعب اللاعب ١،باش،ميم،غلام،وبعدها يستطيع لعب الجيكر/الميكر ويعتبران حكما لا يوقفهما شي في حال امتلاكه لهما سواء كان يملك ١ وجيكر/ميكر يستطيع لعب الجيكر/ميكر بعد ١ ايضا"
+        // Check if hand still holds any unplayed top trumps (1, باش, ميم, غلام) of trumpColor:
+        const hasUnplayedTopTrump = Boolean(
+          trumpColor &&
+          hand.some(
+            (c) => c.color === trumpColor && ['1', 'draw2', 'skip', 'reverse'].includes(c.rank)
+          )
+        );
+        // If player still holds 1, باش, ميم, or غلام, they MUST play those top trumps first!
+        if (hasUnplayedTopTrump) {
+          return false;
+        }
+        return true;
+      }
+
+      // Non-Baoon opening rule: Cannot lead Joker or Maker if you have another suit card
+      if (hand.length > 1) {
+        const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
+        if (hasAlternative) return false;
+      }
     }
     return true;
   }
 
   // Cannot play Maker onto Joker if an alternative card exists in hand
-  const hasJokerInTrick = trick.some((t, idx) => t.card.isJoker && idx > 0);
+  const hasJokerInTrick = trick.some((t, idx) => t.card.isJoker && (highestBid === 9 || idx > 0));
   if (hasJokerInTrick && card.isMaker && hand.some((c) => !c.isMaker)) {
     return false;
   }
 
   if (card.isJoker || card.isMaker) return true;
 
-  const leadColor = getEffectiveLeadColor(trick);
+  const leadColor = getEffectiveLeadColor(trick, highestBid, trumpColor);
   if (!leadColor || leadColor === 'special') return true;
 
   const hasLead = hand.some((c) => c.color === leadColor);
@@ -335,13 +395,14 @@ export function getTimeoutFallbackMove(
   trick: TrickPlay[],
   trumpColor: SuitColor | null,
   playerId?: number,
-  players?: Player[]
+  players?: Player[],
+  highestBid?: number
 ): Card {
-  const legal = hand.filter((c) => isLegalMove(hand, c, trick));
+  const legal = hand.filter((c) => isLegalMove(hand, c, trick, highestBid, trumpColor));
   if (legal.length === 0) return hand[0];
   if (legal.length === 1) return legal[0];
 
-  const lead = getEffectiveLeadColor(trick);
+  const lead = getEffectiveLeadColor(trick, highestBid, trumpColor);
 
   // If responding to an existing trick:
   if (trick.length > 0 && lead) {
@@ -439,16 +500,16 @@ export function selectBotMove(
   trumpColor: SuitColor | null,
   context?: BotStrategyContext
 ): Card {
-  const legalMoves = bot.hand.filter((c) => isLegalMove(bot.hand, c, trick));
-  if (legalMoves.length === 0) return bot.hand[0];
-  if (legalMoves.length === 1) return legalMoves[0];
-
   const buyerId = context?.buyerId;
   const highestBid = context?.highestBid ?? 0;
   const buyerPlayer = buyerId !== null && buyerId !== undefined && context?.players ? context.players[buyerId] : null;
   const buyerTeam = buyerPlayer?.team;
   const isBuyerOpponent = buyerTeam && buyerTeam !== bot.team;
   const playedTricks = context?.playedTricks || [];
+
+  const legalMoves = bot.hand.filter((c) => isLegalMove(bot.hand, c, trick, highestBid, trumpColor));
+  if (legalMoves.length === 0) return bot.hand[0];
+  if (legalMoves.length === 1) return legalMoves[0];
 
   // Check past fallen supreme cards in this round
   const hasTrumpKingFallen = playedTricks.some((t) =>
@@ -460,7 +521,7 @@ export function selectBotMove(
 
   // 1. TACTICAL RULES:
   if (!isLead) {
-    const leadSuit = getEffectiveLeadColor(trick);
+    const leadSuit = getEffectiveLeadColor(trick, highestBid, trumpColor);
     const isLeadOtherColor = Boolean(
       leadSuit &&
       leadSuit !== 'special' &&
@@ -540,7 +601,48 @@ export function selectBotMove(
 
   // 2. LEADING STRATEGY (isLead === true):
   if (isLead) {
-    // If bot's team is buyer:
+    // User Rule in Baoon:
+    // "في حال الباون:يلعب اللاعب ١،باش،ميم،غلام،وبعدها يستطيع لعب الجيكر/الميكر ويعتبران حكما لا يوقفهما شي في حال امتلاكه لهما سواء كان يملك ١ وجيكر/ميكر يستطيع لعب الجيكر/ميكر بعد ١ ايضا"
+    if (highestBid === 9 && trumpColor) {
+      // 1. خال الحكم (1 of trumpColor)
+      const trumpKing = legalMoves.find((c) => c.color === trumpColor && c.rank === '1');
+      if (trumpKing) return trumpKing;
+
+      // 2. باش (draw2 of trumpColor)
+      const trumpBasha = legalMoves.find((c) => c.color === trumpColor && c.rank === 'draw2');
+      if (trumpBasha) return trumpBasha;
+
+      // 3. ميم (skip of trumpColor)
+      const trumpMeem = legalMoves.find((c) => c.color === trumpColor && c.rank === 'skip');
+      if (trumpMeem) return trumpMeem;
+
+      // 4. غلام (reverse of trumpColor)
+      const trumpGholam = legalMoves.find((c) => c.color === trumpColor && c.rank === 'reverse');
+      if (trumpGholam) return trumpGholam;
+
+      // 5. وبعدها يستطيع لعب الجيكر / الميكر (ويعتبران حكماً لا يوقفهما شيء):
+      const jokerCard = legalMoves.find((c) => c.isJoker);
+      if (jokerCard) return jokerCard;
+
+      const makerCard = legalMoves.find((c) => c.isMaker);
+      if (makerCard) return makerCard;
+
+      // 6. باقي الأحكام من الأقوى للأضعف
+      const remainingTrumps = legalMoves.filter((c) => c.color === trumpColor);
+      if (remainingTrumps.length > 0) {
+        remainingTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+        return remainingTrumps[0];
+      }
+
+      // 7. الألوان الأخرى من الأقوى للأضعف
+      const nonTrumps = legalMoves.filter((c) => c.color !== trumpColor);
+      if (nonTrumps.length > 0) {
+        nonTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+        return nonTrumps[0];
+      }
+    }
+
+    // If bot's team is buyer (in regular play):
     if (buyerTeam === bot.team && trumpColor) {
       // Lead with highest trump to pull out opponents' trumps
       const trumps = legalMoves.filter((c) => c.color === trumpColor || c.isJoker || c.isMaker);

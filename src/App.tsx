@@ -662,7 +662,7 @@ export default function App() {
   // Trick Resolution
   const resolveTrick = useCallback(
     (trick: TrickPlay[], precomputedWinnerId?: number) => {
-      const winnerId = precomputedWinnerId !== undefined ? precomputedWinnerId : evaluateTrickWinner(trick, trumpColor);
+      const winnerId = precomputedWinnerId !== undefined ? precomputedWinnerId : evaluateTrickWinner(trick, trumpColor, highestBid);
       const winnerPlayer = players[winnerId];
 
       let nextA = tricksTeamA;
@@ -720,14 +720,22 @@ export default function App() {
       if (card.isJoker) {
         soundEngine.playJokerSlam();
         if (currentTrick.length === 0) {
-          showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          if (highestBid === 9) {
+            showCallout('جيكر الباون حكم نافذ لا يقف بوجهه شيء! 👑🃏', '👑');
+          } else {
+            showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          }
         } else {
           showCallout('يا سلام على الجيكر!!', '🃏');
         }
       } else if (card.isMaker) {
         soundEngine.playJokerSlam();
         if (currentTrick.length === 0) {
-          showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          if (highestBid === 9) {
+            showCallout('ميكر الباون حكم نافذ لا يقف بوجهه شيء! 👑🌈', '👑');
+          } else {
+            showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          }
         } else {
           showCallout('الميكر نزل وقصها!', '🌈');
         }
@@ -765,7 +773,7 @@ export default function App() {
 
       if (nextTrick.length === 6) {
         setIsActionPending(true);
-        const winnerId = evaluateTrickWinner(nextTrick, trumpColor);
+        const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
         // Step 1: Wait 600ms so players see the last played card
         setTimeout(() => {
@@ -787,7 +795,7 @@ export default function App() {
         startTimer();
       }
     },
-    [currentHumanSeatIndex, currentTrick, currentTurn, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, currentTurn, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
   );
 
   // Human card click
@@ -810,21 +818,37 @@ export default function App() {
 
     // Opening rule check
     if (currentTrick.length === 0 && (card.isJoker || card.isMaker)) {
-      const hasOther = me.hand.some((c) => !c.isJoker && !c.isMaker);
-      if (hasOther) {
-        showCallout('ممنوع تفتتح بالجيكر أو الميكر!', '⚠️');
-        return;
+      if (highestBid === 9) {
+        // Baoon opening rule:
+        // في حال الباون: يلعب اللاعب 1، باش، ميم، غلام، وبعدها يستطيع لعب الجيكر/الميكر
+        const hasUnplayedTopTrump = Boolean(
+          trumpColor &&
+          me.hand.some(
+            (c) => c.color === trumpColor && ['1', 'draw2', 'skip', 'reverse'].includes(c.rank)
+          )
+        );
+        if (hasUnplayedTopTrump) {
+          showCallout('في الباون: العب (١، باش، ميم، غلام) أولاً ثم الجيكر/الميكر! 👑', '⚠️');
+          return;
+        }
+      } else {
+        const hasOther = me.hand.some((c) => !c.isJoker && !c.isMaker);
+        if (hasOther) {
+          showCallout('ممنوع تفتتح بالجيكر أو الميكر!', '⚠️');
+          return;
+        }
       }
     }
 
     // Maker onto Joker check
-    if (currentTrick.some((p) => p.card.isJoker) && card.isMaker && me.hand.some((c) => !c.isMaker)) {
+    const hasJokerInTrick = currentTrick.some((p, idx) => p.card.isJoker && (highestBid === 9 || idx > 0));
+    if (hasJokerInTrick && card.isMaker && me.hand.some((c) => !c.isMaker)) {
       showCallout('ما تنزل الميكر على الجيكر!', '🚫');
       return;
     }
 
     // Following suit rule
-    if (!isLegalMove(me.hand, card, currentTrick)) {
+    if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor)) {
       showCallout('لازم تنزل نفس لون الأكلة!', '⚠️');
       return;
     }
@@ -888,11 +912,11 @@ export default function App() {
       submitBid(currentTurn, 0); // Force pass
     } else if (phase === 'PLAYING') {
       if (cur.hand.length > 0) {
-        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players);
+        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players, highestBid);
         handlePlayCard(cur.id, chosen);
       }
     }
-  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
+  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
 
   // Next round / Next match
   const handleNextRoundOrMatch = () => {

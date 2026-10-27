@@ -53,7 +53,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         {/* Cards Row sorted by colors, and high-to-low from left to right */}
         <div className="w-full flex items-center justify-center -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 sm:py-1 min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] no-scrollbar">
           {sortHandCards(player.hand, trumpColor).map((card, idx) => {
-            const playable = isMyTurn ? isLegalMove(player.hand, card, currentTrick) : false;
+            const playable = isMyTurn ? isLegalMove(player.hand, card, currentTrick, highestBid, trumpColor) : false;
             return (
               <div
                 key={card.id}

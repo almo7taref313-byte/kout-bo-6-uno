@@ -152,8 +152,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </span>
         </div>
 
-        {/* تحذير جانبي عند خياس الجيكر أو الميكر: "الجيكر/الميكر خاس يالردي" */}
-        {currentTrick.length > 0 && (currentTrick[0].card.isJoker || currentTrick[0].card.isMaker) && (
+        {/* تحذير جانبي عند خياس الجيكر أو الميكر: "الجيكر/الميكر خاس يالردي" (لا يظهر في الباون) */}
+        {currentTrick.length > 0 && highestBid !== 9 && (currentTrick[0].card.isJoker || currentTrick[0].card.isMaker) && (
           <div className="absolute top-1/2 -translate-y-1/2 left-2 xs:left-3 sm:left-4 z-40 pointer-events-none animate-pulse">
             <div className="bg-gradient-to-r from-red-950/95 via-rose-900/95 to-red-950/95 border-2 border-red-500/90 text-amber-200 px-2.5 xs:px-3 py-1.5 sm:py-2 rounded-xl xs:rounded-2xl shadow-2xl flex items-center gap-1.5 xs:gap-2 shadow-red-950/90 ring-2 ring-red-400/40 backdrop-blur-sm">
               <span className="text-base xs:text-lg sm:text-xl animate-bounce">⚠️</span>
