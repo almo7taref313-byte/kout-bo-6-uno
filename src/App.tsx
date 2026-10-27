@@ -13,12 +13,14 @@ import {
   buildDeck,
   calculateBotBid,
   evaluateTrickWinner,
+  getTimeoutFallbackMove,
   isLegalMove,
   selectBotBestTrump,
   selectBotMove,
   sortHandCards,
   SUIT_COLORS,
   getMatchTargetAndStatus,
+  BotStrategyContext,
 } from './utils/gameLogic';
 import { soundEngine } from './utils/soundEngine';
 import { usePWAInstall } from './utils/usePWAInstall';
@@ -150,6 +152,7 @@ export default function App() {
   // Turn & Trick
   const [currentTurn, setCurrentTurn] = useState<number>(0);
   const [currentTrick, setCurrentTrick] = useState<TrickPlay[]>([]);
+  const [playedTricksInRound, setPlayedTricksInRound] = useState<TrickPlay[][]>([]);
   const [collectingWinnerId, setCollectingWinnerId] = useState<number | null>(null);
   const [isActionPending, setIsActionPending] = useState<boolean>(false);
   const [timerRemaining, setTimerRemaining] = useState<number>(12);
@@ -193,6 +196,12 @@ export default function App() {
   // Timer Ref
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Check if private room has all real human players (no bots)
+  const isAllHumanGame =
+    isMultiplayerActive &&
+    ((seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
+      (players.length === 6 && players.every((p) => p.isHuman)));
+
   const showCallout = useCallback((text: string, emoji = '📢') => {
     setCallout({ text, emoji, timestamp: Date.now() });
     setTimeout(() => {
@@ -218,6 +227,14 @@ export default function App() {
 
   const startTimer = useCallback(() => {
     stopTimer();
+    const allHumans =
+      (seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
+      (players.length === 6 && players.every((p) => p.isHuman));
+    if (isMultiplayerActive && allHumans) {
+      setTimerRemaining(0);
+      return;
+    }
+
     setTimerRemaining(12);
 
     timerIntervalRef.current = setInterval(() => {
@@ -229,7 +246,7 @@ export default function App() {
         return prev - 0.2;
       });
     }, 200);
-  }, [stopTimer]);
+  }, [isMultiplayerActive, players, seats, stopTimer]);
 
   // Initial Deal & Start Round
   const startNewRound = useCallback(
@@ -263,6 +280,7 @@ export default function App() {
       setIsForcedBid(false);
       setBiddingHistory([]);
       setCurrentTrick([]);
+      setPlayedTricksInRound([]);
       setCollectingWinnerId(null);
       setTricksTeamA(0);
       setTricksTeamB(0);
@@ -536,8 +554,9 @@ export default function App() {
     const botTimer = setTimeout(() => {
       let bidVal = 0;
       let isForced = false;
+      const isFirstBidder = bot.id === (dealerIdx + 1) % 6;
       if (bot.id === dealerIdx && highestBid <= 4) {
-        const estBid = calculateBotBid(bot.hand, 4);
+        const estBid = calculateBotBid(bot.hand, 4, false, roundNumber);
         if (estBid >= 5) {
           bidVal = estBid;
           isForced = false;
@@ -546,13 +565,13 @@ export default function App() {
           isForced = true;
         }
       } else {
-        bidVal = calculateBotBid(bot.hand, highestBid);
+        bidVal = calculateBotBid(bot.hand, highestBid, isFirstBidder, roundNumber);
       }
       submitBid(bot.id, bidVal, isForced);
     }, 1700);
 
     return () => clearTimeout(botTimer);
-  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, submitBid]);
+  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, roundNumber, submitBid]);
 
   // Round Completion logic
   const handleRoundFinish = useCallback(
@@ -644,6 +663,7 @@ export default function App() {
       }
 
       setCurrentTrick([]);
+      setPlayedTricksInRound((prev) => [...prev, trick]);
       setCollectingWinnerId(null);
 
       // Early victory check
@@ -805,16 +825,29 @@ export default function App() {
     if (isMultiplayerActive && !isRoomHost) return;
 
     const botTimer = setTimeout(() => {
-      const move = selectBotMove(bot, currentTrick, trumpColor);
+      const context: BotStrategyContext = {
+        buyerId: bidWinner,
+        highestBid,
+        playedTricks: playedTricksInRound,
+        players,
+        dealerIdx,
+        roundNumber,
+      };
+      const move = selectBotMove(bot, currentTrick, trumpColor, context);
       handlePlayCard(bot.id, move);
     }, 850);
 
     return () => clearTimeout(botTimer);
-  }, [currentTrick, currentTurn, handlePlayCard, isMultiplayerActive, isRoomHost, phase, players, trumpColor]);
+  }, [bidWinner, currentTrick, currentTurn, dealerIdx, handlePlayCard, highestBid, isMultiplayerActive, isRoomHost, phase, playedTricksInRound, players, roundNumber, trumpColor]);
 
   // Timeout handler for active turn
   useEffect(() => {
     if (timerRemaining > 0) return;
+
+    // In private room with all humans, turn timer is completely disabled
+    if (isAllHumanGame) {
+      return;
+    }
 
     const cur = players[currentTurn];
     if (!cur) return;
@@ -833,12 +866,11 @@ export default function App() {
       submitBid(currentTurn, 0); // Force pass
     } else if (phase === 'PLAYING') {
       if (cur.hand.length > 0) {
-        const legal = cur.hand.filter((c) => isLegalMove(cur.hand, c, currentTrick));
-        const chosen = legal.length > 0 ? legal[0] : cur.hand[0];
+        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor);
         handlePlayCard(cur.id, chosen);
       }
     }
-  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining]);
+  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
 
   // Next round / Next match
   const handleNextRoundOrMatch = () => {
@@ -1059,6 +1091,83 @@ export default function App() {
           break;
         }
 
+        case 'BOT_TAKEOVER': {
+          if (msg.seatIndex !== undefined && msg.player) {
+            const seatIdx = msg.seatIndex;
+            setSeats((prev) => {
+              const next = [...prev];
+              next[seatIdx] = {
+                id: seatIdx,
+                name: msg.player!.name,
+                team: msg.player!.team,
+                avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
+                customPhoto: msg.player!.customPhoto || null,
+                isHuman: true,
+                isVacant: false,
+              };
+              return next;
+            });
+
+            setPlayers((prev) => {
+              const next = [...prev];
+              if (next[seatIdx]) {
+                next[seatIdx] = {
+                  ...next[seatIdx],
+                  name: msg.player!.name,
+                  avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
+                  customPhoto: msg.player!.customPhoto || null,
+                  isHuman: true,
+                  isVacant: false,
+                };
+              }
+              return next;
+            });
+
+            // If this is the Host, broadcast back the takeover confirmation along with the bot's current hand
+            if (isRoomHost) {
+              const botHand = players[seatIdx]?.hand || [];
+              roomSync.publish({
+                type: 'BOT_TAKEOVER',
+                roomCode,
+                senderId: roomSync.myClientId,
+                seatIndex: seatIdx,
+                player: msg.player,
+                hand: botHand,
+                scores: { a: matchScoreTeamA, b: matchScoreTeamB },
+                dealerIdx,
+                roundNumber,
+                color: trumpColor || undefined,
+                val: highestBid,
+                playerId: bidWinner !== null ? bidWinner : undefined,
+                timestamp: Date.now(),
+              });
+            }
+
+            showCallout(`دخل ${msg.player.name} مكان البوت في المقعد #${seatIdx} مباشرة! ⚡`, '⚡');
+            soundEngine.playCardSlide();
+          } else if (msg.hand && msg.seatIndex === currentHumanSeatIndex) {
+            // Player who took over receives their hand from host!
+            setPlayers((prev) => {
+              const next = [...prev];
+              if (next[currentHumanSeatIndex]) {
+                next[currentHumanSeatIndex] = {
+                  ...next[currentHumanSeatIndex],
+                  hand: msg.hand!,
+                  isHuman: true,
+                };
+              }
+              return next;
+            });
+            if (msg.color) setTrumpColor(msg.color);
+            if (msg.val) setHighestBid(msg.val);
+            if (msg.playerId !== undefined) setBidWinner(msg.playerId);
+            setPhase('PLAYING');
+            setShowHostModal(false);
+            setShowRoomsModal(false);
+          }
+          break;
+        }
+
         default:
           break;
       }
@@ -1067,7 +1176,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [chooseTrumpColor, currentHumanSeatIndex, handlePlayCard, isRoomHost, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid]);
+  }, [bidWinner, chooseTrumpColor, currentHumanSeatIndex, dealerIdx, handlePlayCard, highestBid, isRoomHost, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid, trumpColor]);
 
   // Profile Save
   const handleSaveProfileName = (newName: string) => {
@@ -1147,10 +1256,11 @@ export default function App() {
     showCallout(`طاولتك الخاصة #${roomCode} (5 مقاعد شاغرة للدخول) 🚪`, '👥');
   };
 
-  // Seat Configuration Actions: moving human into seat
+  // Seat Configuration Actions: moving human into seat / taking over bot
   const handleSitInSeat = (targetIdx: number) => {
     if (targetIdx === currentHumanSeatIndex) return;
     const oldIdx = currentHumanSeatIndex;
+    const isMatchOngoing = phase !== 'LOBBY';
 
     setSeats((prev) => {
       const next = [...prev];
@@ -1163,15 +1273,17 @@ export default function App() {
         isVacant: false,
         team: targetIdx % 2 === 0 ? 'A' : 'B',
       };
-      next[oldIdx] = {
-        ...next[oldIdx],
-        name: '',
-        avatarId: DEFAULT_BOT_PROFILES[oldIdx]?.avatarId || 'kuwaiti_ghutra_white',
-        customPhoto: null,
-        isHuman: false,
-        isVacant: true,
-        team: oldIdx % 2 === 0 ? 'A' : 'B',
-      };
+      if (!isMatchOngoing) {
+        next[oldIdx] = {
+          ...next[oldIdx],
+          name: '',
+          avatarId: DEFAULT_BOT_PROFILES[oldIdx]?.avatarId || 'kuwaiti_ghutra_white',
+          customPhoto: null,
+          isHuman: false,
+          isVacant: true,
+          team: oldIdx % 2 === 0 ? 'A' : 'B',
+        };
+      }
 
       const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
 
@@ -1179,24 +1291,56 @@ export default function App() {
         localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
       } catch {}
 
-      roomSync.publish({
-        type: 'SEAT_RESERVED',
-        roomCode,
-        senderId: roomSync.myClientId,
-        seatIndex: targetIdx,
-        oldSeatIndex: oldIdx,
-        player: {
+      if (isMatchOngoing) {
+        roomSync.publish({
+          type: 'BOT_TAKEOVER',
+          roomCode,
+          senderId: roomSync.myClientId,
+          seatIndex: targetIdx,
+          player: {
+            name: userName,
+            avatarId: userAvatar,
+            customPhoto: userCustomPhoto,
+            team: targetIdx % 2 === 0 ? 'A' : 'B',
+            isHuman: true,
+          },
+          timestamp: Date.now(),
+        });
+      } else {
+        roomSync.publish({
+          type: 'SEAT_RESERVED',
+          roomCode,
+          senderId: roomSync.myClientId,
+          seatIndex: targetIdx,
+          oldSeatIndex: oldIdx,
+          player: {
+            name: userName,
+            avatarId: userAvatar,
+            customPhoto: userCustomPhoto,
+            team: targetIdx % 2 === 0 ? 'A' : 'B',
+            isHuman: true,
+          },
+          seats: next,
+          vacantCount: vCount,
+          timestamp: Date.now(),
+        });
+      }
+
+      return next;
+    });
+
+    setPlayers((prev) => {
+      const next = [...prev];
+      if (next[targetIdx]) {
+        next[targetIdx] = {
+          ...next[targetIdx],
           name: userName,
           avatarId: userAvatar,
           customPhoto: userCustomPhoto,
-          team: targetIdx % 2 === 0 ? 'A' : 'B',
           isHuman: true,
-        },
-        seats: next,
-        vacantCount: vCount,
-        timestamp: Date.now(),
-      });
-
+          isVacant: false,
+        };
+      }
       return next;
     });
 
@@ -1208,8 +1352,19 @@ export default function App() {
       avatarId: userAvatar,
       customPhoto: userCustomPhoto,
     });
-    const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-    showCallout(`انتقلت للمقعد #${targetIdx} في ${teamName} 💺`, '💺');
+
+    if (isMatchOngoing) {
+      setShowHostModal(false);
+      setShowRoomsModal(false);
+      setIsActionPending(false);
+      const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+      showCallout(`استلمت اللعب فوراً في ${teamName} مكان البوت! ⚡`, '⚡');
+      soundEngine.init();
+      soundEngine.playCardSlide();
+    } else {
+      const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+      showCallout(`انتقلت للمقعد #${targetIdx} في ${teamName} 💺`, '💺');
+    }
   };
 
   // Convert seat to bot
@@ -1492,6 +1647,7 @@ export default function App() {
             collectingWinnerId={collectingWinnerId}
             dealerIdx={dealerIdx}
             isBaoonPendingTrump={highestBid === 9 && trumpColor === null}
+            isTimerDisabled={isAllHumanGame}
           />
 
           <PlayerHand
@@ -1508,6 +1664,7 @@ export default function App() {
             onCardClick={handleHumanCardClick}
             onSendPhrase={showCallout}
             dealerIdx={dealerIdx}
+            isTimerDisabled={isAllHumanGame}
           />
         </>
       )}
@@ -1570,6 +1727,7 @@ export default function App() {
           currentHumanSeatIndex={currentHumanSeatIndex}
           isHost={isRoomHost}
           lastSeatReserved={lastSeatReserved}
+          isMatchOngoing={phase !== 'LOBBY'}
           onRegenerateCode={() => {
             const nextCode = String(Math.floor(1000 + Math.random() * 9000));
             setRoomCode(nextCode);

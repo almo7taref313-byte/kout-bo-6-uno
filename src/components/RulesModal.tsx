@@ -222,6 +222,46 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   <b>التعريف:</b> أيقونة الباب الأصفر المفتوح الموجودة في أعلى شريط اللعبة تدل بوضوح على الخروج لمغادرة الطاولة والعودة إلى القائمة الرئيسية للعبة.
                 </p>
               </div>
+
+              {/* 7. حلقة توقيت اللاعب */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-yellow-500/40 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className="w-8 h-8 rounded-full border-2 border-yellow-400 relative flex items-center justify-center flex-shrink-0 animate-pulse">
+                    <span className="text-xs">⏱️</span>
+                  </div>
+                  <div>
+                    <h4 className="font-black text-yellow-300 text-xs sm:text-sm">
+                      حلقة توقيت اللاعب (Turn Timer Ring)
+                    </h4>
+                    <span className="text-[9.5px] text-slate-400 font-medium">
+                      تظهر حول صورة اللاعب صاحب الدور فقط
+                    </span>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-[10.5px]">
+                  <b>التعريف:</b> حلقة إضاءة نيونية تدور حصراً حول صورة اللاعب الذي عليه الدور (وليس على الطاولة)، لتنبيهه بالوقت المتبقي لرمي الكرت. في الطاولات الخاصة التي يكتمل فيها 6 لاعبين حقيقيين، يتوقف المؤقت تماماً للعب بأريحية.
+                </p>
+              </div>
+
+              {/* 8. شارة البوت والدخول مكان البوت */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-cyan-500/40 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-950 border border-cyan-400 flex items-center justify-center flex-shrink-0 text-base">
+                    🤖
+                  </div>
+                  <div>
+                    <h4 className="font-black text-cyan-300 text-xs sm:text-sm">
+                      شارة البوت والدخول المباشر (Bot Takeover)
+                    </h4>
+                    <span className="text-[9.5px] text-slate-400 font-medium">
+                      تبديل فوري في أي جولة جارية
+                    </span>
+                  </div>
+                </div>
+                <p className="text-slate-300 text-[10.5px]">
+                  <b>التعريف:</b> تدل على المقعد الذي يديره الكمبيوتر (بوت ذكي). تتيح اللعبة لأي لاعب حقيقي ينضم عبر رمز الـ 4 أرقام النقر على مقعد البوت ليدخل مكانه فوراً ويستلم يده وكروته ودوره ويواصل اللعب مع فريقه مباشرة.
+                </p>
+              </div>
             </>
           ) : (
             <>

@@ -21,6 +21,7 @@ interface TableArenaProps {
   collectingWinnerId?: number | null;
   dealerIdx?: number;
   isBaoonPendingTrump?: boolean;
+  isTimerDisabled?: boolean;
 }
 
 interface CardCoord {
@@ -65,6 +66,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   collectingWinnerId = null,
   dealerIdx = 0,
   isBaoonPendingTrump,
+  isTimerDisabled = false,
 }) => {
   // Festive lights appear when Baoon is selected (highestBid === 9) and disappear once trumpColor is chosen!
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
@@ -321,7 +323,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 44 44">
                     <circle cx="22" cy="22" r="20" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
-                    {isTurn && (
+                    {isTurn && !isTimerDisabled && (
                       <circle
                         className="timer-ring-neon"
                         cx="22"
@@ -331,6 +333,17 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         strokeWidth="3.5"
                         fill="none"
                         style={{ strokeDashoffset: offset }}
+                      />
+                    )}
+                    {isTurn && isTimerDisabled && (
+                      <circle
+                        cx="22"
+                        cy="22"
+                        r="20"
+                        stroke="#f59e0b"
+                        strokeWidth="3.5"
+                        fill="none"
+                        className="animate-pulse"
                       />
                     )}
                   </svg>

@@ -12,7 +12,8 @@ export interface RoomSyncMessage {
     | 'TRUMP_CHOSEN'
     | 'CARD_PLAYED'
     | 'TRICK_RESOLVED'
-    | 'NEW_ROUND';
+    | 'NEW_ROUND'
+    | 'BOT_TAKEOVER';
   roomCode: string;
   senderId: string;
   seatIndex?: number;
@@ -25,6 +26,7 @@ export interface RoomSyncMessage {
     isHuman: boolean;
   };
   seats?: SeatConfig[];
+  hand?: Card[];
   vacantCount?: number;
   timestamp: number;
 

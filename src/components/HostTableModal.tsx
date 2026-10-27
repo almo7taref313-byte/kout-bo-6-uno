@@ -23,6 +23,7 @@ interface HostTableModalProps {
   onEditSeat: (idx: number) => void;
   onStartGame: () => void;
   onClose: () => void;
+  isMatchOngoing?: boolean;
 }
 
 export const HostTableModal: React.FC<HostTableModalProps> = ({
@@ -31,6 +32,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   currentHumanSeatIndex,
   isHost = true,
   lastSeatReserved = null,
+  isMatchOngoing = false,
   onRegenerateCode,
   onSitInSeat,
   onConvertToBot,
@@ -170,13 +172,24 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </>
           ) : (
             <>
-              <button
-                onClick={() => onSitInSeat(idx)}
-                className="w-full py-0.5 xs:py-1 bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 rounded-lg text-[7.5px] xs:text-[8px] font-black active:scale-95 transition cursor-pointer"
-                title="اجلس في هذا المقعد"
-              >
-                اجلس هنا 💺
-              </button>
+              {!seat.isHuman ? (
+                <button
+                  onClick={() => onSitInSeat(idx)}
+                  className="w-full py-1 xs:py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[8.5px] xs:text-[9.5px] font-black shadow-md active:scale-95 transition cursor-pointer flex items-center justify-center gap-1 border border-emerald-300/40"
+                  title="ادخل مكان هذا البوت والعب مع الفريق فوراً"
+                >
+                  <span>⚡</span>
+                  <span>{isMatchOngoing ? 'ادخل مكان البوت والعب' : 'اجلس مكان البوت'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => onSitInSeat(idx)}
+                  className="w-full py-0.5 xs:py-1 bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 rounded-lg text-[7.5px] xs:text-[8px] font-black active:scale-95 transition cursor-pointer"
+                  title="اجلس في هذا المقعد"
+                >
+                  اجلس هنا 💺
+                </button>
+              )}
               <div className="grid grid-cols-3 gap-0.5 xs:gap-1 w-full">
                 {seat.isHuman ? (
                   <button

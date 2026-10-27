@@ -18,6 +18,7 @@ interface PlayerHandProps {
   onCardClick: (card: Card) => void;
   onSendPhrase?: (phrase: string, emoji?: string) => void;
   dealerIdx?: number;
+  isTimerDisabled?: boolean;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
@@ -34,6 +35,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   onCardClick,
   onSendPhrase: _onSendPhrase,
   dealerIdx = 0,
+  isTimerDisabled = false,
 }) => {
   if (!player) return null;
 
@@ -121,7 +123,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
               <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 44 44">
                 <circle cx="22" cy="22" r="20" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
-                {isMyTurn && (
+                {isMyTurn && !isTimerDisabled && (
                   <circle
                     className="timer-ring-neon"
                     cx="22"
@@ -131,6 +133,17 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                     strokeWidth="3.5"
                     fill="none"
                     style={{ strokeDashoffset: offset }}
+                  />
+                )}
+                {isMyTurn && isTimerDisabled && (
+                  <circle
+                    cx="22"
+                    cy="22"
+                    r="20"
+                    stroke="#f59e0b"
+                    strokeWidth="3.5"
+                    fill="none"
+                    className="animate-pulse"
                   />
                 )}
               </svg>
