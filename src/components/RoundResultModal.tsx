@@ -40,14 +40,24 @@ export const RoundResultModal: React.FC<RoundResultModalProps> = ({
   const isOpponentBuyer = !isMyTeamBuyer;
   const userWon = (buyerWinner && isMyTeamBuyer) || (!buyerWinner && !isMyTeamBuyer);
   const isBaoon = highestBid === 9;
-  const isAsamFirstRound = isBaoon && buyerWinner && roundNumber === 1;
 
   // Kuwaiti Kout scoring rule:
   // - Target 101 if both teams have >= 5 points.
   // - Target 51 if either team has < 5 points (Asam).
   // - If win is 51 vs 0: winning team gets "كفو عطيتهم عسم", losing team gets "عطاكم عسم".
+  // User Rule:
+  // "الباون اذا كان الفريقين قد حازا على ٥ نقاط او اكثر لا يعد الفوز بالباون عسم.
+  //  الباون فقط اذا كان اول جولة في اللعبة والفريقين لم يحرزا نقاطا واحرز الفريق ٩ اكلات كاملة يعتبر عسم"
   const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
-  const { targetScore, bothHaveFiveOrMore, isZeroAsam, statusTextA, statusTextB } = matchStatus;
+  const { targetScore, bothHaveFiveOrMore, statusTextA, statusTextB } = matchStatus;
+  const isAsamFirstRound =
+    !bothHaveFiveOrMore &&
+    isBaoon &&
+    buyerWinner &&
+    roundNumber === 1 &&
+    (buyerTeam === 'A' ? matchScoreTeamB === 0 : matchScoreTeamA === 0);
+
+  const isZeroAsam = !bothHaveFiveOrMore && (matchStatus.isZeroAsam || isAsamFirstRound);
   const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
 
   const pts = isBaoon ? 36 : highestBid;

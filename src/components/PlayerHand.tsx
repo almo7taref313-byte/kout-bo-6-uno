@@ -37,10 +37,19 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   dealerIdx = 0,
   isTimerDisabled = false,
 }) => {
-  if (!player) return null;
+  const activePlayer: Player = player || {
+    id: 0,
+    name: 'أنت',
+    team: 'A',
+    isHuman: true,
+    isVacant: false,
+    hand: [],
+    avatarId: 'kuwaiti_ghutra_white',
+    customPhoto: null,
+  };
 
-  const isMyTurn = currentTurn === player.id && phase === 'PLAYING' && !isActionPending;
-  const isHumanBuyer = bidWinner === player.id && highestBid > 4;
+  const isMyTurn = currentTurn === activePlayer.id && phase === 'PLAYING' && currentTrick.length < 6;
+  const isHumanBuyer = bidWinner === activePlayer.id && highestBid > 4;
 
   const circumference = 125.6;
   const offset = isMyTurn ? circumference * (1 - timerRemaining / 12) : 0;
@@ -52,8 +61,8 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         
         {/* Cards Row sorted by colors, and high-to-low from left to right */}
         <div className="w-full flex items-center justify-center -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 sm:py-1 min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] no-scrollbar">
-          {sortHandCards(player.hand, trumpColor).map((card, idx) => {
-            const playable = isMyTurn ? isLegalMove(player.hand, card, currentTrick, highestBid, trumpColor) : false;
+          {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
+            const playable = isMyTurn ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor) : false;
             return (
               <div
                 key={card.id}
@@ -85,7 +94,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               {isHumanBuyer && (
                 <div
                   className={`absolute -top-2 -right-2 xs:-top-2.5 xs:-right-2.5 z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-xl ${
-                    player.team === 'A'
+                    activePlayer.team === 'A'
                       ? 'border-[2.5px] xs:border-[3px] border-[#0063B0] ring-1 xs:ring-2 ring-blue-500/50 shadow-blue-600/40'
                       : 'border-[2.5px] xs:border-[3px] border-[#EA1D2D] ring-1 xs:ring-2 ring-red-500/50 shadow-red-600/40'
                   }`}
@@ -109,7 +118,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               )}
 
               {/* Dealer Badge: علامة الموزع أكبر قليلاً وواضحة جداً (أنت الموزع وزّعت الورق وآخر من يزايد) */}
-              {dealerIdx === player.id && (
+              {dealerIdx === activePlayer.id && (
                 <div
                   className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-7 h-7 xs:w-8 xs:h-8 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-2 ring-amber-300 select-none animate-pulse"
                   title="أنت الموزع (وزّعت الورق وآخر من يزايد - ملزوم بـ 5)"
@@ -152,13 +161,13 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                   isMyTurn ? (isCritical ? 'glow-turn-critical-red' : 'glow-turn-phosphor') : ''
                 }`}
               >
-                <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
+                <AvatarView avatarId={activePlayer.avatarId} customPhoto={activePlayer.customPhoto} />
               </div>
             </div>
 
             {/* Yellow Capsule Badge matching Jawaker's "Jacob-90" */}
             <div className="bg-[#f59e0b] text-slate-950 font-black text-[9px] xs:text-[10px] sm:text-xs px-2.5 xs:px-3 py-0.5 rounded-full shadow-md -mt-1.5 z-20 border border-yellow-300 max-w-[85px] xs:max-w-[110px] truncate">
-              {player.name}
+              {activePlayer.name}
             </div>
 
             {/* My Turn Banner */}

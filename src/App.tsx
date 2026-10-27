@@ -20,6 +20,7 @@ import {
   sortHandCards,
   SUIT_COLORS,
   getMatchTargetAndStatus,
+  getEffectiveLeadColor,
   BotStrategyContext,
 } from './utils/gameLogic';
 import { soundEngine } from './utils/soundEngine';
@@ -131,7 +132,22 @@ export default function App() {
     return s;
   });
   const [currentHumanSeatIndex, setCurrentHumanSeatIndex] = useState<number>(0);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<Player[]>(() => {
+    return [0, 1, 2, 3, 4, 5].map((idx) => {
+      const isUser = idx === 0;
+      const defBot = DEFAULT_BOT_PROFILES[idx];
+      return {
+        id: idx,
+        name: isUser ? (localStorage.getItem('kout_user_name') || 'أنت') : (defBot?.name || `بوت ${idx + 1}`),
+        team: idx % 2 === 0 ? 'A' : 'B',
+        isHuman: isUser,
+        isVacant: false,
+        hand: [],
+        avatarId: isUser ? (localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white') : (defBot?.avatarId || 'kuwaiti_shemagh_red'),
+        customPhoto: isUser ? (localStorage.getItem('kout_custom_photo') || null) : null,
+      };
+    });
+  });
 
   // Game Engine State
   const [phase, setPhase] = useState<GamePhase>('LOBBY');
@@ -619,8 +635,19 @@ export default function App() {
       const isOpponentBuyer = !isMyTeamBuyer;
       const userWon = (buyerIsWinner && isMyTeamBuyer) || (!buyerIsWinner && !isMyTeamBuyer);
       const matchStatus = getMatchTargetAndStatus(nextScoreA, nextScoreB);
-      const isAsamFirstRound = isBaoon && buyerIsWinner && roundNumber === 1;
-      const isZeroAsam = matchStatus.isZeroAsam;
+      // User Rule:
+      // "الباون اذا كان الفريقين قد حازا على ٥ نقاط او اكثر لا يعد الفوز بالباون عسم.
+      //  الباون فقط اذا كان اول جولة في اللعبة والفريقين لم يحرزا نقاطا واحرز الفريق ٩ اكلات كاملة يعتبر عسم"
+      const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
+      const isAsamFirstRound =
+        !prevBothHadFiveOrMore &&
+        isBaoon &&
+        buyerIsWinner &&
+        roundNumber === 1 &&
+        matchScoreTeamA === 0 &&
+        matchScoreTeamB === 0 &&
+        (buyerTeam === 'A' ? curTricksA : curTricksB) === 9;
+      const isZeroAsam = !matchStatus.bothHaveFiveOrMore && (matchStatus.isZeroAsam || isAsamFirstRound);
 
       if (isZeroAsam) {
         if (userWon) {
@@ -704,25 +731,26 @@ export default function App() {
 
       // Next trick leader
       setCurrentTurn(winnerId);
-      if (winnerId === currentHumanSeatIndex) {
-        setIsActionPending(false);
-      }
+      setIsActionPending(false);
       startTimer();
     },
-    [bidWinner, currentHumanSeatIndex, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
+    [bidWinner, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
   );
 
   // Card play action
   const handlePlayCard = useCallback(
     (playerId: number, card: Card, isFromRemote = false) => {
+      // Guard against duplicate card play in current trick
+      if (currentTrick.some((tp) => tp.playerId === playerId)) {
+        return;
+      }
+
       stopTimer();
 
       if (card.isJoker) {
         soundEngine.playJokerSlam();
         if (currentTrick.length === 0) {
-          if (highestBid === 9) {
-            showCallout('جيكر الباون حكم نافذ لا يقف بوجهه شيء! 👑🃏', '👑');
-          } else {
+          if (highestBid !== 9) {
             showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
           }
         } else {
@@ -731,9 +759,7 @@ export default function App() {
       } else if (card.isMaker) {
         soundEngine.playJokerSlam();
         if (currentTrick.length === 0) {
-          if (highestBid === 9) {
-            showCallout('ميكر الباون حكم نافذ لا يقف بوجهه شيء! 👑🌈', '👑');
-          } else {
+          if (highestBid !== 9) {
             showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
           }
         } else {
@@ -743,13 +769,13 @@ export default function App() {
         soundEngine.playCardSlide();
       }
 
-      // Remove from player's hand
+      // Remove from player's hand safely by id or color+rank
       setPlayers((prev) =>
         prev.map((p) => {
           if (p.id === playerId) {
             return {
               ...p,
-              hand: p.hand.filter((c) => c.id !== card.id),
+              hand: p.hand.filter((c) => c.id !== card.id && !(c.color === card.color && c.rank === card.rank)),
             };
           }
           return p;
@@ -775,19 +801,19 @@ export default function App() {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // Step 1: Wait 600ms so players see the last played card
+        // Step 1: Wait 450ms so players see the last played card
         setTimeout(() => {
           // Step 2: Play sweep sound and start grouped card flight to winning player's seat
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId);
 
-          // Step 3: When cards arrive at winner's seat (1250ms), resolve scores and transition
+          // Step 3: When cards arrive at winner's seat (750ms), resolve scores and transition
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
-          }, 1250);
-        }, 600);
+          }, 750);
+        }, 450);
       } else {
-        const nextTurn = (currentTurn + 1) % 6;
+        const nextTurn = (playerId + 1) % 6;
         setCurrentTurn(nextTurn);
         if (nextTurn === currentHumanSeatIndex) {
           setIsActionPending(false);
@@ -795,7 +821,7 @@ export default function App() {
         startTimer();
       }
     },
-    [currentHumanSeatIndex, currentTrick, currentTurn, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
   );
 
   // Human card click
@@ -805,13 +831,19 @@ export default function App() {
       return;
     }
 
-    if (phase === 'PLAYING' && currentTurn !== currentHumanSeatIndex) {
+    if (phase !== 'PLAYING') return;
+
+    if (currentTurn !== currentHumanSeatIndex) {
       const cur = players[currentTurn];
       showCallout(`اصبر يا معود! الدور عند ${cur ? cur.name : 'الخصم'} ⏳`, '✋');
       return;
     }
 
-    if (phase !== 'PLAYING' || currentTurn !== currentHumanSeatIndex || isActionPending) return;
+    // If trick is currently being swept, wait for animation
+    if (collectingWinnerId !== null || currentTrick.length >= 6) {
+      showCallout('لحظة، جاري لمّ الأكلة... 🧹', '⏳');
+      return;
+    }
 
     const me = players[currentHumanSeatIndex];
     if (!me) return;
@@ -849,7 +881,13 @@ export default function App() {
 
     // Following suit rule
     if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor)) {
-      showCallout('لازم تنزل نفس لون الأكلة!', '⚠️');
+      const leadColor = getEffectiveLeadColor(currentTrick, highestBid, trumpColor);
+      if (leadColor && me.hand.some((c) => c.color === leadColor)) {
+        const colName = SUIT_COLORS[leadColor]?.name || leadColor;
+        showCallout(`لازم تنزل نفس لون الأكلة (${colName})! ⚠️`, '⚠️');
+      } else {
+        showCallout('الكرت غير مسموح بهذه الأكلة! ⚠️', '⚠️');
+      }
       return;
     }
 
@@ -923,7 +961,13 @@ export default function App() {
     const isBaoon = highestBid === 9;
     const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
     const buyerTricks = buyerPlayer ? (buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB) : 0;
-    const isAsamFirstRound = isBaoon && buyerTricks >= 9 && roundNumber === 1;
+    const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
+    const isAsamFirstRound =
+      !prevBothHadFiveOrMore &&
+      isBaoon &&
+      buyerTricks >= 9 &&
+      roundNumber === 1 &&
+      (buyerPlayer ? (buyerPlayer.team === 'A' ? matchScoreTeamB === 0 : matchScoreTeamA === 0) : false);
     const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
     const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
 
@@ -1264,6 +1308,16 @@ export default function App() {
               nextA: tricksTeamA,
               nextB: tricksTeamB,
               seats,
+              players: players.map((p) => ({
+                id: p.id,
+                name: p.name,
+                team: p.team,
+                isHuman: p.isHuman,
+                isVacant: false,
+                hand: p.hand,
+                avatarId: p.avatarId,
+                customPhoto: p.customPhoto,
+              })),
               allHands: players.map((p) => ({
                 playerId: p.id,
                 hand: p.hand,
@@ -1326,22 +1380,53 @@ export default function App() {
           if (msg.seats) {
             setSeats(msg.seats);
           }
-          if (msg.allHands && msg.allHands.length > 0) {
+          if (msg.players && msg.players.length === 6) {
+            setPlayers((prev) =>
+              msg.players!.map((p: Player, idx: number) => {
+                const isMe = idx === currentHumanSeatIndex;
+                const seat = (msg.seats && msg.seats[idx]) || seats[idx];
+                const localHand = prev[idx]?.hand || [];
+                // If local human player has fewer cards, do not resurrect cards already played locally!
+                const safeHand =
+                  isMe && localHand.length > 0 && localHand.length < (p.hand?.length || 0)
+                    ? localHand
+                    : (p.hand && p.hand.length > 0 ? p.hand : localHand);
+                return {
+                  ...p,
+                  id: idx,
+                  name: isMe ? userName : (seat?.name || p.name),
+                  team: idx % 2 === 0 ? 'A' : 'B',
+                  isHuman: isMe ? true : (seat?.isHuman ?? p.isHuman),
+                  isVacant: false,
+                  avatarId: isMe ? userAvatar : (seat?.avatarId || p.avatarId),
+                  customPhoto: isMe ? userCustomPhoto : (seat?.customPhoto ?? p.customPhoto),
+                  hand: safeHand,
+                };
+              })
+            );
+          } else if (msg.allHands && msg.allHands.length > 0) {
             setPlayers((prev) => {
-              return prev.map((p, pIdx) => {
-                const synced = msg.allHands?.find((h) => h.playerId === pIdx);
-                if (synced) {
-                  const isMe = pIdx === currentHumanSeatIndex;
-                  return {
-                    ...p,
-                    hand: synced.hand && synced.hand.length > 0 ? synced.hand : p.hand,
-                    isHuman: isMe ? true : synced.isHuman,
-                    name: isMe ? userName : synced.name,
-                    avatarId: isMe ? userAvatar : p.avatarId,
-                    customPhoto: isMe ? userCustomPhoto : p.customPhoto,
-                  };
-                }
-                return p;
+              return [0, 1, 2, 3, 4, 5].map((idx) => {
+                const existing = prev[idx];
+                const synced = msg.allHands?.find((h) => h.playerId === idx);
+                const seat = (msg.seats && msg.seats[idx]) || seats[idx];
+                const isMe = idx === currentHumanSeatIndex;
+                const defBot = DEFAULT_BOT_PROFILES[idx];
+                const localHand = existing?.hand || [];
+                const safeHand =
+                  isMe && localHand.length > 0 && synced?.hand && localHand.length < synced.hand.length
+                    ? localHand
+                    : (synced?.hand && synced.hand.length > 0 ? synced.hand : localHand);
+                return {
+                  id: idx,
+                  name: isMe ? userName : (seat?.name || synced?.name || existing?.name || defBot?.name || `لاعب ${idx + 1}`),
+                  team: idx % 2 === 0 ? 'A' : 'B',
+                  isHuman: isMe ? true : (seat?.isHuman ?? synced?.isHuman ?? existing?.isHuman ?? false),
+                  isVacant: false,
+                  hand: safeHand,
+                  avatarId: isMe ? userAvatar : (seat?.avatarId || existing?.avatarId || defBot?.avatarId || 'kuwaiti_shemagh_red'),
+                  customPhoto: isMe ? userCustomPhoto : (seat?.customPhoto ?? existing?.customPhoto ?? null),
+                };
               });
             });
           }
@@ -1547,6 +1632,7 @@ export default function App() {
     setShowRoomsModal(false);
     setIsMultiplayerActive(true);
     setIsActionPending(false);
+    setPhase((prev) => (prev === 'LOBBY' ? 'PLAYING' : prev));
 
     // Make sure current seat is marked human in both seats and players
     setSeats((prev) => {
@@ -1637,18 +1723,18 @@ export default function App() {
     window.addEventListener('online', requestSync);
     window.addEventListener('focus', requestSync);
 
-    // Periodic heartbeat to prevent mobile cellular disconnects
-    const syncInterval = setInterval(() => {
+    // Gentle idle recovery: only request sync if game has stalled with no updates for 25s
+    const idleRecoveryInterval = setInterval(() => {
       if (!isRoomHost && phase !== 'LOBBY') {
         requestSync();
       }
-    }, 6000);
+    }, 25000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', requestSync);
       window.removeEventListener('focus', requestSync);
-      clearInterval(syncInterval);
+      clearInterval(idleRecoveryInterval);
     };
   }, [isMultiplayerActive, isRoomHost, phase, roomCode]);
 

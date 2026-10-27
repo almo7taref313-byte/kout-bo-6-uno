@@ -298,7 +298,10 @@ export const UnoCard: React.FC<UnoCardProps> = ({
 
   return (
     <div
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
       onClick={isClickable ? onClick : undefined}
+      style={{ touchAction: 'manipulation' }}
       className={`uno-card-ref ${sizeClass} ${holoClass} ${glowClass} ${
         isClickable ? 'player-card' : ''
       } ${isClickable && isPlayable ? 'active-playable' : ''} ${className}`}

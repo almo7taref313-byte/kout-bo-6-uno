@@ -238,8 +238,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
         {/* 5 Bot Seats Layout around Stadium Table Rim */}
         {botSeatIndices.map((idx) => {
-          const player = players[idx];
-          if (!player) return null;
+          const player = players[idx] || {
+            id: idx,
+            name: `بوت ${idx + 1}`,
+            team: idx % 2 === 0 ? 'A' : 'B',
+            isHuman: false,
+            hand: [],
+            tricksWon: 0,
+            avatarId: 'kuwaiti_shemagh_red',
+            customPhoto: null,
+          };
 
           const isPartner = player.team === 'A';
           const isTurn = currentTurn === idx && phase !== 'ROUND_END' && phase !== 'MATCH_OVER';

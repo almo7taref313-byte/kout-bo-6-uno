@@ -1,5 +1,5 @@
 import mqtt, { MqttClient } from 'mqtt';
-import { BidRecord, Card, SeatConfig, SuitColor, TrickPlay } from '../types';
+import { BidRecord, Card, Player, SeatConfig, SuitColor, TrickPlay } from '../types';
 
 export interface RoomSyncMessage {
   type:
@@ -55,6 +55,7 @@ export interface RoomSyncMessage {
   bidWinner?: number | null;
   isForcedBid?: boolean;
   biddingHistory?: BidRecord[];
+  players?: Player[];
   allHands?: { playerId: number; hand: Card[]; isHuman: boolean; name: string }[];
 }
 
