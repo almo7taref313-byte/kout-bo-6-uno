@@ -313,9 +313,10 @@ export function selectSmartDiscard(
 
 /**
  * Smart Timeout Fallback Move:
- * - If holding King ('1') of lead suit: play King!
- * - Else if someone already played a card stronger than player's cards: play smallest legal card.
- * - Else play lowest winning or legal card.
+ * - User Rule: حين ينتهي الوقت المتاح للاعب لكي يلقي ورقته سواء كان بوتا او حقيقيا
+ *   وكان اللون لا يملكه ويملك كرتا من الحكم يلعبه (يلعب الحكم لقص الأكلة وكسبها).
+ * - وإذا كان يملك لون الأكلة ومعه الخال (1) يلعبه فوراً.
+ * - وإذا كان لا يمكنه كسب الأكلة أو كروت الآخرين أعلى يرمي أصغر كرت متاح لحماية كروته.
  */
 export function getTimeoutFallbackMove(
   hand: Card[],
@@ -328,23 +329,68 @@ export function getTimeoutFallbackMove(
 
   const lead = getEffectiveLeadColor(trick);
 
-  // 1. If player has King of lead suit:
-  if (lead) {
+  // If responding to an existing trick:
+  if (trick.length > 0 && lead) {
+    const hasLeadSuit = lead !== 'special' && hand.some((c) => c.color === lead);
+
+    // 1. User Rule: إذا كان اللون لا يملكه ويملك كرتاً من الحكم يلعبه!
+    if (!hasLeadSuit) {
+      const trumps = legal.filter(
+        (c) => (trumpColor && c.color === trumpColor) || c.isJoker || c.isMaker
+      );
+
+      if (trumps.length > 0) {
+        // Can any trump win the trick?
+        const winningTrumps = trumps.filter((c) => {
+          const simulated = [...trick, { playerId: -1, card: c }];
+          return evaluateTrickWinner(simulated, trumpColor) === -1;
+        });
+
+        if (winningTrumps.length > 0) {
+          // Play the lowest winning trump to win trick economically
+          winningTrumps.sort((a, b) => {
+            const pA = getCardPower(a, trick, trumpColor, trick.length);
+            const pB = getCardPower(b, trick, trumpColor, trick.length);
+            return pA - pB;
+          });
+          return winningTrumps[0];
+        }
+
+        // Even if trick cannot be won (e.g. higher trump already played), play the lowest trump
+        trumps.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return trumps[0];
+      }
+
+      // No lead suit and no trumps: discard smallest card (2, 3, 4, 5...) protecting Kings
+      return selectSmartDiscard(legal, trick, trumpColor);
+    }
+
+    // 2. Player HAS lead suit:
+    // If player holds King ('1') of lead suit, play it!
     const kingOfLead = legal.find((c) => c.color === lead && c.rank === '1');
     if (kingOfLead) return kingOfLead;
-  }
 
-  // 2. Check if player cannot win the trick
-  const canWin = legal.some((c) => {
-    const simulated = [...trick, { playerId: -1, card: c }];
-    return evaluateTrickWinner(simulated, trumpColor) === -1;
-  });
+    // Check if player can win with a lead card:
+    const winningLeadMoves = legal.filter((c) => {
+      const simulated = [...trick, { playerId: -1, card: c }];
+      return evaluateTrickWinner(simulated, trumpColor) === -1;
+    });
 
-  if (!canWin) {
+    if (winningLeadMoves.length > 0) {
+      winningLeadMoves.sort((a, b) => {
+        const pA = getCardPower(a, trick, trumpColor, trick.length);
+        const pB = getCardPower(b, trick, trumpColor, trick.length);
+        return pA - pB;
+      });
+      return winningLeadMoves[0];
+    }
+
+    // Cannot win: play smallest card of lead suit
     return selectSmartDiscard(legal, trick, trumpColor);
   }
 
-  return legal[0];
+  // Opening trick (trick.length === 0):
+  return selectSmartDiscard(legal, trick, trumpColor);
 }
 
 export function selectBotMove(
