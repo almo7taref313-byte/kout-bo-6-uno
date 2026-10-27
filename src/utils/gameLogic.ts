@@ -104,7 +104,8 @@ export function getCardPower(
   trumpColor: SuitColor | null,
   playIndex: number
 ): number {
-  if (card.isJoker && playIndex === 0) return 0;
+  // Opening rule: If Joker or Maker is led at playIndex 0, it spoils ("خاس يالردي") and becomes a regular card with 0 power!
+  if ((card.isJoker || card.isMaker) && playIndex === 0) return 0;
   if (card.isJoker) return 1000;
 
   const lead = getEffectiveLeadColor(trick);
@@ -130,8 +131,12 @@ export function getCardPower(
 export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | null): number {
   if (!trick || trick.length === 0) return 0;
 
-  // 1. If Joker (+4) was played (and not as opening when other cards held), Joker ALWAYS wins!
-  const validJokerPlay = trick.find((t, idx) => t.card.isJoker && (idx > 0 || trick.length === 1));
+  // 1. If Joker was played at index > 0, it ALWAYS wins!
+  // (If Joker was led at index 0, it is "خاس يالردي" and cannot win if other cards are played!)
+  if (trick.length === 1 && trick[0].card.isJoker) {
+    return trick[0].playerId;
+  }
+  const validJokerPlay = trick.find((t, idx) => t.card.isJoker && idx > 0);
   if (validJokerPlay) {
     return validJokerPlay.playerId;
   }
@@ -148,18 +153,25 @@ export function evaluateTrickWinner(trick: TrickPlay[], trumpColor: SuitColor | 
     }
   }
 
-  // 3. If Maker (Rainbow 🌈) is in the trick:
-  // Maker beats all other trumps and suited cards (except Joker and خال الحكم)!
-  const makerPlay = trick.find((t) => t.card.isMaker);
-  if (makerPlay) {
-    return makerPlay.playerId;
+  // 3. If Maker was played at index > 0, Maker wins!
+  // (If Maker was led at index 0, it is "خاس يالردي" and cannot win if other cards are played!)
+  if (trick.length === 1 && trick[0].card.isMaker) {
+    return trick[0].playerId;
+  }
+  const validMakerPlay = trick.find((t, idx) => t.card.isMaker && idx > 0);
+  if (validMakerPlay) {
+    return validMakerPlay.playerId;
   }
 
-  // 4. Regular trick resolution by card power
-  let winning = trick[0];
-  let maxP = getCardPower(winning.card, trick, trumpColor, 0);
+  // 4. Regular trick resolution by card power:
+  // If index 0 was spoiled (Joker or Maker led) and other cards were played, start evaluation from index 1!
+  const isSpoiledOpening = (trick[0].card.isJoker || trick[0].card.isMaker) && trick.length > 1;
+  const startIdx = isSpoiledOpening ? 1 : 0;
 
-  for (let i = 1; i < trick.length; i++) {
+  let winning = trick[startIdx];
+  let maxP = getCardPower(winning.card, trick, trumpColor, startIdx);
+
+  for (let i = startIdx + 1; i < trick.length; i++) {
     const p = getCardPower(trick[i].card, trick, trumpColor, i);
     if (p > maxP) {
       maxP = p;
@@ -180,7 +192,7 @@ export function isLegalMove(hand: Card[], card: Card, trick: TrickPlay[]): boole
   }
 
   // Cannot play Maker onto Joker if an alternative card exists in hand
-  const hasJokerInTrick = trick.some((t) => t.card.isJoker);
+  const hasJokerInTrick = trick.some((t, idx) => t.card.isJoker && idx > 0);
   if (hasJokerInTrick && card.isMaker && hand.some((c) => !c.isMaker)) {
     return false;
   }

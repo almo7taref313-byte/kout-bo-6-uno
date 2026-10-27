@@ -719,10 +719,18 @@ export default function App() {
 
       if (card.isJoker) {
         soundEngine.playJokerSlam();
-        showCallout('يا سلام على الجيكر!!', '🃏');
+        if (currentTrick.length === 0) {
+          showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+        } else {
+          showCallout('يا سلام على الجيكر!!', '🃏');
+        }
       } else if (card.isMaker) {
         soundEngine.playJokerSlam();
-        showCallout('الميكر نزل وقصها!', '🌈');
+        if (currentTrick.length === 0) {
+          showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+        } else {
+          showCallout('الميكر نزل وقصها!', '🌈');
+        }
       } else {
         soundEngine.playCardSlide();
       }
