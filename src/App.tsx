@@ -431,18 +431,23 @@ export default function App() {
 
   // Bidding resolution
   const submitBid = useCallback(
-    (playerId: number, val: number) => {
+    (playerId: number, val: number, forced = false) => {
       stopTimer();
       const player = players[playerId];
       const pName = player ? player.name : `لاعب ${playerId + 1}`;
 
-      // In Kout Bo 6: If the dealer is bidding, and all 5 previous players passed (highestBid <= 4),
-      // the dealer CANNOT say pass ("طـوف")! The dealer is forced ("ملزوم") to buy at 5!
+      // In Kout Bo 6:
+      // If forced is true, OR if dealer is bidding and all 5 previous players passed and val === 0:
+      // The dealer is forced ("ملزوم") to buy at 5 (penalty is only 5 upon loss).
+      // If dealer voluntarily chose a bid (forced is false and val >= 5):
+      // Penalty doubles upon loss (e.g. chosen 5 -> 10 points).
       let effectiveVal = val;
-      const isDealerForcedNow = playerId === dealerIdx && highestBid <= 4 && (val === 0 || val < 5);
-      if (isDealerForcedNow) {
+      const isDealerForced = forced || (playerId === dealerIdx && highestBid <= 4 && val === 0);
+      if (isDealerForced) {
         effectiveVal = 5;
         setIsForcedBid(true);
+      } else if (effectiveVal > highestBid) {
+        setIsForcedBid(false);
       }
 
       if (effectiveVal === 0) {
@@ -451,7 +456,7 @@ export default function App() {
       } else if (effectiveVal === 9) {
         soundEngine.playBidTone(true);
         showCallout(`بااااون من ${pName}! 👑`, '👑');
-      } else if (isDealerForcedNow) {
+      } else if (isDealerForced) {
         soundEngine.playBidTone(false);
         showCallout(`الموزع ${pName} ملزوم بـ 5! ⚡`, '⚡');
       } else {
@@ -547,15 +552,24 @@ export default function App() {
     if (!bot) return;
 
     const botTimer = setTimeout(() => {
-      // If bot is dealer and all previous players passed (highestBid <= 4), bot cannot pass!
       let bidVal = 0;
+      let isForced = false;
       if (bot.id === dealerIdx && highestBid <= 4) {
+        // If bot is dealer and all previous players passed:
+        // If bot hand estimate is >= 5, bot voluntarily bids (doubles upon loss).
+        // Otherwise, bot takes forced 5 (only 5 pts upon loss).
         const estBid = calculateBotBid(bot.hand, 4);
-        bidVal = Math.max(5, estBid);
+        if (estBid >= 5) {
+          bidVal = estBid;
+          isForced = false;
+        } else {
+          bidVal = 5;
+          isForced = true;
+        }
       } else {
         bidVal = calculateBotBid(bot.hand, highestBid);
       }
-      submitBid(bot.id, bidVal);
+      submitBid(bot.id, bidVal, isForced);
     }, 1700);
 
     return () => clearTimeout(botTimer);
@@ -1248,8 +1262,8 @@ export default function App() {
           highestBid={highestBid}
           bidWinner={bidWinner}
           players={players}
-          onBid={(val) => submitBid(currentHumanSeatIndex, val)}
-          onPass={() => submitBid(currentHumanSeatIndex, 0)}
+          onBid={(val, forced) => submitBid(currentHumanSeatIndex, val, forced)}
+          onPass={() => submitBid(currentHumanSeatIndex, 0, false)}
           onPickTrump={(col) => chooseTrumpColor(col, currentHumanSeatIndex)}
           isDealer={currentHumanSeatIndex === dealerIdx}
           noBidsYet={highestBid <= 4 && biddingHistory.every((b) => b.val === 0)}

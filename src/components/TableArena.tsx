@@ -226,6 +226,17 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
+                  {/* كلمة "ملزوم" واضحة عند صورة الموزع الملزوم */}
+                  {isBuyer && isForcedBid && (
+                    <div
+                      className="absolute -top-5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-[8px] xs:text-[9px] px-2 py-0.2 rounded-full border border-yellow-200 shadow-xl shadow-amber-500/50 select-none animate-pulse flex items-center gap-0.5"
+                      title="الموزع ملزوم (تحتسب 5 نقاط فقط عند الخسارة ولا تتضاعف)"
+                    >
+                      <span>ملزوم</span>
+                      <span className="text-[7.5px]">⚡</span>
+                    </div>
+                  )}
+
                   {/* Dealer Badge: علامة الموزع أكبر قليلاً وواضحة جداً (أول واحد يوزع الورق وآخر من يزايد) */}
                   {isDealer && (
                     <div

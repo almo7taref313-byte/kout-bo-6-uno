@@ -6,7 +6,7 @@ interface BiddingModalProps {
   highestBid: number;
   bidWinner: number | null;
   players: Player[];
-  onBid: (val: number) => void;
+  onBid: (val: number, forced?: boolean) => void;
   onPass: () => void;
   onPickTrump: (color: SuitColor) => void;
   isDealer?: boolean;
@@ -33,6 +33,18 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
         {step === 'BID' && (
           <div className="w-full flex flex-col gap-2.5">
             
+            {/* Notice for Dealer if everyone passed */}
+            {isDealer && noBidsYet && (
+              <div className="bg-amber-950/60 border border-amber-500/50 rounded-xl p-1.5 text-center">
+                <span className="text-[10.5px] font-black text-amber-300 block">
+                  الكل طوّف! بصفتك الموزع أنت ملزوم
+                </span>
+                <span className="text-[8.5px] text-slate-300">
+                  اختر "ملزوم" (5 نقاط عند الخسارة) أو اختر رقماً طوعاً (يضاعف عند الخسارة)
+                </span>
+              </div>
+            )}
+
             {/* Team Color Pill of the Bidder who chose the trick number */}
             {buyer && highestBid > 4 && (
               <div
@@ -55,7 +67,7 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
               </div>
             )}
 
-            {/* Row 1: Numbers 5, 6, 7, 8 */}
+            {/* Row 1: Numbers 5, 6, 7, 8 (Voluntary bids: double upon loss) */}
             <div className="grid grid-cols-4 gap-2">
               {[5, 6, 7, 8].map((bid) => {
                 const disabled = bid <= highestBid;
@@ -63,7 +75,7 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
                 return (
                   <div key={bid} className="relative w-full">
                     <button
-                      onClick={() => onBid(bid)}
+                      onClick={() => onBid(bid, false)}
                       disabled={disabled}
                       className={`w-full py-3 sm:py-3.5 rounded-2xl font-black text-2xl sm:text-3xl text-white transition shadow-lg flex items-center justify-center ${
                         disabled
@@ -74,6 +86,7 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
                             : 'bg-emerald-950/25 text-white/25 border border-emerald-900/20 opacity-30 cursor-not-allowed'
                           : 'btn-glow-green border border-emerald-300/40 active:scale-95 cursor-pointer hover:brightness-110'
                       }`}
+                      title={isDealer && noBidsYet ? `اختيار ${bid} طوعاً (يضاعف النقاط إلى ${bid * 2} عند الخسارة)` : `${bid}`}
                     >
                       {bid}
                     </button>
@@ -91,12 +104,12 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
               })}
             </div>
 
-            {/* Row 2: باون & طاف */}
+            {/* Row 2: باون & (طاف أو ملزوم) */}
             <div className="grid grid-cols-2 gap-2">
-              {/* باون (لون ذهبي ملكي مميز بتاج لمنع الضغط بالخطأ) */}
+              {/* باون */}
               <div className="relative w-full">
                 <button
-                  onClick={() => onBid(9)}
+                  onClick={() => onBid(9, false)}
                   disabled={highestBid >= 9}
                   className={`w-full py-2.5 sm:py-3 rounded-2xl font-black text-base sm:text-lg transition shadow-lg flex items-center justify-center gap-1.5 ${
                     highestBid >= 9
@@ -122,14 +135,14 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
                 )}
               </div>
 
-              {/* طاف / ملزوم للموزع (الموزع ملزوم بـ 5 ولا يقول طاف) */}
+              {/* طاف / ملزوم للموزع (ملزوم = 5 نقاط فقط عند الخسارة) */}
               {isDealer && noBidsYet ? (
                 <button
-                  onClick={() => onBid(5)}
-                  className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-2 border-amber-300 ring-2 ring-amber-400/60 text-white active:scale-95 hover:brightness-110 py-2.5 sm:py-3 rounded-2xl font-black text-sm sm:text-base transition shadow-xl flex items-center justify-center cursor-pointer"
-                  title="بصفتك الموزع وطوّف الجميع، أنت ملزوم بالشراء بـ 5 وتحديد الحكم"
+                  onClick={() => onBid(5, true)}
+                  className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 border-2 border-yellow-200 ring-2 ring-amber-400/60 text-slate-950 active:scale-95 hover:brightness-110 py-2.5 sm:py-3 rounded-2xl font-black text-sm sm:text-base transition shadow-xl flex items-center justify-center gap-1 cursor-pointer"
+                  title="الموزع ملزوم (تحتسب 5 نقاط فقط عند الخسارة ولا تتضاعف)"
                 >
-                  ملزوم بـ 5 ⚡
+                  <span>ملزوم ⚡</span>
                 </button>
               ) : (
                 <button

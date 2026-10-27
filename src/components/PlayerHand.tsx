@@ -29,7 +29,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   trumpColor,
   highestBid,
   bidWinner,
-  isForcedBid: _isForcedBid,
+  isForcedBid,
   timerRemaining,
   onCardClick,
   onSendPhrase: _onSendPhrase,
@@ -92,6 +92,17 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                   <span className="font-mono font-black drop-shadow-md leading-none">
                     {highestBid === 9 ? '👑' : highestBid}
                   </span>
+                </div>
+              )}
+
+              {/* كلمة "ملزوم" واضحة عند صورة اللاعب البشري إذا كان ملزوماً */}
+              {isHumanBuyer && isForcedBid && (
+                <div
+                  className="absolute -top-5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-[8.5px] xs:text-[9.5px] px-2.5 py-0.2 rounded-full border border-yellow-200 shadow-xl shadow-amber-500/50 select-none animate-pulse flex items-center gap-0.5"
+                  title="أنت الموزع الملزوم (تحتسب 5 نقاط فقط عند الخسارة ولا تتضاعف)"
+                >
+                  <span>ملزوم</span>
+                  <span className="text-[8px]">⚡</span>
                 </div>
               )}
 
