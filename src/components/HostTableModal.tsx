@@ -22,6 +22,7 @@ interface HostTableModalProps {
   onVacateAllSeats: () => void;
   onEditSeat: (idx: number) => void;
   onStartGame: () => void;
+  onEnterOngoingMatch?: () => void;
   onClose: () => void;
   isMatchOngoing?: boolean;
 }
@@ -41,6 +42,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   onVacateAllSeats,
   onEditSeat,
   onStartGame,
+  onEnterOngoingMatch,
   onClose,
 }) => {
   const filledSeats = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '');
@@ -184,10 +186,11 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               ) : (
                 <button
                   onClick={() => onSitInSeat(idx)}
-                  className="w-full py-0.5 xs:py-1 bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 rounded-lg text-[7.5px] xs:text-[8px] font-black active:scale-95 transition cursor-pointer"
-                  title="اجلس في هذا المقعد"
+                  className="w-full py-1 xs:py-1.5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-lg text-[8px] xs:text-[9px] font-black shadow-md active:scale-95 transition cursor-pointer flex items-center justify-center gap-1 border border-amber-300/40"
+                  title="اختر هذا المقعد بديلاً للاعب أو اجلس فيه"
                 >
-                  اجلس هنا 💺
+                  <span>👤</span>
+                  <span>{isMatchOngoing ? 'بديل للاعب 👤' : 'اجلس هنا 💺'}</span>
                 </button>
               )}
               <div className="grid grid-cols-3 gap-0.5 xs:gap-1 w-full">
@@ -473,8 +476,36 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
           </div>
         </div>
 
-        {/* Start Game Gate: زر العب لمنشئ الغرفة أو شاشة انتظار للأعضاء الآخرين */}
-        {isHost ? (
+        {/* Start Game / Enter Ongoing Match Gate: زر الدخول الأساسي والمباشر */}
+        {isMatchOngoing ? (
+          <div className="space-y-2 pt-1">
+            <div className="text-emerald-300 text-[11px] sm:text-xs font-bold text-center bg-emerald-950/70 py-1.5 px-3 rounded-xl border border-emerald-500/50 flex items-center justify-center gap-2 shadow-lg">
+              <span className="text-base animate-pulse">🃏</span>
+              <span>
+                الجولة جارية الآن! اخترت المقعد #{currentHumanSeatIndex + 1} ({seats[currentHumanSeatIndex]?.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴'})
+              </span>
+            </div>
+
+            {/* زر الدخول الأساسي والمباشر للعبة الجارية */}
+            <button
+              onClick={() => {
+                if (onEnterOngoingMatch) {
+                  onEnterOngoingMatch();
+                } else {
+                  onStartGame();
+                }
+              }}
+              className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 hover:from-emerald-500 hover:to-teal-400 text-white font-black rounded-2xl text-base sm:text-lg shadow-2xl transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer border-2 border-emerald-300 ring-4 ring-emerald-500/30 animate-pulse hover:brightness-110"
+              title="دخول اللعبة والمشاركة مباشرة"
+            >
+              <span className="text-xl sm:text-2xl">⚡</span>
+              <span>دخول اللعبة والمشاركة الآن</span>
+              <span className="text-xs sm:text-sm font-black bg-black/35 px-2 py-0.5 rounded-lg border border-white/20">
+                {seats[currentHumanSeatIndex]?.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴'}
+              </span>
+            </button>
+          </div>
+        ) : isHost ? (
           <div className="space-y-1.5 pt-1">
             {!isComplete && (
               <div className="text-amber-300 text-[10px] font-bold text-center bg-amber-950/40 py-1.5 px-2 rounded-xl border border-amber-500/30 flex items-center justify-center gap-2">
@@ -500,14 +531,16 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </button>
           </div>
         ) : (
-          <div className="w-full py-3.5 px-3 bg-slate-950/95 border-2 border-amber-500/60 rounded-2xl text-center shadow-2xl space-y-1">
-            <div className="flex items-center justify-center gap-2 text-amber-400 font-black text-xs sm:text-sm animate-pulse">
-              <span className="text-base sm:text-lg">⏳</span>
-              <span>في انتظار منشئ الغرفة للضغط على زر (العب)...</span>
+          <div className="space-y-1.5 pt-1">
+            <div className="w-full py-3.5 px-3 bg-slate-950/95 border-2 border-amber-500/60 rounded-2xl text-center shadow-2xl space-y-1">
+              <div className="flex items-center justify-center gap-2 text-amber-400 font-black text-xs sm:text-sm">
+                <span className="text-base sm:text-lg">✅</span>
+                <span>أنت جالس في المقعد #{currentHumanSeatIndex + 1} ({seats[currentHumanSeatIndex]?.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴'})</span>
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-400">
+                في انتظار منشئ الغرفة للضغط على زر (العب) لبدء اللعبة للجميع!
+              </p>
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-400">
-              بمجرد أن يضغط منشئ الغرفة على زر العب، سيدخل الجميع فوراً إلى الطاولة ويبدأ اللعب!
-            </p>
           </div>
         )}
       </div>

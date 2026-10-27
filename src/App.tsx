@@ -379,6 +379,20 @@ export default function App() {
         timestamp: Date.now(),
       });
 
+      // Request immediate room state and match sync from host
+      roomSync.publish({
+        type: 'JOIN_REQUEST',
+        roomCode: code,
+        senderId: roomSync.myClientId,
+        timestamp: Date.now(),
+      });
+      roomSync.publish({
+        type: 'SYNC_REQUEST',
+        roomCode: code,
+        senderId: roomSync.myClientId,
+        timestamp: Date.now(),
+      });
+
       soundEngine.playCardSlide();
       showCallout(`انضممت للغرفة #${code}! حجزت المقعد #${targetSeat} في ${teamName} (المقاعد الشاغرة: ${vacantCount}) 💺`, '💺');
     },
@@ -956,6 +970,36 @@ export default function App() {
               vacantCount: vCount,
               timestamp: Date.now(),
             });
+
+            // If game is active, broadcast full table snapshot so joining player immediately catches up
+            if (phase !== 'LOBBY') {
+              roomSync.publish({
+                type: 'SYNC_STATE',
+                roomCode,
+                senderId: roomSync.myClientId,
+                phase,
+                currentTurn,
+                currentTrick,
+                trumpColor,
+                highestBid,
+                bidWinner,
+                isForcedBid,
+                biddingHistory,
+                roundNumber,
+                dealerIdx,
+                scores: { a: matchScoreTeamA, b: matchScoreTeamB },
+                nextA: tricksTeamA,
+                nextB: tricksTeamB,
+                seats,
+                allHands: players.map((p) => ({
+                  playerId: p.id,
+                  hand: p.hand,
+                  isHuman: p.isHuman,
+                  name: p.name,
+                })),
+                timestamp: Date.now(),
+              });
+            }
           }
           break;
         }
@@ -1168,6 +1212,110 @@ export default function App() {
           break;
         }
 
+        case 'SYNC_REQUEST': {
+          if (isRoomHost) {
+            roomSync.publish({
+              type: 'SYNC_STATE',
+              roomCode,
+              senderId: roomSync.myClientId,
+              phase,
+              currentTurn,
+              currentTrick,
+              trumpColor,
+              highestBid,
+              bidWinner,
+              isForcedBid,
+              biddingHistory,
+              roundNumber,
+              dealerIdx,
+              scores: { a: matchScoreTeamA, b: matchScoreTeamB },
+              nextA: tricksTeamA,
+              nextB: tricksTeamB,
+              seats,
+              allHands: players.map((p) => ({
+                playerId: p.id,
+                hand: p.hand,
+                isHuman: p.isHuman,
+                name: p.name,
+              })),
+              timestamp: Date.now(),
+            });
+          }
+          break;
+        }
+
+        case 'SYNC_STATE': {
+          if (msg.phase) {
+            setPhase(msg.phase as GamePhase);
+            if (msg.phase !== 'LOBBY') {
+              setIsMultiplayerActive(true);
+            }
+          }
+          if (msg.currentTurn !== undefined) {
+            setCurrentTurn(msg.currentTurn);
+            if (msg.currentTurn === currentHumanSeatIndex) {
+              setIsActionPending(false);
+            }
+          }
+          if (msg.currentTrick) {
+            setCurrentTrick(msg.currentTrick);
+          }
+          if (msg.trumpColor !== undefined) {
+            setTrumpColor(msg.trumpColor);
+          }
+          if (msg.highestBid !== undefined) {
+            setHighestBid(msg.highestBid);
+          }
+          if (msg.bidWinner !== undefined) {
+            setBidWinner(msg.bidWinner);
+          }
+          if (msg.isForcedBid !== undefined) {
+            setIsForcedBid(msg.isForcedBid);
+          }
+          if (msg.biddingHistory) {
+            setBiddingHistory(msg.biddingHistory);
+          }
+          if (msg.roundNumber !== undefined) {
+            setRoundNumber(msg.roundNumber);
+          }
+          if (msg.dealerIdx !== undefined) {
+            setDealerIdx(msg.dealerIdx);
+          }
+          if (msg.scores) {
+            setMatchScoreTeamA(msg.scores.a);
+            setMatchScoreTeamB(msg.scores.b);
+          }
+          if (msg.nextA !== undefined) {
+            setTricksTeamA(msg.nextA);
+          }
+          if (msg.nextB !== undefined) {
+            setTricksTeamB(msg.nextB);
+          }
+          if (msg.seats) {
+            setSeats(msg.seats);
+          }
+          if (msg.allHands && msg.allHands.length > 0) {
+            setPlayers((prev) => {
+              return prev.map((p, pIdx) => {
+                const synced = msg.allHands?.find((h) => h.playerId === pIdx);
+                if (synced) {
+                  const isMe = pIdx === currentHumanSeatIndex;
+                  return {
+                    ...p,
+                    hand: synced.hand && synced.hand.length > 0 ? synced.hand : p.hand,
+                    isHuman: isMe ? true : synced.isHuman,
+                    name: isMe ? userName : synced.name,
+                    avatarId: isMe ? userAvatar : p.avatarId,
+                    customPhoto: isMe ? userCustomPhoto : p.customPhoto,
+                  };
+                }
+                return p;
+              });
+            });
+          }
+          break;
+        }
+
         default:
           break;
       }
@@ -1353,19 +1501,124 @@ export default function App() {
       customPhoto: userCustomPhoto,
     });
 
+    const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
     if (isMatchOngoing) {
-      setShowHostModal(false);
-      setShowRoomsModal(false);
-      setIsActionPending(false);
-      const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-      showCallout(`استلمت اللعب فوراً في ${teamName} مكان البوت! ⚡`, '⚡');
-      soundEngine.init();
-      soundEngine.playCardSlide();
+      showCallout(`اخترت المقعد #${targetIdx + 1} (${teamName}) - اضغط زر الدخول بالأسفل 💺`, '💺');
     } else {
-      const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-      showCallout(`انتقلت للمقعد #${targetIdx} في ${teamName} 💺`, '💺');
+      showCallout(`انتقلت للمقعد #${targetIdx + 1} في ${teamName} 💺`, '💺');
     }
   };
+
+  // Enter ongoing match as the selected seat (human or replacement of bot/player)
+  const handleEnterOngoingMatch = () => {
+    setShowHostModal(false);
+    setShowRoomsModal(false);
+    setIsMultiplayerActive(true);
+    setIsActionPending(false);
+
+    // Make sure current seat is marked human in both seats and players
+    setSeats((prev) => {
+      const next = [...prev];
+      if (next[currentHumanSeatIndex]) {
+        next[currentHumanSeatIndex] = {
+          ...next[currentHumanSeatIndex],
+          name: userName,
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          isHuman: true,
+          isVacant: false,
+          team: currentHumanSeatIndex % 2 === 0 ? 'A' : 'B',
+        };
+        try {
+          localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+
+    setPlayers((prev) => {
+      const next = [...prev];
+      if (next[currentHumanSeatIndex]) {
+        next[currentHumanSeatIndex] = {
+          ...next[currentHumanSeatIndex],
+          name: userName,
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          isHuman: true,
+          isVacant: false,
+        };
+      }
+      return next;
+    });
+
+    // Broadcast takeover to all participants
+    roomSync.publish({
+      type: 'BOT_TAKEOVER',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seatIndex: currentHumanSeatIndex,
+      player: {
+        name: userName,
+        avatarId: userAvatar,
+        customPhoto: userCustomPhoto,
+        team: currentHumanSeatIndex % 2 === 0 ? 'A' : 'B',
+        isHuman: true,
+      },
+      timestamp: Date.now(),
+    });
+
+    // Request immediate full sync from host
+    roomSync.publish({
+      type: 'SYNC_REQUEST',
+      roomCode,
+      senderId: roomSync.myClientId,
+      timestamp: Date.now(),
+    });
+
+    soundEngine.init();
+    soundEngine.playCardSlide();
+    const teamName = currentHumanSeatIndex % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+    showCallout(`دخلت الطاولة وبدأت اللعب مع ${teamName}! ⚡`, '🚀');
+  };
+
+  // Mobile visibility, tab reactivation, and ongoing match heartbeat sync
+  useEffect(() => {
+    if (!roomCode || !isMultiplayerActive) return;
+
+    const requestSync = () => {
+      roomSync.publish({
+        type: 'SYNC_REQUEST',
+        roomCode,
+        senderId: roomSync.myClientId,
+        timestamp: Date.now(),
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        roomSync.handleWakeup();
+        requestSync();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', requestSync);
+    window.addEventListener('focus', requestSync);
+
+    // Periodic heartbeat to prevent mobile cellular disconnects
+    const syncInterval = setInterval(() => {
+      if (!isRoomHost && phase !== 'LOBBY') {
+        requestSync();
+      }
+    }, 6000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', requestSync);
+      window.removeEventListener('focus', requestSync);
+      clearInterval(syncInterval);
+    };
+  }, [isMultiplayerActive, isRoomHost, phase, roomCode]);
 
   // Convert seat to bot
   const handleConvertToBot = (idx: number) => {
@@ -1802,6 +2055,7 @@ export default function App() {
             startNewRound(sharedDeck, randDealer, finalFilledSeats);
             showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
           }}
+          onEnterOngoingMatch={handleEnterOngoingMatch}
           onClose={() => setShowHostModal(false)}
         />
       )}
