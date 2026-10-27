@@ -61,8 +61,11 @@ export interface RoomSyncMessage {
 
 export type RoomMessageCallback = (msg: RoomSyncMessage) => void;
 
-// High-speed globally distributed MQTT broker
-const PRIMARY_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+// Dedicated private EMQX Serverless broker (Zero-lag, dedicated private bandwidth)
+const PRIMARY_BROKER = 'wss://ca867d88.ala.eu-central-1.emqxsl.com:8084/mqtt';
+const BROKER_USERNAME = 'kout';
+const BROKER_PASSWORD = 'Mousawi@313';
+const FALLBACK_BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 class RoomSyncManager {
   private client: MqttClient | null = null;
@@ -73,6 +76,8 @@ class RoomSyncManager {
   private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private outboundQueue: RoomSyncMessage[] = [];
   private seenMessageHashes: Set<string> = new Set();
+  private hasFallenBack: boolean = false;
+  private failCount: number = 0;
   public isConnected: boolean = false;
   public myClientId: string = 'kout_' + Math.random().toString(36).substring(2, 9);
 
@@ -178,12 +183,21 @@ class RoomSyncManager {
         this.client = null;
       }
 
-      const client = mqtt.connect(PRIMARY_BROKER, {
+      const useDedicated = !this.hasFallenBack;
+      const targetBroker = useDedicated ? PRIMARY_BROKER : FALLBACK_BROKER;
+
+      const client = mqtt.connect(targetBroker, {
         clientId: this.myClientId,
         clean: true,
         connectTimeout: 4000,
         reconnectPeriod: 1000,
         keepalive: 10, // 10s keepalive pings keep mobile cellular sockets alive
+        ...(useDedicated
+          ? {
+              username: BROKER_USERNAME,
+              password: BROKER_PASSWORD,
+            }
+          : {}),
       });
 
       this.client = client;
@@ -191,6 +205,7 @@ class RoomSyncManager {
       client.on('connect', () => {
         this.isConnecting = false;
         this.isConnected = true;
+        this.failCount = 0;
         if (this.connectTimeoutTimer) clearTimeout(this.connectTimeoutTimer);
 
         client.subscribe(topic, { qos: 0 }, (err) => {
@@ -220,20 +235,28 @@ class RoomSyncManager {
         }
       });
 
-      client.on('error', () => {
+      const handleError = () => {
         this.isConnecting = false;
         this.isConnected = false;
-      });
+        this.failCount++;
+        if (this.failCount >= 4 && !this.hasFallenBack) {
+          this.hasFallenBack = true;
+          this.failCount = 0;
+          try {
+            this.client?.end(true);
+          } catch {}
+          this.client = null;
+          if (this.currentRoomCode) {
+            setTimeout(() => {
+              if (this.currentRoomCode) this.connect(this.currentRoomCode);
+            }, 600);
+          }
+        }
+      };
 
-      client.on('close', () => {
-        this.isConnecting = false;
-        this.isConnected = false;
-      });
-
-      client.on('offline', () => {
-        this.isConnecting = false;
-        this.isConnected = false;
-      });
+      client.on('error', handleError);
+      client.on('close', handleError);
+      client.on('offline', handleError);
     } catch {
       this.isConnecting = false;
       this.isConnected = false;
