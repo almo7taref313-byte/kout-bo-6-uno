@@ -740,8 +740,15 @@ export default function App() {
   // Card play action
   const handlePlayCard = useCallback(
     (playerId: number, card: Card, isFromRemote = false) => {
-      // Guard against duplicate card play in current trick
-      if (currentTrick.some((tp) => tp.playerId === playerId)) {
+      // If previous trick was full (6 cards), automatically flush it for the new trick!
+      let activeTrick = currentTrick;
+      if (activeTrick.length >= 6) {
+        activeTrick = [];
+        setCollectingWinnerId(null);
+      }
+
+      // Guard against duplicate card play in the active trick
+      if (activeTrick.some((tp) => tp.playerId === playerId)) {
         return;
       }
 
@@ -749,7 +756,7 @@ export default function App() {
 
       if (card.isJoker) {
         soundEngine.playJokerSlam();
-        if (currentTrick.length === 0) {
+        if (activeTrick.length === 0) {
           if (highestBid !== 9) {
             showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
           }
@@ -758,7 +765,7 @@ export default function App() {
         }
       } else if (card.isMaker) {
         soundEngine.playJokerSlam();
-        if (currentTrick.length === 0) {
+        if (activeTrick.length === 0) {
           if (highestBid !== 9) {
             showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
           }
@@ -782,7 +789,7 @@ export default function App() {
         })
       );
 
-      const nextTrick = [...currentTrick, { playerId, card }];
+      const nextTrick = [...activeTrick, { playerId, card }];
       setCurrentTrick(nextTrick);
 
       // Broadcast card play to other devices if played locally
@@ -801,17 +808,16 @@ export default function App() {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // Step 1: Wait 450ms so players see the last played card
+        // Step 1: Wait 400ms so players see the last played card
         setTimeout(() => {
-          // Step 2: Play sweep sound and start grouped card flight to winning player's seat
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId);
 
-          // Step 3: When cards arrive at winner's seat (750ms), resolve scores and transition
+          // Step 2: When cards arrive at winner's seat (600ms), resolve scores and transition
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
-          }, 750);
-        }, 450);
+          }, 600);
+        }, 400);
       } else {
         const nextTurn = (playerId + 1) % 6;
         setCurrentTurn(nextTurn);
@@ -1344,7 +1350,20 @@ export default function App() {
             }
           }
           if (msg.currentTrick) {
-            setCurrentTrick(msg.currentTrick);
+            setCurrentTrick((prev) => {
+              // Never erase the local human player's card from the table!
+              const mySeat = currentHumanSeatIndex;
+              const localHasMyPlay = prev.some((tp) => tp.playerId === mySeat);
+              const incomingHasMyPlay = msg.currentTrick!.some((tp) => tp.playerId === mySeat);
+              if (localHasMyPlay && !incomingHasMyPlay) {
+                const myPlay = prev.find((tp) => tp.playerId === mySeat)!;
+                return [...msg.currentTrick!.filter((tp) => tp.playerId !== mySeat), myPlay];
+              }
+              if (prev.length === 6 && msg.currentTrick!.length === 0) {
+                return prev;
+              }
+              return msg.currentTrick!;
+            });
           }
           if (msg.trumpColor !== undefined) {
             setTrumpColor(msg.trumpColor);

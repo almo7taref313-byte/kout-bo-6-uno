@@ -172,10 +172,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
         {/* Thrown Trick Cards in Center with Smooth Grouped Sweep to Winner */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
-            const playerObj = players[play.playerId];
-            if (!playerObj) return null;
-
-            const isCollecting = collectingWinnerId !== null && collectingWinnerId !== undefined;
+            const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = TABLE_CARD_RESTING_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
@@ -197,8 +194,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
               transition: isCollecting
-                ? 'transform 1.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease 0.95s'
-                : 'transform 0.22s ease-out',
+                ? 'transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease 0.65s'
+                : 'transform 0.18s ease-out',
               opacity: isCollecting ? 0 : 1,
               zIndex: isCollecting ? 40 + index : 20 + index,
               willChange: 'transform, opacity',
