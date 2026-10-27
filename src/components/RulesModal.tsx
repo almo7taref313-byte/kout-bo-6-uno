@@ -165,28 +165,28 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                 </p>
               </div>
 
-              {/* 5. شارة المشتري (أيقونة رقم الشراء - عدد الأكلات المطلوبة) */}
+              {/* 5. علامة الأكلات عند صورة الحاكم */}
               <div className="bg-slate-950 p-2.5 rounded-xl border border-rose-500/40 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <div className="w-7 h-7 rounded-full bg-[#0063B0] border-2 border-white shadow-md flex items-center justify-center text-white font-black text-xs font-mono">
+                    <div className="w-7 h-7 rounded-full bg-white border-[2.5px] border-[#0063B0] ring-1 ring-blue-500/50 shadow-md flex items-center justify-center text-black font-black text-xs font-mono">
                       7
                     </div>
-                    <div className="w-7 h-7 rounded-full bg-[#EA1D2D] border-2 border-white shadow-md flex items-center justify-center text-white font-black text-xs font-mono">
+                    <div className="w-7 h-7 rounded-full bg-white border-[2.5px] border-[#EA1D2D] ring-1 ring-red-500/50 shadow-md flex items-center justify-center text-black font-black text-xs font-mono">
                       👑
                     </div>
                   </div>
                   <div>
                     <h4 className="font-black text-rose-300 text-xs sm:text-sm">
-                      أيقونة رقم الشراء (عدد الأكلات المطلوبة)
+                      علامة الأكلات عند صورة الحاكم
                     </h4>
                     <span className="text-[9.5px] text-slate-400 font-medium">
-                      شارة دائرية بارزة بلون الفريق عند المشتري
+                      دائرة بيضاء ثلجية برقم أسود محاطة بدائرة بلون الفريق
                     </span>
                   </div>
                 </div>
                 <p className="text-slate-300 text-[10.5px]">
-                  <b>التعريف:</b> الدائرة البارزة المثبتة عند صورة اللاعب بلون فريقه (أزرق للفريق الأزرق 🔵 أو أحمر للفريق الأحمر 🔴) تُعلن أنه المشتري وتوضح رقم المزايدة وعدد الأكلات المطلوبة لتحقيق العقد (من 5 إلى 8 أكلات، أو 👑 باون كامل 9 أكلات).
+                  <b>التعريف:</b> علامة دائرية باللون الأبيض الثلجي ورقم الأكلة باللون الأسود الواضح بحجم يتناسب مع جميع مقاسات الشاشات، محاطة بدائرة بلون الفريق (أزرق للفريق الأزرق 🔵 أو أحمر للفريق الأحمر 🔴)، تظهر عند صورة الحاكم لتحديد عدد الأكلات المطلوبة لتحقيق العقد.
                 </p>
               </div>
 

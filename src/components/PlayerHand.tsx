@@ -81,17 +81,17 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
             {/* Circular Avatar with Neon Turn Ring */}
             <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
 
-              {/* Fixed Circular Buyer Badge with Bid Number in Team Color (المشتري يظهر عند صورته رقم المشترى بدائرة بلون فريقه) */}
+              {/* علامة الأكلات عند صورة الحاكم: دائرة باللون الأبيض الثلجي ورقم الأكلة بالأسود الواضح محاطة بدائرة بلون الفريق */}
               {isHumanBuyer && (
                 <div
-                  className={`absolute -top-2.5 -right-2.5 z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-xl flex items-center justify-center font-black text-white text-xs xs:text-sm sm:text-base select-none ${
+                  className={`absolute -top-2 -right-2 xs:-top-2.5 xs:-right-2.5 z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-xl ${
                     player.team === 'A'
-                      ? 'bg-[#0063B0] shadow-blue-600/60 ring-1 ring-blue-300'
-                      : 'bg-[#EA1D2D] shadow-red-600/60 ring-1 ring-red-300'
+                      ? 'border-[2.5px] xs:border-[3px] border-[#0063B0] ring-1 xs:ring-2 ring-blue-500/50 shadow-blue-600/40'
+                      : 'border-[2.5px] xs:border-[3px] border-[#EA1D2D] ring-1 xs:ring-2 ring-red-500/50 shadow-red-600/40'
                   }`}
-                  title={`المشتري بـ ${highestBid}`}
+                  title={`أنت المشتري بـ ${highestBid}`}
                 >
-                  <span className="font-mono font-black drop-shadow-md leading-none">
+                  <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none drop-shadow-none">
                     {highestBid === 9 ? '👑' : highestBid}
                   </span>
                 </div>

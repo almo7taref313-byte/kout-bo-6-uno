@@ -372,7 +372,7 @@ export function selectBotMove(
 
   const isLead = trick.length === 0;
 
-  // 1. TACTICAL RULES AGAINST BUYER PLAYING SMALL TRUMP:
+  // 1. TACTICAL RULES WHEN BUYER PLAYS SMALL TRUMP (BID >= 6):
   if (!isLead) {
     const buyerPlayInTrick = buyerId !== null && buyerId !== undefined
       ? trick.find((p) => p.playerId === buyerId)
@@ -384,18 +384,29 @@ export function selectBotMove(
       buyerPlayInTrick.card.color === trumpColor &&
       ['2', '3', '4', '5', '6', '7', '8', '9'].includes(buyerPlayInTrick.card.rank);
 
-    if (isBuyerOpponent && highestBid >= 6 && isSmallTrumpPlayedByBuyer) {
-      // User Rule 1: "في حال لعب احد لاعبي الفريق وهو الحاكم بـ ٦ اكلات فما فوق حكما صغيرا... فاللاعب البوت الذي يمتلك الجيكر يلعب الجيكر"
-      const jokerMove = legalMoves.find((c) => c.isJoker);
-      if (jokerMove) {
-        return jokerMove;
+    if (highestBid >= 6 && isSmallTrumpPlayedByBuyer) {
+      // User Rule: إذا لعب الحاكم (المشتري بـ 6 أكلات فأكثر من الفريق) حكماً صغيراً (2 إلى 9)،
+      // يقوم البوت من نفس الفريق الذي يملك الجيكر (+4) برميه فوراً لكسب الأكلة.
+      if (buyerTeam && bot.team === buyerTeam) {
+        const jokerMove = legalMoves.find((c) => c.isJoker);
+        if (jokerMove) {
+          return jokerMove;
+        }
       }
 
-      // User Rule 2: "واذا كان خال الحكم قد لعب سابقا فيلعب البوت الميكر مباشرة لقص الاكلة اذا لعب الحاكم رقما صغيرا"
-      if (hasTrumpKingFallen) {
-        const makerMove = legalMoves.find((c) => c.isMaker);
-        if (makerMove) {
-          return makerMove;
+      // وأيضاً إذا كان البوت من الفريق الخصم: يرمي الجيكر ليمنع الحاكم من كسب الأكلة برقم صغير،
+      // أو يرمي الميكر إذا كان خال الحكم قد سقط سابقاً.
+      if (isBuyerOpponent) {
+        const jokerMove = legalMoves.find((c) => c.isJoker);
+        if (jokerMove) {
+          return jokerMove;
+        }
+
+        if (hasTrumpKingFallen) {
+          const makerMove = legalMoves.find((c) => c.isMaker);
+          if (makerMove) {
+            return makerMove;
+          }
         }
       }
     }

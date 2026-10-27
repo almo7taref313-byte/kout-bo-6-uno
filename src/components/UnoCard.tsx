@@ -36,7 +36,7 @@ export const UnoCard: React.FC<UnoCardProps> = ({
   else if (card.color === 'green') textColor = '#15803d';
   else if (card.color === 'blue') textColor = '#0369a1';
 
-  const isHolo = card.isJoker || card.isMaker;
+  const isHolo = card.isMaker; // Joker is strictly black and white without rainbow holo
   const holoClass = isHolo ? 'holo-card' : '';
   const glowClass = card.isJoker
     ? 'card-joker-glow'
@@ -159,15 +159,8 @@ export const UnoCard: React.FC<UnoCardProps> = ({
     }
 
     if (card.isJoker) {
-      // 4 overlapping cards matching UNO Wild Draw 4 (+4)
-      return (
-        <div className="relative w-8 h-9 sm:w-10 sm:h-12 flex items-center justify-center">
-          <div className="absolute -left-1 top-1 w-3.5 h-5 rounded border border-black bg-[#ea1d2d] transform -rotate-25 shadow" />
-          <div className="absolute left-1 top-0 w-3.5 h-5 rounded border border-black bg-[#0082c8] transform -rotate-10 shadow" />
-          <div className="absolute right-1 top-1 w-3.5 h-5 rounded border border-black bg-[#ffd000] transform rotate-10 shadow" />
-          <div className="absolute -right-1 top-2 w-3.5 h-5 rounded border border-black bg-[#009e49] transform rotate-25 shadow" />
-        </div>
-      );
+      // Joker is strictly black and white - no colored cards
+      return null;
     }
 
     return null;
@@ -181,10 +174,15 @@ export const UnoCard: React.FC<UnoCardProps> = ({
   if (card.isJoker) {
     centerContent = (
       <div className="flex flex-col items-center justify-center">
-        {renderSpecialSymbol(false)}
         <span
-          className="font-uno font-black text-xs sm:text-sm text-black leading-none mt-0.5"
-          style={{ fontStyle: 'italic' }}
+          className={`uno-number-text ${
+            size === 'mini'
+              ? 'text-xs'
+              : size === 'table'
+              ? 'text-2xl xs:text-3xl sm:text-4xl'
+              : 'text-3xl xs:text-4xl sm:text-5xl md:text-6xl'
+          } font-black select-none text-black leading-none`}
+          style={{ fontStyle: 'italic', letterSpacing: '-0.04em' }}
         >
           +4
         </span>
@@ -286,8 +284,8 @@ export const UnoCard: React.FC<UnoCardProps> = ({
     );
   } else if (card.isJoker) {
     koutRoleBadge = (
-      <div className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1 py-0.2 rounded-full border border-white shadow-md z-30">
-        👑 الجيكر
+      <div className="absolute -top-1.5 -right-1 bg-slate-950 text-white font-black text-[8px] px-1.5 py-0.2 rounded-full border border-white shadow-md z-30">
+        الجيكر
       </div>
     );
   } else if (card.isMaker) {
