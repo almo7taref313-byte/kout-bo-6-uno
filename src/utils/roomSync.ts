@@ -1,5 +1,5 @@
 import mqtt, { MqttClient } from 'mqtt';
-import { BidRecord, Card, Player, SeatConfig, SuitColor, TrickPlay } from '../types';
+import { BidRecord, Card, Player, SeatConfig, SuitColor, TrickPlay, WaitingPlayer } from '../types';
 
 export interface RoomSyncMessage {
   type:
@@ -15,7 +15,8 @@ export interface RoomSyncMessage {
     | 'NEW_ROUND'
     | 'BOT_TAKEOVER'
     | 'SYNC_REQUEST'
-    | 'SYNC_STATE';
+    | 'SYNC_STATE'
+    | 'LEAVE_ROOM';
   roomCode: string;
   senderId: string;
   seatIndex?: number;
@@ -26,7 +27,9 @@ export interface RoomSyncMessage {
     avatarId?: string;
     customPhoto?: string | null;
     isHuman: boolean;
+    clientId?: string;
   };
+  waitingPlayers?: WaitingPlayer[];
   seats?: SeatConfig[];
   hand?: Card[];
   vacantCount?: number;

@@ -8,6 +8,7 @@ import {
   SeatConfig,
   SuitColor,
   TrickPlay,
+  WaitingPlayer,
 } from './types';
 import {
   buildDeck,
@@ -42,6 +43,7 @@ import { ScreenModeModal } from './components/ScreenModeModal';
 import { RoomsModal } from './components/RoomsModal';
 import { ExitConfirmModal } from './components/ExitConfirmModal';
 import { SettingsModal } from './components/SettingsModal';
+import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
 const DEFAULT_BOT_PROFILES = [
@@ -74,6 +76,7 @@ const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhot
         customPhoto: hostPhoto || null,
         isHuman: true,
         isVacant: false,
+        clientId: roomSync.myClientId,
       };
     }
     return {
@@ -112,6 +115,7 @@ export default function App() {
     const r = params.get('room');
     return Boolean(r && r.length === 4);
   });
+  const [waitingPlayers, setWaitingPlayers] = useState<WaitingPlayer[]>([]);
   const [lastSeatReserved, setLastSeatReserved] = useState<{
     seatIndex: number;
     name: string;
@@ -326,82 +330,31 @@ export default function App() {
     startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
-  // Seat Reservation when joining via room code or link
-  const handleJoinRoomWithSeatReservation = useCallback(
+  // Join Room via 4-digit code as a waiting player
+  const handleJoinRoomWaiting = useCallback(
     (code: string) => {
       setRoomCode(code);
       setIsRoomHost(false);
       setIsMultiplayerActive(true);
+      setShowHostModal(false);
 
-      // Check for saved seats for this room or generate starting table with vacant seats
-      const storedSeats = localStorage.getItem(`kout_room_seats_${code}`);
-      let currentSeats: SeatConfig[] = storedSeats
-        ? JSON.parse(storedSeats)
-        : createVacantPrivateSeats('منشئ الغرفة 👑', 'kuwaiti_ghutra_white', null);
-
-      // Prefer seat 1 (Team Red 🔴) or next vacant seat
-      const targetSeat = [1, 3, 5, 2, 4].find((idx) => currentSeats[idx]?.isVacant) ?? 1;
-
-      currentSeats = currentSeats.map((s, idx) => {
-        if (idx === targetSeat) {
-          return {
-            id: idx,
-            name: userName,
-            team: idx % 2 === 0 ? 'A' : 'B',
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            isHuman: true,
-            isVacant: false,
-          };
-        }
-        return s;
-      });
-
-      const vacantCount = currentSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-
-      setSeats(currentSeats);
-      setCurrentHumanSeatIndex(targetSeat);
-      setShowHostModal(true);
-
-      const teamName = targetSeat % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-      const seatInfo = {
-        seatIndex: targetSeat,
-        name: userName,
-        team: targetSeat % 2 === 0 ? 'A' : 'B',
-        avatarId: userAvatar,
-        customPhoto: userCustomPhoto,
-      };
-      setLastSeatReserved(seatInfo);
-
-      try {
-        localStorage.setItem(`kout_room_seats_${code}`, JSON.stringify(currentSeats));
-      } catch {}
-
-      // Broadcast to host and all participants across devices and tabs
-      roomSync.publish({
-        type: 'SEAT_RESERVED',
-        roomCode: code,
-        senderId: roomSync.myClientId,
-        seatIndex: targetSeat,
-        player: {
-          name: userName,
-          team: targetSeat % 2 === 0 ? 'A' : 'B',
-          avatarId: userAvatar,
-          customPhoto: userCustomPhoto,
-          isHuman: true,
-        },
-        seats: currentSeats,
-        vacantCount,
-        timestamp: Date.now(),
-      });
-
-      // Request immediate room state and match sync from host
+      // Publish JOIN_REQUEST with player details & clientId to host
       roomSync.publish({
         type: 'JOIN_REQUEST',
         roomCode: code,
         senderId: roomSync.myClientId,
+        player: {
+          name: userName,
+          team: 'A',
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          isHuman: true,
+          clientId: roomSync.myClientId,
+        },
         timestamp: Date.now(),
       });
+
+      // Also send immediate SYNC_REQUEST
       roomSync.publish({
         type: 'SYNC_REQUEST',
         roomCode: code,
@@ -410,19 +363,33 @@ export default function App() {
       });
 
       soundEngine.playCardSlide();
-      showCallout(`انضممت للغرفة #${code}! حجزت المقعد #${targetSeat} في ${teamName} (المقاعد الشاغرة: ${vacantCount}) 💺`, '💺');
+      showCallout(`دخلت غرفة الطاولة #${code}! أنت في قائمة الانتظار ⏳`, '⏳');
     },
     [showCallout, userAvatar, userCustomPhoto, userName]
   );
+
+  // Leave room for joiners
+  const handleLeaveRoom = useCallback(() => {
+    roomSync.publish({
+      type: 'LEAVE_ROOM',
+      roomCode,
+      senderId: roomSync.myClientId,
+      timestamp: Date.now(),
+    });
+    setIsMultiplayerActive(false);
+    setIsRoomHost(true);
+    setWaitingPlayers([]);
+    showCallout('غادرت الغرفة وعدت للرئيسية 🚪', '🚪');
+  }, [roomCode, showCallout]);
 
   // Handle URL Room query parameter on mount: join room and wait for host
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const r = params.get('room');
     if (r && r.length === 4) {
-      handleJoinRoomWithSeatReservation(r);
+      handleJoinRoomWaiting(r);
     }
-  }, [handleJoinRoomWithSeatReservation]);
+  }, [handleJoinRoomWaiting]);
 
   // Choose Trump Color
   const chooseTrumpColor = useCallback(
@@ -1041,14 +1008,37 @@ export default function App() {
 
       switch (msg.type) {
         case 'JOIN_REQUEST': {
-          // If this client is host, broadcast current seats table back
+          // If this client is host, register in waiting players and broadcast current room state
           if (isRoomHost) {
+            const joinerClientId = msg.player?.clientId || msg.senderId || `client_${Date.now()}`;
+            const joinerName = msg.player?.name || 'لاعب جديد';
+
+            // Check if already seated
+            const alreadySeated = seats.some((s) => s.clientId === joinerClientId || (s.isHuman && s.name === joinerName));
+            const alreadyWaiting = waitingPlayers.some((w) => w.clientId === joinerClientId);
+
+            let updatedWaiting = waitingPlayers;
+            if (!alreadySeated && !alreadyWaiting) {
+              const newWaiting: WaitingPlayer = {
+                clientId: joinerClientId,
+                name: joinerName,
+                avatarId: msg.player?.avatarId,
+                customPhoto: msg.player?.customPhoto,
+                joinedAt: Date.now(),
+              };
+              updatedWaiting = [...waitingPlayers, newWaiting];
+              setWaitingPlayers(updatedWaiting);
+              showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
+              soundEngine.playCardSlide();
+            }
+
             const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
             roomSync.publish({
               type: 'ROOM_STATE',
               roomCode,
               senderId: roomSync.myClientId,
               seats,
+              waitingPlayers: updatedWaiting,
               vacantCount: vCount,
               timestamp: Date.now(),
             });
@@ -1086,55 +1076,39 @@ export default function App() {
           break;
         }
 
-        case 'SEAT_RESERVED': {
-          if (msg.seats) {
-            setSeats(msg.seats);
-          } else if (msg.seatIndex !== undefined && msg.player) {
-            setSeats((prev) => {
-              const next = [...prev];
-              next[msg.seatIndex!] = {
-                id: msg.seatIndex!,
-                name: msg.player!.name,
-                team: msg.player!.team,
-                avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
-                customPhoto: msg.player!.customPhoto || null,
-                isHuman: true,
-                isVacant: false,
-              };
-              if (msg.oldSeatIndex !== undefined && msg.oldSeatIndex !== msg.seatIndex) {
-                next[msg.oldSeatIndex] = {
-                  ...next[msg.oldSeatIndex],
+        case 'LEAVE_ROOM': {
+          if (isRoomHost) {
+            const leavingId = msg.senderId;
+            const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
+            setWaitingPlayers(updatedWaiting);
+
+            let seatChanged = false;
+            const updatedSeats = seats.map((s) => {
+              if (s.clientId === leavingId && s.id !== 0) {
+                seatChanged = true;
+                return {
+                  ...s,
                   name: '',
                   customPhoto: null,
                   isHuman: false,
                   isVacant: true,
+                  clientId: undefined,
                 };
               }
-              return next;
+              return s;
             });
-          }
 
-          if (msg.player && msg.seatIndex !== undefined) {
-            setLastSeatReserved({
-              seatIndex: msg.seatIndex,
-              name: msg.player.name,
-              team: msg.player.team,
-              avatarId: msg.player.avatarId,
-              customPhoto: msg.player.customPhoto,
-            });
-            const teamName = msg.player.team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-            showCallout(`انضم ${msg.player.name} إلى المقعد #${msg.seatIndex} (${teamName}) 💺`, '💺');
-            soundEngine.playCardSlide();
-          }
+            if (seatChanged) {
+              setSeats(updatedSeats);
+            }
 
-          // If host, sync state to all devices
-          if (isRoomHost && msg.seats) {
-            const vCount = msg.seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+            const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
             roomSync.publish({
               type: 'ROOM_STATE',
               roomCode,
               senderId: roomSync.myClientId,
-              seats: msg.seats,
+              seats: updatedSeats,
+              waitingPlayers: updatedWaiting,
               vacantCount: vCount,
               timestamp: Date.now(),
             });
@@ -1142,16 +1116,36 @@ export default function App() {
           break;
         }
 
-        case 'ROOM_STATE': {
+        case 'SEAT_RESERVED': {
           if (msg.seats) {
-            setSeats((prev) => {
-              return msg.seats!.map((s, idx) => {
-                if (idx === currentHumanSeatIndex && prev[idx]?.isHuman) {
-                  return prev[idx];
+            setSeats(msg.seats);
+          }
+          break;
+        }
+
+        case 'ROOM_STATE': {
+          if (msg.waitingPlayers) {
+            setWaitingPlayers(msg.waitingPlayers);
+          }
+          if (msg.seats) {
+            setSeats(msg.seats);
+
+            // If not host, see if host assigned us to a seat!
+            if (!isRoomHost) {
+              const myAssignedIdx = msg.seats.findIndex(
+                (s) =>
+                  (s.clientId && s.clientId === roomSync.myClientId) ||
+                  (!s.clientId && s.isHuman && s.name === userName)
+              );
+              if (myAssignedIdx !== -1) {
+                if (currentHumanSeatIndex !== myAssignedIdx) {
+                  setCurrentHumanSeatIndex(myAssignedIdx);
+                  const teamName = myAssignedIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+                  showCallout(`عيّنك المضيف في المقعد #${myAssignedIdx + 1} (${teamName}) 💺`, '💺');
+                  soundEngine.playCardSlide();
                 }
-                return s;
-              });
-            });
+              }
+            }
           }
           break;
         }
@@ -1163,9 +1157,23 @@ export default function App() {
           soundEngine.init();
           soundEngine.playCardSlide();
 
+          let activeSeats = msg.seats || seats;
+
           if (msg.seats) {
-            setSeats(msg.seats);
+            const myAssignedIdx = msg.seats.findIndex(
+              (s) =>
+                (s.clientId && s.clientId === roomSync.myClientId) ||
+                (!s.clientId && s.isHuman && s.name === userName)
+            );
+            if (myAssignedIdx !== -1) {
+              setCurrentHumanSeatIndex(myAssignedIdx);
+              activeSeats = msg.seats.map((s, i) =>
+                i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
+              );
+            }
+            setSeats(activeSeats);
           }
+
           if (msg.scores) {
             setMatchScoreTeamA(msg.scores.a);
             setMatchScoreTeamB(msg.scores.b);
@@ -1176,7 +1184,7 @@ export default function App() {
           setRoundNumber(msg.roundNumber ?? 1);
 
           if (msg.deck && msg.dealerIdx !== undefined) {
-            startNewRound(msg.deck, msg.dealerIdx, msg.seats);
+            startNewRound(msg.deck, msg.dealerIdx, activeSeats);
           }
           showCallout('بدأ اللعب للجميع! 🃏', '🚀');
           break;
@@ -1460,7 +1468,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [bidWinner, chooseTrumpColor, currentHumanSeatIndex, dealerIdx, handlePlayCard, highestBid, isRoomHost, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid, trumpColor]);
+  }, [bidWinner, chooseTrumpColor, currentHumanSeatIndex, dealerIdx, handlePlayCard, highestBid, isRoomHost, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewRound, submitBid, trumpColor, userName, waitingPlayers]);
 
   // Profile Save
   const handleSaveProfileName = (newName: string) => {
@@ -1518,12 +1526,14 @@ export default function App() {
     showCallout('تم حفظ صورتك الشخصية!', '📷');
   };
 
-  // Open Private Table: Initialize non-human seats as VACANT
+  // Open Private Table: Initialize non-human seats as VACANT and reset waiting queue
   const handleOpenPrivateTable = () => {
     setIsRoomHost(true);
     setCurrentHumanSeatIndex(0);
     const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
+    freshVacantSeats[0].clientId = roomSync.myClientId;
     setSeats(freshVacantSeats);
+    setWaitingPlayers([]);
     setLastSeatReserved(null);
     try {
       localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(freshVacantSeats));
@@ -1533,11 +1543,156 @@ export default function App() {
       roomCode,
       senderId: roomSync.myClientId,
       seats: freshVacantSeats,
+      waitingPlayers: [],
       vacantCount: 5,
       timestamp: Date.now(),
     });
     setShowHostModal(true);
-    showCallout(`طاولتك الخاصة #${roomCode} (5 مقاعد شاغرة للدخول) 🚪`, '👥');
+    showCallout(`طاولتك الخاصة #${roomCode} (تحكم باللاعبين والمقاعد) 🚪`, '👥');
+  };
+
+  // Host Action: Assign waiting player to a seat
+  const handleAssignWaitingPlayerToSeat = (player: WaitingPlayer, seatIdx: number) => {
+    if (!isRoomHost) return;
+    const team: 'A' | 'B' = seatIdx % 2 === 0 ? 'A' : 'B';
+
+    // If there was an existing human player in that seat (other than seat 0), return them to waiting list
+    let nextWaiting = waitingPlayers.filter((w) => w.clientId !== player.clientId);
+    const existingOccupant = seats[seatIdx];
+    if (existingOccupant && existingOccupant.isHuman && existingOccupant.name && seatIdx !== 0) {
+      nextWaiting.push({
+        clientId: existingOccupant.clientId || `seat_${seatIdx}_${Date.now()}`,
+        name: existingOccupant.name,
+        avatarId: existingOccupant.avatarId,
+        customPhoto: existingOccupant.customPhoto,
+        joinedAt: Date.now(),
+      });
+    }
+
+    const nextSeats = [...seats];
+    nextSeats[seatIdx] = {
+      id: seatIdx,
+      name: player.name,
+      team,
+      avatarId: player.avatarId || 'kuwaiti_shemagh_red',
+      customPhoto: player.customPhoto || null,
+      isHuman: true,
+      isVacant: false,
+      clientId: player.clientId,
+    };
+
+    setSeats(nextSeats);
+    setWaitingPlayers(nextWaiting);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seats: nextSeats,
+      waitingPlayers: nextWaiting,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    soundEngine.playCardSlide();
+    const teamLabel = team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+    showCallout(`تم تسكين ${player.name} في المقعد #${seatIdx + 1} (${teamLabel}) ✅`, '💺');
+  };
+
+  // Host Action: Move seated player back to waiting list
+  const handleMovePlayerToWaiting = (seatIdx: number) => {
+    if (!isRoomHost) return;
+    if (seatIdx === 0) {
+      showCallout('أنت المضيف ورئيس الطاولة، لا يمكن نقلك للانتظار!', '⚠️');
+      return;
+    }
+    const occupant = seats[seatIdx];
+    if (!occupant || occupant.isVacant) return;
+
+    let nextWaiting = [...waitingPlayers];
+    if (occupant.isHuman && occupant.name) {
+      if (!nextWaiting.some((w) => w.clientId === occupant.clientId)) {
+        nextWaiting.push({
+          clientId: occupant.clientId || `seat_${seatIdx}_${Date.now()}`,
+          name: occupant.name,
+          avatarId: occupant.avatarId,
+          customPhoto: occupant.customPhoto,
+          joinedAt: Date.now(),
+        });
+      }
+    }
+
+    const nextSeats = [...seats];
+    nextSeats[seatIdx] = {
+      ...nextSeats[seatIdx],
+      name: '',
+      customPhoto: null,
+      isHuman: false,
+      isVacant: true,
+      clientId: undefined,
+    };
+
+    setSeats(nextSeats);
+    setWaitingPlayers(nextWaiting);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seats: nextSeats,
+      waitingPlayers: nextWaiting,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    showCallout(`تم نقل ${occupant.name || `المقعد #${seatIdx + 1}`} إلى قائمة الانتظار ⏳`, '⏳');
+  };
+
+  // Host Action: Swap seats between two positions
+  const handleSwapSeats = (idxA: number, idxB: number) => {
+    if (!isRoomHost) return;
+    if (idxA === idxB) return;
+
+    const nextSeats = [...seats];
+    const seatA = { ...nextSeats[idxA] };
+    const seatB = { ...nextSeats[idxB] };
+
+    // Swap content but maintain correct team by position:
+    nextSeats[idxA] = {
+      ...seatB,
+      id: idxA,
+      team: idxA % 2 === 0 ? 'A' : 'B',
+    };
+    nextSeats[idxB] = {
+      ...seatA,
+      id: idxB,
+      team: idxB % 2 === 0 ? 'A' : 'B',
+    };
+
+    // If host was in idxA or idxB, update currentHumanSeatIndex
+    if (currentHumanSeatIndex === idxA) {
+      setCurrentHumanSeatIndex(idxB);
+    } else if (currentHumanSeatIndex === idxB) {
+      setCurrentHumanSeatIndex(idxA);
+    }
+
+    setSeats(nextSeats);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seats: nextSeats,
+      waitingPlayers,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    soundEngine.playCardSlide();
+    showCallout(`تم تبديل المقعدين #${idxA + 1} و #${idxB + 1} 🔄`, '🔄');
   };
 
   // Seat Configuration Actions: moving human into seat / taking over bot
@@ -1984,7 +2139,7 @@ export default function App() {
             handleOpenPrivateTable();
           }}
           onJoinRoomCode={(code) => {
-            handleJoinRoomWithSeatReservation(code);
+            handleJoinRoomWaiting(code);
           }}
           onOpenProfile={() => setShowProfileModal(true)}
           onOpenSettings={() => setShowSettingsModal(true)}
@@ -2116,6 +2271,7 @@ export default function App() {
           seats={seats}
           currentHumanSeatIndex={currentHumanSeatIndex}
           isHost={isRoomHost}
+          waitingPlayers={waitingPlayers}
           lastSeatReserved={lastSeatReserved}
           isMatchOngoing={phase !== 'LOBBY'}
           onRegenerateCode={() => {
@@ -2125,7 +2281,9 @@ export default function App() {
             setLastSeatReserved(null);
             setCurrentHumanSeatIndex(0);
             const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
+            freshVacant[0].clientId = roomSync.myClientId;
             setSeats(freshVacant);
+            setWaitingPlayers([]);
             try {
               localStorage.setItem(`kout_room_seats_${nextCode}`, JSON.stringify(freshVacant));
             } catch {}
@@ -2134,12 +2292,16 @@ export default function App() {
               roomCode: nextCode,
               senderId: roomSync.myClientId,
               seats: freshVacant,
+              waitingPlayers: [],
               vacantCount: 5,
               timestamp: Date.now(),
             });
             showCallout(`غرفة جديدة #${nextCode} (5 مقاعد شاغرة) 🔄`, '🔄');
           }}
           onSitInSeat={handleSitInSeat}
+          onAssignWaitingPlayerToSeat={handleAssignWaitingPlayerToSeat}
+          onMovePlayerToWaiting={handleMovePlayerToWaiting}
+          onSwapSeats={handleSwapSeats}
           onConvertToBot={handleConvertToBot}
           onVacateSeat={handleVacateSeatDirect}
           onFillAllWithBots={handleFillAllWithBots}
@@ -2194,6 +2356,20 @@ export default function App() {
           }}
           onEnterOngoingMatch={handleEnterOngoingMatch}
           onClose={() => setShowHostModal(false)}
+        />
+      )}
+
+      {/* Waiting Lobby for players who joined via 4-digit code */}
+      {isMultiplayerActive && !isRoomHost && phase === 'LOBBY' && (
+        <WaitingLobbyModal
+          roomCode={roomCode}
+          seats={seats}
+          waitingPlayers={waitingPlayers}
+          myClientId={roomSync.myClientId}
+          myName={userName}
+          myAvatarId={userAvatar}
+          myCustomPhoto={userCustomPhoto}
+          onLeaveRoom={handleLeaveRoom}
         />
       )}
 
@@ -2268,7 +2444,7 @@ export default function App() {
           }}
           onJoinRoom={(code) => {
             setShowRoomsModal(false);
-            handleJoinRoomWithSeatReservation(code);
+            handleJoinRoomWaiting(code);
           }}
           onClose={() => setShowRoomsModal(false)}
         />

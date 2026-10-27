@@ -223,27 +223,22 @@ export function isLegalMove(
   highestBid?: number,
   trumpColor?: SuitColor | null
 ): boolean {
+  // User Rule in Baoon:
+  // "في حال الباون (الجيكر والميكر يلعبون بعد الحكام جميعا عند الحاكم)"
+  // In Baoon, if player still holds ANY card of the trump suit in hand, Joker & Maker cannot be played yet!
+  if (highestBid === 9 && (card.isJoker || card.isMaker)) {
+    const hasAnyTrumpSuitCard = Boolean(
+      trumpColor && hand.some((c) => c.color === trumpColor)
+    );
+    if (hasAnyTrumpSuitCard) {
+      return false;
+    }
+  }
+
   if (trick.length === 0) {
     if (card.isJoker || card.isMaker) {
-      if (highestBid === 9) {
-        // User Rule in Baoon:
-        // "في حال الباون:يلعب اللاعب ١،باش،ميم،غلام،وبعدها يستطيع لعب الجيكر/الميكر ويعتبران حكما لا يوقفهما شي في حال امتلاكه لهما سواء كان يملك ١ وجيكر/ميكر يستطيع لعب الجيكر/ميكر بعد ١ ايضا"
-        // Check if hand still holds any unplayed top trumps (1, باش, ميم, غلام) of trumpColor:
-        const hasUnplayedTopTrump = Boolean(
-          trumpColor &&
-          hand.some(
-            (c) => c.color === trumpColor && ['1', 'draw2', 'skip', 'reverse'].includes(c.rank)
-          )
-        );
-        // If player still holds 1, باش, ميم, or غلام, they MUST play those top trumps first!
-        if (hasUnplayedTopTrump) {
-          return false;
-        }
-        return true;
-      }
-
       // Non-Baoon opening rule: Cannot lead Joker or Maker if you have another suit card
-      if (hand.length > 1) {
+      if (highestBid !== 9 && hand.length > 1) {
         const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
         if (hasAlternative) return false;
       }

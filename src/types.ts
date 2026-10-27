@@ -37,6 +37,15 @@ export interface SeatConfig {
   customPhoto: string | null;
   isHuman: boolean;
   isVacant: boolean;
+  clientId?: string;
+}
+
+export interface WaitingPlayer {
+  clientId: string;
+  name: string;
+  avatarId?: string;
+  customPhoto?: string | null;
+  joinedAt?: number;
 }
 
 export interface Player extends SeatConfig {
