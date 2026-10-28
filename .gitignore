@@ -8,3 +8,14 @@ coverage/
 !.env.example
 dev-dist/
 .aistudio/
+
+# Mobile Native Builds
+.gradle/
+android/build/
+android/app/build/
+android/.gradle/
+android/captures/
+ios/App/build/
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/DerivedData/

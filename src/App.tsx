@@ -28,6 +28,7 @@ import {
 } from './utils/gameLogic';
 import { soundEngine } from './utils/soundEngine';
 import { usePWAInstall } from './utils/usePWAInstall';
+import { nativeBridge } from './utils/nativeBridge';
 
 // Components
 import { ScoreBoard } from './components/ScoreBoard';
@@ -449,6 +450,11 @@ export default function App() {
     }
   }, [handleJoinRoomWaiting]);
 
+  // Initialize native mobile plugins (status bar, haptics)
+  useEffect(() => {
+    nativeBridge.init();
+  }, []);
+
   // Choose Trump Color
   const chooseTrumpColor = useCallback(
     (color: SuitColor, winnerId?: number, isFromRemote = false) => {
@@ -683,6 +689,10 @@ export default function App() {
         (buyerTeam === 'A' ? curTricksA : curTricksB) === 9;
       const isZeroAsam = !matchStatus.bothHaveFiveOrMore && (matchStatus.isZeroAsam || isAsamFirstRound);
 
+      if (userWon) {
+        nativeBridge.hapticVictory();
+      }
+
       if (isZeroAsam) {
         if (userWon) {
           soundEngine.playVictoryFanfare(true);
@@ -735,6 +745,10 @@ export default function App() {
       } else {
         nextB++;
         setTricksTeamB(nextB);
+      }
+
+      if (winnerPlayer && winnerPlayer.team === (players[currentHumanSeatIndex]?.team || 'A')) {
+        nativeBridge.hapticTrickWin();
       }
 
       setCurrentTrick([]);
@@ -808,6 +822,10 @@ export default function App() {
         }
       } else {
         soundEngine.playCardSlide();
+      }
+
+      if (playerId === currentHumanSeatIndex) {
+        nativeBridge.hapticCardPlay();
       }
 
       // Remove from player's hand safely by id or color+rank
