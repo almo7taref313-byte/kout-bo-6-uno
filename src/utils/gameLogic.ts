@@ -216,34 +216,53 @@ export function evaluateTrickWinner(
   return winning.playerId;
 }
 
+export const TURN_TIMER_DURATION = 18;
+
 export function isLegalMove(
   hand: Card[],
   card: Card,
   trick: TrickPlay[],
   highestBid?: number,
-  trumpColor?: SuitColor | null
+  trumpColor?: SuitColor | null,
+  isTrumpBuyer?: boolean
 ): boolean {
-  // User Rule in Baoon:
+  // 1. Lead rule (trick.length === 0):
+  // User Rule: "الميكر/الجيكر لا يبدأ اللعب بهما ابدا ابدا ابدا فيحال الباقون يسمح بلعب الجيكر/الميكر بعد الحكام للحاكم فقط"
+  if (trick.length === 0) {
+    if (card.isJoker || card.isMaker) {
+      if (highestBid === 9) {
+        // In Baoon (الباقون):
+        // Only the bidder (الحاكم) can lead with Joker / Maker:
+        if (!isTrumpBuyer) {
+          const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
+          if (hasAlternative) return false;
+        }
+        // And the bidder can only lead with Joker/Maker AFTER all trump suit cards in hand are exhausted:
+        const hasTrumpSuitCard = Boolean(trumpColor && hand.some((c) => c.color === trumpColor));
+        if (hasTrumpSuitCard) {
+          return false;
+        }
+        return true;
+      } else {
+        // In all regular bids (5, 6, 7, 8):
+        // Leading with Joker or Maker is strictly forbidden ("ابدا ابدا ابدا"):
+        const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
+        if (hasAlternative) return false;
+      }
+    }
+    return true;
+  }
+
+  // 2. User Rule in Baoon when responding:
   // "في حال الباون (الجيكر والميكر يلعبون بعد الحكام جميعا عند الحاكم)"
-  // In Baoon, if player still holds ANY card of the trump suit in hand, Joker & Maker cannot be played yet!
-  if (highestBid === 9 && (card.isJoker || card.isMaker)) {
+  // In Baoon, if the bidder still holds ANY card of the trump suit in hand, Joker & Maker cannot be played yet:
+  if (highestBid === 9 && isTrumpBuyer && (card.isJoker || card.isMaker)) {
     const hasAnyTrumpSuitCard = Boolean(
       trumpColor && hand.some((c) => c.color === trumpColor)
     );
     if (hasAnyTrumpSuitCard) {
       return false;
     }
-  }
-
-  if (trick.length === 0) {
-    if (card.isJoker || card.isMaker) {
-      // Non-Baoon opening rule: Cannot lead Joker or Maker if you have another suit card
-      if (highestBid !== 9 && hand.length > 1) {
-        const hasAlternative = hand.some((c) => !c.isJoker && !c.isMaker);
-        if (hasAlternative) return false;
-      }
-    }
-    return true;
   }
 
   // Cannot play Maker onto Joker if an alternative card exists in hand
@@ -391,9 +410,11 @@ export function getTimeoutFallbackMove(
   trumpColor: SuitColor | null,
   playerId?: number,
   players?: Player[],
-  highestBid?: number
+  highestBid?: number,
+  buyerId?: number | null
 ): Card {
-  const legal = hand.filter((c) => isLegalMove(hand, c, trick, highestBid, trumpColor));
+  const isTrumpBuyer = buyerId !== null && buyerId !== undefined && playerId === buyerId;
+  const legal = hand.filter((c) => isLegalMove(hand, c, trick, highestBid, trumpColor, isTrumpBuyer));
   if (legal.length === 0) return hand[0];
   if (legal.length === 1) return legal[0];
 
@@ -401,11 +422,29 @@ export function getTimeoutFallbackMove(
 
   // If responding to an existing trick:
   if (trick.length > 0 && lead) {
+    const me = playerId !== undefined && players ? players[playerId] : null;
+    const buyerPlayer = buyerId !== null && buyerId !== undefined && players ? players[buyerId] : null;
+    const buyerTeam = buyerPlayer?.team;
+
+    // User Rule: إذا لعب الحاكم حكما صغيرا وعند زميله خال الحكم يجب ان يلعبه
+    const buyerPlayInTrick = buyerId !== null && buyerId !== undefined
+      ? trick.find((p) => p.playerId === buyerId)
+      : null;
+    const isSmallTrumpPlayedByBuyer =
+      buyerPlayInTrick &&
+      trumpColor &&
+      buyerPlayInTrick.card.color === trumpColor &&
+      buyerPlayInTrick.card.rank !== '1';
+
+    if (isSmallTrumpPlayedByBuyer && buyerTeam && me && me.team === buyerTeam && me.id !== buyerId) {
+      const trumpKing = legal.find((c) => c.color === trumpColor && c.rank === '1');
+      if (trumpKing) return trumpKing;
+    }
+
     const hasLeadSuit = lead !== 'special' && hand.some((c) => c.color === lead);
 
     // User Rule: إذا لعب أحد أعضاء الفريق حكماً على لون آخر فالبوت/اللاعب لا يلعب جيكر/ميكر لأن الأكلة أصبحت للفريق
     const isLeadOtherColor = Boolean(lead && lead !== 'special' && trumpColor && lead !== trumpColor);
-    const me = playerId !== undefined && players ? players[playerId] : null;
     const teammateCutWithTrump = isLeadOtherColor && trick.some((p) => {
       const pPlayer = players ? players[p.playerId] : null;
       const isTeammate = playerId !== undefined && p.playerId !== playerId && (
@@ -486,7 +525,10 @@ export function getTimeoutFallbackMove(
   }
 
   // Opening trick (trick.length === 0):
-  return selectSmartDiscard(legal, trick, trumpColor);
+  // Strictly filter out Joker and Maker if other cards exist (unless Baoon + bidder + no trumps)
+  const nonWilds = legal.filter((c) => !c.isJoker && !c.isMaker);
+  const openPool = nonWilds.length > 0 ? nonWilds : legal;
+  return selectSmartDiscard(openPool, trick, trumpColor);
 }
 
 export function selectBotMove(
@@ -502,7 +544,8 @@ export function selectBotMove(
   const isBuyerOpponent = buyerTeam && buyerTeam !== bot.team;
   const playedTricks = context?.playedTricks || [];
 
-  const legalMoves = bot.hand.filter((c) => isLegalMove(bot.hand, c, trick, highestBid, trumpColor));
+  const isBotBuyer = buyerId !== null && buyerId !== undefined && bot.id === buyerId;
+  const legalMoves = bot.hand.filter((c) => isLegalMove(bot.hand, c, trick, highestBid, trumpColor, isBotBuyer));
   if (legalMoves.length === 0) return bot.hand[0];
   if (legalMoves.length === 1) return legalMoves[0];
 
@@ -553,22 +596,36 @@ export function selectBotMove(
       return selectSmartDiscard(safePool, trick, trumpColor);
     }
 
-    // 1b. TACTICAL RULES WHEN BUYER PLAYS SMALL TRUMP (BID >= 6) ON A TRUMP LEAD:
+    // 1b. USER RULE: تطوير للبوت: اذا لعب الحاكم حكما صغيرا وعند زميله خال الحكم يجب ان يلعبه
     const buyerPlayInTrick = buyerId !== null && buyerId !== undefined
       ? trick.find((p) => p.playerId === buyerId)
       : null;
 
-    const isTrumpLead = leadSuit === trumpColor;
     const isSmallTrumpPlayedByBuyer =
+      buyerPlayInTrick &&
+      trumpColor &&
+      buyerPlayInTrick.card.color === trumpColor &&
+      buyerPlayInTrick.card.rank !== '1';
+
+    if (isSmallTrumpPlayedByBuyer && buyerTeam && bot.team === buyerTeam && bot.id !== buyerId) {
+      // If the bidder played a small trump and teammate holds خال الحكم (Trump Ace '1'), bot MUST play it!
+      const trumpKingMove = legalMoves.find((c) => c.color === trumpColor && c.rank === '1');
+      if (trumpKingMove) {
+        return trumpKingMove;
+      }
+    }
+
+    const isTrumpLead = leadSuit === trumpColor;
+    const isVerySmallTrumpPlayedByBuyer =
       isTrumpLead &&
       buyerPlayInTrick &&
       trumpColor &&
       buyerPlayInTrick.card.color === trumpColor &&
       ['2', '3', '4', '5', '6', '7', '8', '9'].includes(buyerPlayInTrick.card.rank);
 
-    if (highestBid >= 6 && isSmallTrumpPlayedByBuyer) {
-      // User Rule: إذا لعب الحاكم (المشتري بـ 6 أكلات فأكثر من الفريق) حكماً صغيراً (2 إلى 9)،
-      // يقوم البوت من نفس الفريق الذي يملك الجيكر (+4) برميه فوراً لكسب الأكلة.
+    if (highestBid >= 6 && isVerySmallTrumpPlayedByBuyer) {
+      // إذا لعب الحاكم (المشتري بـ 6 أكلات فأكثر من الفريق) حكماً صغيراً،
+      // وإذا لم يكن معه خال الحكم، يقوم البوت من نفس الفريق الذي يملك الجيكر برميه فوراً
       if (buyerTeam && bot.team === buyerTeam) {
         const jokerMove = legalMoves.find((c) => c.isJoker);
         if (jokerMove) {
@@ -595,67 +652,81 @@ export function selectBotMove(
   }
 
   // 2. LEADING STRATEGY (isLead === true):
+  // User Rule: "الميكر/الجيكر لا يبدأ اللعب بهما ابدا ابدا ابدا فيحال الباقون يسمح بلعب الجيكر/الميكر بعد الحكام للحاكم فقط"
   if (isLead) {
-    // User Rule in Baoon:
-    // "في حال الباون:يلعب اللاعب ١،باش،ميم،غلام،وبعدها يستطيع لعب الجيكر/الميكر ويعتبران حكما لا يوقفهما شي في حال امتلاكه لهما سواء كان يملك ١ وجيكر/ميكر يستطيع لعب الجيكر/ميكر بعد ١ ايضا"
+    // In Baoon (highestBid === 9):
     if (highestBid === 9 && trumpColor) {
-      // 1. خال الحكم (1 of trumpColor)
-      const trumpKing = legalMoves.find((c) => c.color === trumpColor && c.rank === '1');
-      if (trumpKing) return trumpKing;
+      const isBotBuyer = buyerId === bot.id;
+      if (isBotBuyer) {
+        // The buyer in Baoon plays trumps first in hierarchy:
+        // 1. خال الحكم (1 of trumpColor)
+        const trumpKing = legalMoves.find((c) => c.color === trumpColor && c.rank === '1');
+        if (trumpKing) return trumpKing;
 
-      // 2. باش (draw2 of trumpColor)
-      const trumpBasha = legalMoves.find((c) => c.color === trumpColor && c.rank === 'draw2');
-      if (trumpBasha) return trumpBasha;
+        // 2. باش (draw2 of trumpColor)
+        const trumpBasha = legalMoves.find((c) => c.color === trumpColor && c.rank === 'draw2');
+        if (trumpBasha) return trumpBasha;
 
-      // 3. ميم (skip of trumpColor)
-      const trumpMeem = legalMoves.find((c) => c.color === trumpColor && c.rank === 'skip');
-      if (trumpMeem) return trumpMeem;
+        // 3. ميم (skip of trumpColor)
+        const trumpMeem = legalMoves.find((c) => c.color === trumpColor && c.rank === 'skip');
+        if (trumpMeem) return trumpMeem;
 
-      // 4. غلام (reverse of trumpColor)
-      const trumpGholam = legalMoves.find((c) => c.color === trumpColor && c.rank === 'reverse');
-      if (trumpGholam) return trumpGholam;
+        // 4. غلام (reverse of trumpColor)
+        const trumpGholam = legalMoves.find((c) => c.color === trumpColor && c.rank === 'reverse');
+        if (trumpGholam) return trumpGholam;
 
-      // 5. وبعدها يستطيع لعب الجيكر / الميكر (ويعتبران حكماً لا يوقفهما شيء):
-      const jokerCard = legalMoves.find((c) => c.isJoker);
-      if (jokerCard) return jokerCard;
+        // 5. باقي كروت الحكم الملونة
+        const remainingColorTrumps = legalMoves.filter((c) => c.color === trumpColor);
+        if (remainingColorTrumps.length > 0) {
+          remainingColorTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+          return remainingColorTrumps[0];
+        }
 
-      const makerCard = legalMoves.find((c) => c.isMaker);
-      if (makerCard) return makerCard;
+        // 6. بعد انتهاء جميع كروت الحكم، يسمح للحاكم בלבד بلعب الجيكر والميكر:
+        const jokerCard = legalMoves.find((c) => c.isJoker);
+        if (jokerCard) return jokerCard;
 
-      // 6. باقي الأحكام من الأقوى للأضعف
-      const remainingTrumps = legalMoves.filter((c) => c.color === trumpColor);
-      if (remainingTrumps.length > 0) {
-        remainingTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
-        return remainingTrumps[0];
-      }
+        const makerCard = legalMoves.find((c) => c.isMaker);
+        if (makerCard) return makerCard;
 
-      // 7. الألوان الأخرى من الأقوى للأضعف
-      const nonTrumps = legalMoves.filter((c) => c.color !== trumpColor);
-      if (nonTrumps.length > 0) {
-        nonTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
-        return nonTrumps[0];
+        // 7. الألوان الأخرى من الأقوى للأضعف
+        const nonTrumps = legalMoves.filter((c) => c.color !== trumpColor);
+        if (nonTrumps.length > 0) {
+          nonTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+          return nonTrumps[0];
+        }
+      } else {
+        // Non-buyer bot in Baoon: strictly NEVER lead with Joker or Maker
+        const nonWilds = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
+        if (nonWilds.length > 0) {
+          nonWilds.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+          return nonWilds[0];
+        }
       }
     }
 
+    // In regular play (highestBid !== 9):
+    // Bot NEVER leads with Joker or Maker ("لا يبدأ اللعب بهما ابدا ابدا ابدا")
+    const regularNonWilds = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
+    const usablePool = regularNonWilds.length > 0 ? regularNonWilds : legalMoves;
+
     // If bot's team is buyer (in regular play):
     if (buyerTeam === bot.team && trumpColor) {
-      // Lead with highest trump to pull out opponents' trumps
-      const trumps = legalMoves.filter((c) => c.color === trumpColor || c.isJoker || c.isMaker);
-      if (trumps.length > 0) {
-        trumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-        return trumps[0];
+      // Lead with highest suited trump to pull out opponents' trumps (excluding Joker/Maker)
+      const suitedTrumps = usablePool.filter((c) => c.color === trumpColor);
+      if (suitedTrumps.length > 0) {
+        suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
+        return suitedTrumps[0];
       }
     }
 
     // If opponent's team is buyer:
     if (isBuyerOpponent) {
       // Bot in the other team does NOT lead with trump initially!
-      const nonTrumps = legalMoves.filter((c) => c.color !== trumpColor && !c.isJoker && !c.isMaker);
+      const nonTrumps = usablePool.filter((c) => c.color !== trumpColor);
 
       if (nonTrumps.length > 0) {
-        // Track suits that opponents are known to be void in (avoid leading that suit to prevent cross-cut!)
         const opponentVoidSuits = new Set<SuitColor>();
-        // Track suits partner is void in (feed partner so they can cut with trump!)
         const partnerVoidSuits = new Set<SuitColor>();
 
         playedTricks.forEach((t) => {
@@ -691,13 +762,13 @@ export function selectBotMove(
       }
     }
 
-    // Default leading: non-trump if available, else best card
-    const nonTrumps = legalMoves.filter((c) => c.color !== trumpColor && !c.isJoker && !c.isMaker);
+    // Default leading: non-trump if available, else best card from pool
+    const nonTrumps = usablePool.filter((c) => c.color !== trumpColor);
     if (nonTrumps.length > 0) {
       nonTrumps.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
       return nonTrumps[0];
     }
-    return legalMoves[0];
+    return usablePool[0];
   }
 
   // 3. FOLLOWING / RESPONDING STRATEGY (!isLead):

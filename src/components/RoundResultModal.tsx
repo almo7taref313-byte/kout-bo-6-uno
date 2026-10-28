@@ -61,8 +61,14 @@ export const RoundResultModal: React.FC<RoundResultModalProps> = ({
   const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
 
   const pts = isBaoon ? 36 : highestBid;
-  const penaltyMultiplier = isBaoon ? 1 : isForcedBid ? 1 : 2;
-  const defensePts = isBaoon ? 18 : pts * penaltyMultiplier;
+  let defensePts = 0;
+  if (isBaoon) {
+    defensePts = 18;
+  } else if (isForcedBid) {
+    defensePts = 5;
+  } else {
+    defensePts = highestBid * 2;
+  }
   const earnedPoints = buyerWinner ? pts : defensePts;
 
   // Title Logic according to Kuwaiti rules:
@@ -174,7 +180,14 @@ export const RoundResultModal: React.FC<RoundResultModalProps> = ({
 
           {/* Points calculated with circle */}
           <div className="mt-2 pt-1.5 border-t border-slate-800 text-[10px] sm:text-[11px] flex justify-between items-center font-bold">
-            <span className="text-slate-300">النقاط المحتسبة:</span>
+            <span className="text-slate-300 flex items-center gap-1">
+              <span>النقاط المحتسبة:</span>
+              {!buyerWinner && (
+                <span className="text-[8.5px] sm:text-[9.5px] text-amber-300 bg-amber-950/60 border border-amber-500/40 px-1.5 py-0.2 rounded-md font-normal">
+                  {isForcedBid ? 'خسارة ملزوم 5 فقط' : `مضاعفة الخسارة: ${highestBid} × 2 = ${defensePts}`}
+                </span>
+              )}
+            </span>
             <span className="text-amber-400 text-xs sm:text-sm font-black flex items-center gap-1">
               <span>+{earnedPoints} نقطة</span>
               <span>{(buyerWinner ? buyerTeam : (buyerTeam === 'A' ? 'B' : 'A')) === 'A' ? '🔵' : '🔴'}</span>

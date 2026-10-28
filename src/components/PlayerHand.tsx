@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Player, SuitColor, TrickPlay } from '../types';
-import { isLegalMove, sortHandCards, SUIT_COLORS } from '../utils/gameLogic';
+import { isLegalMove, sortHandCards, SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
 import { UnoCard } from './UnoCard';
 
@@ -50,24 +50,45 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   const isMyTurn = currentTurn === activePlayer.id && phase === 'PLAYING' && currentTrick.length < 6;
   const isHumanBuyer = bidWinner === activePlayer.id && highestBid > 4;
+  const isBiddingPhase = phase === 'BIDDING' || phase === 'CHOOSE_TRUMP';
 
   const circumference = 125.6;
-  const offset = isMyTurn ? circumference * (1 - timerRemaining / 12) : 0;
-  const isCritical = timerRemaining <= 3;
+  const offset = isMyTurn ? circumference * (1 - timerRemaining / TURN_TIMER_DURATION) : 0;
+  const isCritical = timerRemaining <= 4;
 
   return (
-    <footer className="relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1 pb-1.5 sm:pb-2.5 px-1.5 sm:px-3 z-30 safe-bottom select-none flex-shrink-0">
+    <footer
+      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1 pb-1.5 sm:pb-2.5 px-1.5 sm:px-3 ${
+        isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
+      } safe-bottom select-none flex-shrink-0 transition-all duration-200`}
+    >
       <div className="max-w-3xl mx-auto flex flex-col items-center">
         
+        {/* User Rule: "عند الشراء يجب ان يرى اللاعب اوراقه بوضوح" */}
+        {isBiddingPhase && (
+          <div className="text-[10px] xs:text-[11px] font-black text-amber-300 bg-black/80 border border-amber-400/60 px-3 py-0.5 rounded-full mb-1 flex items-center gap-1.5 shadow-lg animate-pulse">
+            <span>🃏 أوراقك (9 كروت): تفحص ألوانك وقوتك لتحديد طلبك</span>
+          </div>
+        )}
+
         {/* Cards Row sorted by colors, and high-to-low from left to right */}
-        <div className="w-full flex items-center justify-center -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 sm:py-1 min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] no-scrollbar">
+        <div
+          className={`w-full flex items-center justify-center -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 sm:py-1 min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] no-scrollbar ${
+            isBiddingPhase ? 'py-1' : ''
+          }`}
+        >
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
-            const playable = isMyTurn ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor) : false;
+            const playable = isMyTurn
+              ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
+              : false;
             return (
               <div
                 key={card.id}
-                style={{ zIndex: 10 + idx }}
-                className="transition-transform duration-150"
+                style={{
+                  zIndex: 10 + idx,
+                  transform: isBiddingPhase ? 'translateY(-6px)' : undefined,
+                }}
+                className="transition-transform duration-200 hover:-translate-y-2"
               >
                 <UnoCard
                   card={card}

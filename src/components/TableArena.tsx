@@ -1,6 +1,6 @@
 import React from 'react';
 import { BidRecord, CalloutMessage, Player, SuitColor, TrickPlay } from '../types';
-import { getEffectiveLeadColor, SUIT_COLORS } from '../utils/gameLogic';
+import { getEffectiveLeadColor, SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
 import { UnoCard } from './UnoCard';
 import { ComicBidBubble } from './ComicBidBubble';
@@ -263,8 +263,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
           else if (relPos === 5) posClass = 'bottom-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]'; // 5: Bottom Left
 
           const circumference = 125.6;
-          const offset = isTurn ? circumference * (1 - timerRemaining / 12) : 0;
-          const isCritical = isTurn && timerRemaining <= 3;
+          const offset = isTurn ? circumference * (1 - timerRemaining / TURN_TIMER_DURATION) : 0;
+          const isCritical = isTurn && timerRemaining <= 4;
           const isDealer = dealerIdx === idx;
 
           return (

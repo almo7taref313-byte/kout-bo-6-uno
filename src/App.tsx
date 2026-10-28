@@ -23,6 +23,7 @@ import {
   getMatchTargetAndStatus,
   getEffectiveLeadColor,
   BotStrategyContext,
+  TURN_TIMER_DURATION,
 } from './utils/gameLogic';
 import { soundEngine } from './utils/soundEngine';
 import { usePWAInstall } from './utils/usePWAInstall';
@@ -178,7 +179,10 @@ export default function App() {
   const [playedTricksInRound, setPlayedTricksInRound] = useState<TrickPlay[][]>([]);
   const [collectingWinnerId, setCollectingWinnerId] = useState<number | null>(null);
   const [isActionPending, setIsActionPending] = useState<boolean>(false);
-  const [timerRemaining, setTimerRemaining] = useState<number>(12);
+  const [timerRemaining, setTimerRemaining] = useState<number>(TURN_TIMER_DURATION);
+  const [lastRoundLosingTeam, setLastRoundLosingTeam] = useState<'A' | 'B' | null>(null);
+  const [lastDealerTeamA, setLastDealerTeamA] = useState<number>(4);
+  const [lastDealerTeamB, setLastDealerTeamB] = useState<number>(5);
 
   // Kuwaiti Callouts Banner
   const [callout, setCallout] = useState<CalloutMessage | null>(null);
@@ -258,7 +262,7 @@ export default function App() {
       return;
     }
 
-    setTimerRemaining(12);
+    setTimerRemaining(TURN_TIMER_DURATION);
 
     timerIntervalRef.current = setInterval(() => {
       setTimerRemaining((prev) => {
@@ -329,8 +333,17 @@ export default function App() {
     setMatchScoreTeamA(0);
     setMatchScoreTeamB(0);
     setRoundNumber(1);
+    // User Rule: توزيع الكروت اول جولة عشوائي عند اي لاعب
     const randDealer = Math.floor(Math.random() * 6);
     setDealerIdx(randDealer);
+    if (randDealer % 2 === 0) {
+      setLastDealerTeamA(randDealer);
+      setLastDealerTeamB(5);
+    } else {
+      setLastDealerTeamB(randDealer);
+      setLastDealerTeamA(4);
+    }
+    setLastRoundLosingTeam(null);
     startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
@@ -622,8 +635,23 @@ export default function App() {
       const buyerTeam = buyerPlayer.team;
       const isBaoon = highestBid === 9;
       const pts = isBaoon ? 36 : highestBid;
-      const penaltyMultiplier = isBaoon ? 1 : isForcedBid ? 1 : 2;
-      const defensePts = isBaoon ? 18 : pts * penaltyMultiplier;
+
+      // User Rule:
+      // "عند خسارة الفريق الحاكم تضاعف النتيجة عليه مثال: ٥ عند الخسارة تصبح ١٠، ٦ عند الخسارة تصبح ١٢، في حال خسارة الملزوم تحتسب ٥ نقاط فقط."
+      let defensePts = 0;
+      if (isBaoon) {
+        defensePts = 18;
+      } else if (isForcedBid) {
+        defensePts = 5;
+      } else {
+        defensePts = highestBid * 2;
+      }
+
+      // Track losing team for next round dealer assignment:
+      // "اما في الجولات التالية دائما على الفريق الخاسر ويكون بالترتيب بين اللاعبين للفريق الخاسر"
+      const winningTeam: 'A' | 'B' = buyerIsWinner ? buyerTeam : (buyerTeam === 'A' ? 'B' : 'A');
+      const losingTeam: 'A' | 'B' = winningTeam === 'A' ? 'B' : 'A';
+      setLastRoundLosingTeam(losingTeam);
 
       let nextScoreA = matchScoreTeamA;
       let nextScoreB = matchScoreTeamB;
@@ -863,25 +891,26 @@ export default function App() {
     const me = players[currentHumanSeatIndex];
     if (!me) return;
 
-    // Opening rule check
+    // Opening rule check:
+    // User Rule: "الميكر/الجيكر لا يبدأ اللعب بهما ابدا ابدا ابدا فيحال الباقون يسمح بلعب الجيكر/الميكر بعد الحكام للحاكم فقط"
+    const isMeBuyer = bidWinner === currentHumanSeatIndex;
     if (currentTrick.length === 0 && (card.isJoker || card.isMaker)) {
       if (highestBid === 9) {
-        // Baoon opening rule:
-        // في حال الباون: يلعب اللاعب 1، باش، ميم، غلام، وبعدها يستطيع لعب الجيكر/الميكر
-        const hasUnplayedTopTrump = Boolean(
-          trumpColor &&
-          me.hand.some(
-            (c) => c.color === trumpColor && ['1', 'draw2', 'skip', 'reverse'].includes(c.rank)
-          )
+        if (!isMeBuyer) {
+          showCallout('في الباون: افتتاح الأكلة بالجيكر أو الميكر للحاكم فقط! 👑', '⚠️');
+          return;
+        }
+        const hasTrumpsInHand = Boolean(
+          trumpColor && me.hand.some((c) => c.color === trumpColor)
         );
-        if (hasUnplayedTopTrump) {
-          showCallout('في الباون: العب (١، باش، ميم، غلام) أولاً ثم الجيكر/الميكر! 👑', '⚠️');
+        if (hasTrumpsInHand) {
+          showCallout('في الباون: العب جميع أوراق الحكم أولاً ثم الجيكر/الميكر! 👑', '⚠️');
           return;
         }
       } else {
         const hasOther = me.hand.some((c) => !c.isJoker && !c.isMaker);
         if (hasOther) {
-          showCallout('ممنوع تفتتح بالجيكر أو الميكر!', '⚠️');
+          showCallout('الميكر والجيكر لا يبدأ اللعب بهما أبداً! 🚫', '⚠️');
           return;
         }
       }
@@ -895,7 +924,7 @@ export default function App() {
     }
 
     // Following suit rule
-    if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor)) {
+    if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)) {
       const leadColor = getEffectiveLeadColor(currentTrick, highestBid, trumpColor);
       if (leadColor && me.hand.some((c) => c.color === leadColor)) {
         const colName = SUIT_COLORS[leadColor]?.name || leadColor;
@@ -965,11 +994,11 @@ export default function App() {
       submitBid(currentTurn, 0); // Force pass
     } else if (phase === 'PLAYING') {
       if (cur.hand.length > 0) {
-        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players, highestBid);
+        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players, highestBid, bidWinner);
         handlePlayCard(cur.id, chosen);
       }
     }
-  }, [currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
+  }, [bidWinner, currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
 
   // Next round / Next match
   const handleNextRoundOrMatch = () => {
@@ -999,6 +1028,14 @@ export default function App() {
         setMatchScoreTeamB(0);
         setRoundNumber(1);
         setDealerIdx(randDealer);
+        if (randDealer % 2 === 0) {
+          setLastDealerTeamA(randDealer);
+          setLastDealerTeamB(5);
+        } else {
+          setLastDealerTeamB(randDealer);
+          setLastDealerTeamA(4);
+        }
+        setLastRoundLosingTeam(null);
 
         roomSync.publish({
           type: 'START_GAME',
@@ -1017,8 +1054,17 @@ export default function App() {
         startNewMatch();
       }
     } else {
+      // User Rule:
+      // "توزيع الكروت اول جولة عشوائي عند اي لاعب اما في الجولات التالية دائما على الفريق الخاسر ويكون بالترتيب بين اللاعبين للفريق الخاسر."
       const nextR = roundNumber + 1;
-      const nextDealer = (dealerIdx + 1) % 6;
+      let nextDealer = (dealerIdx + 1) % 6;
+      if (lastRoundLosingTeam === 'A') {
+        nextDealer = (lastDealerTeamA + 2) % 6;
+        setLastDealerTeamA(nextDealer);
+      } else if (lastRoundLosingTeam === 'B') {
+        nextDealer = (lastDealerTeamB + 2) % 6;
+        setLastDealerTeamB(nextDealer);
+      }
       setRoundNumber(nextR);
       setDealerIdx(nextDealer);
 
