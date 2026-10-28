@@ -221,11 +221,23 @@ class RoomSyncManager {
       client.on('message', (receivedTopic, payload) => {
         if (receivedTopic === topic) {
           try {
-            const data: RoomSyncMessage = JSON.parse(payload.toString());
+            let rawStr = '';
+            if (typeof payload === 'string') {
+              rawStr = payload;
+            } else if (typeof TextDecoder !== 'undefined') {
+              rawStr = new TextDecoder('utf-8').decode(payload);
+            } else {
+              rawStr = payload.toString();
+            }
+
+            const data: RoomSyncMessage = JSON.parse(rawStr);
             if (data && data.senderId !== this.myClientId) {
+              console.log('[RoomSync] Received:', data.type, 'from:', data.senderId);
               this.notifyListeners(data);
             }
-          } catch {}
+          } catch (err) {
+            console.error('[RoomSync] Failed to parse message payload:', err);
+          }
         }
       });
 
