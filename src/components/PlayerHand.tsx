@@ -78,9 +78,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           }`}
         >
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
-            const playable = isMyTurn
+            const isLegal = isMyTurn
               ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
-              : false;
+              : true;
             return (
               <div
                 key={card.id}
@@ -93,7 +93,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 <UnoCard
                   card={card}
                   isClickable={true}
-                  isPlayable={playable && isMyTurn}
+                  isPlayable={isMyTurn ? isLegal : true}
                   size="hand"
                   trumpColor={trumpColor}
                   onClick={() => onCardClick(card)}

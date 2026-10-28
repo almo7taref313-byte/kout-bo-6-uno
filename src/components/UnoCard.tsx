@@ -301,10 +301,15 @@ export const UnoCard: React.FC<UnoCardProps> = ({
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onClick={isClickable ? onClick : undefined}
-      style={{ touchAction: 'manipulation' }}
+      style={{
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent',
+      }}
       className={`uno-card-ref ${sizeClass} ${holoClass} ${glowClass} ${
         isClickable ? 'player-card' : ''
-      } ${isClickable && isPlayable ? 'active-playable' : ''} ${className}`}
+      } ${isClickable && isPlayable ? 'active-playable' : ''} ${
+        isClickable && !isPlayable ? 'card-unplayable-dimmed' : ''
+      } ${className}`}
     >
       <div className={`uno-card-inner ${bgClass}`}>
         {/* Tilted White Oval */}

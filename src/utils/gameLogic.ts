@@ -216,7 +216,7 @@ export function evaluateTrickWinner(
   return winning.playerId;
 }
 
-export const TURN_TIMER_DURATION = 18;
+export const TURN_TIMER_DURATION = 30;
 
 export function isLegalMove(
   hand: Card[],
