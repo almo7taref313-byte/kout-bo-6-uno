@@ -48,6 +48,8 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           globIgnores: ['**/assets/aistudio/**'],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+          skipWaiting: true,
+          clientsClaim: true,
         },
         devOptions: {
           enabled: true,
