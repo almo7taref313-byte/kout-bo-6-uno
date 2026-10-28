@@ -436,10 +436,29 @@ export default function App() {
           timestamp: Date.now(),
         });
       }
-    }, 2500);
+    }, 1200);
 
     return () => clearInterval(interval);
   }, [isMultiplayerActive, isRoomHost, phase, roomCode, seats, userAvatar, userCustomPhoto, userName, waitingPlayers]);
+
+  // Host heartbeat while HostTableModal is open: broadcast ROOM_STATE every 2.5s
+  useEffect(() => {
+    if (!showHostModal || !roomCode) return;
+    const interval = setInterval(() => {
+      const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: roomSync.myClientId,
+        seats,
+        waitingPlayers,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [showHostModal, roomCode, seats, waitingPlayers]);
 
   // Handle URL Room query parameter on mount: join room and wait for host
   useEffect(() => {
@@ -1114,7 +1133,7 @@ export default function App() {
     switch (msg.type) {
         case 'JOIN_REQUEST': {
           // If this client is host, register in waiting players and broadcast current room state
-          if (isRoomHost) {
+          if (isRoomHost || showHostModal || seats[0]?.clientId === roomSync.myClientId) {
             const joinerClientId = msg.player?.clientId || msg.senderId || `client_${Date.now()}`;
             let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
             // If joiner has identical name to host or default 'أنت', make it distinct so host recognizes them
@@ -1123,12 +1142,7 @@ export default function App() {
               joinerName = `لاعب ${count + 1}`;
             }
 
-            // CRITICAL FIX: Match alreadySeated ONLY by unique clientId!
-            // Previously checked `s.name === joinerName`, which caused any joiner named 'أنت' to be rejected!
             const alreadySeated = seats.some((s) => s.clientId && s.clientId === joinerClientId);
-
-            let updatedWaiting = [...waitingPlayers];
-            const existingIdx = updatedWaiting.findIndex((w) => w.clientId === joinerClientId);
 
             if (!alreadySeated) {
               const newWaiting: WaitingPlayer = {
@@ -1139,26 +1153,43 @@ export default function App() {
                 joinedAt: Date.now(),
               };
 
-              if (existingIdx !== -1) {
-                updatedWaiting[existingIdx] = newWaiting;
-              } else {
-                updatedWaiting.push(newWaiting);
-                showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
-                soundEngine.playCardSlide();
-              }
-              setWaitingPlayers(updatedWaiting);
-            }
+              setWaitingPlayers((prev) => {
+                const existingIdx = prev.findIndex((w) => w.clientId === joinerClientId);
+                let next: WaitingPlayer[];
+                if (existingIdx !== -1) {
+                  next = [...prev];
+                  next[existingIdx] = newWaiting;
+                } else {
+                  next = [...prev, newWaiting];
+                  showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
+                  soundEngine.playCardSlide();
+                }
 
-            const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-            roomSync.publish({
-              type: 'ROOM_STATE',
-              roomCode,
-              senderId: roomSync.myClientId,
-              seats,
-              waitingPlayers: updatedWaiting,
-              vacantCount: vCount,
-              timestamp: Date.now(),
-            });
+                const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+                roomSync.publish({
+                  type: 'ROOM_STATE',
+                  roomCode,
+                  senderId: roomSync.myClientId,
+                  seats,
+                  waitingPlayers: next,
+                  vacantCount: vCount,
+                  timestamp: Date.now(),
+                });
+
+                return next;
+              });
+            } else {
+              const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+              roomSync.publish({
+                type: 'ROOM_STATE',
+                roomCode,
+                senderId: roomSync.myClientId,
+                seats,
+                waitingPlayers,
+                vacantCount: vCount,
+                timestamp: Date.now(),
+              });
+            }
 
             // If game is active, broadcast full table snapshot so joining player immediately catches up
             if (phase !== 'LOBBY') {
@@ -1439,7 +1470,7 @@ export default function App() {
         }
 
         case 'SYNC_REQUEST': {
-          if (isRoomHost) {
+          if (isRoomHost || showHostModal || seats[0]?.clientId === roomSync.myClientId) {
             const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
             roomSync.publish({
               type: 'ROOM_STATE',

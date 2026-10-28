@@ -64,11 +64,9 @@ export interface RoomSyncMessage {
 
 export type RoomMessageCallback = (msg: RoomSyncMessage) => void;
 
-// Dedicated private EMQX Serverless broker (Zero-lag, dedicated private bandwidth)
-const PRIMARY_BROKER = 'wss://ca867d88.ala.eu-central-1.emqxsl.com:8084/mqtt';
-const BROKER_USERNAME = 'kout';
-const BROKER_PASSWORD = 'Mousawi@313';
-const FALLBACK_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+// Universal global high-speed public brokers (Reachable worldwide without credentials or account quotas)
+const PRIMARY_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+const FALLBACK_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
 
 class RoomSyncManager {
   private client: MqttClient | null = null;
@@ -194,10 +192,6 @@ class RoomSyncManager {
         reconnectPeriod: 1200,
         keepalive: 10,
       };
-      if (!this.hasFallenBack) {
-        opts.username = BROKER_USERNAME;
-        opts.password = BROKER_PASSWORD;
-      }
 
       const client = mqtt.connect(activeBroker, opts);
       this.client = client;
