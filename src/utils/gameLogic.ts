@@ -962,3 +962,62 @@ export function getMatchTargetAndStatus(scoreA: number, scoreB: number): {
   };
 }
 
+/**
+ * User Rule:
+ * "التوزيع على الفريق الخسران في السكور ( الفريق الذي مجموع نقاطه اقل من الفريق الاخر)
+ *  ولا يتحول التوزيع للفريق الاخر الا اذا قلت مجموع نقاطه عن الفريق الخسران"
+ *
+ * 1. الجولة الأولى: التوزيع عشوائي على أي لاعب من الفريقين (0..5).
+ * 2. الجولات التالية:
+ *    - إذا كانت نقاط الفريق الأزرق أ (scoreTeamA) أقل من ب (scoreTeamB) -> التوزيع على الفريق أ.
+ *    - إذا كانت نقاط الفريق الأحمر ب (scoreTeamB) أقل من أ (scoreTeamA) -> التوزيع على الفريق ب.
+ *    - في حال تعادل مجموع النقاط (scoreTeamA === scoreTeamB): لا يتحول التوزيع للفريق الآخر، بل يستمر التوزيع مع نفس الفريق السابق.
+ * 3. داخل الفريق الموزع:
+ *    - يكون التوزيع بالترتيب الدوري بين لاعبي ذلك الفريق (0 -> 2 -> 4 -> 0 للفريق أ، و 1 -> 3 -> 5 -> 1 للفريق ب).
+ */
+export interface NextRoundDealerResult {
+  nextDealingTeam: 'A' | 'B';
+  nextDealer: number;
+  newLastDealerTeamA: number;
+  newLastDealerTeamB: number;
+}
+
+export function computeNextRoundDealer(
+  scoreTeamA: number,
+  scoreTeamB: number,
+  currentDealingTeam: 'A' | 'B',
+  lastDealerTeamA: number,
+  lastDealerTeamB: number
+): NextRoundDealerResult {
+  let nextDealingTeam: 'A' | 'B';
+
+  if (scoreTeamA < scoreTeamB) {
+    nextDealingTeam = 'A';
+  } else if (scoreTeamB < scoreTeamA) {
+    nextDealingTeam = 'B';
+  } else {
+    // التعادل بالسكور: لا يتحول التوزيع للفريق الآخر، ويبقى على الفريق الحالي
+    nextDealingTeam = currentDealingTeam;
+  }
+
+  let nextDealer: number;
+  let newLastDealerTeamA = lastDealerTeamA;
+  let newLastDealerTeamB = lastDealerTeamB;
+
+  if (nextDealingTeam === 'A') {
+    nextDealer = (lastDealerTeamA + 2) % 6;
+    newLastDealerTeamA = nextDealer;
+  } else {
+    nextDealer = (lastDealerTeamB + 2) % 6;
+    newLastDealerTeamB = nextDealer;
+  }
+
+  return {
+    nextDealingTeam,
+    nextDealer,
+    newLastDealerTeamA,
+    newLastDealerTeamB,
+  };
+}
+
+

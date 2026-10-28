@@ -228,6 +228,26 @@ export const RoundResultModal: React.FC<RoundResultModalProps> = ({
                 )}
               </div>
             )}
+
+            {/* Dealer status for next round based on score */}
+            {!isMatchOver && (
+              <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-center gap-1.5 font-medium flex-wrap">
+                <span className="text-slate-300">🃏 توزيع الجولة القادمة:</span>
+                {matchScoreTeamA < matchScoreTeamB ? (
+                  <span className="text-blue-300 font-bold bg-blue-950/70 border border-blue-500/40 px-2 py-0.5 rounded-md">
+                    🔵 على الفريق الأزرق (الأقل سكوراً)
+                  </span>
+                ) : matchScoreTeamB < matchScoreTeamA ? (
+                  <span className="text-rose-300 font-bold bg-rose-950/70 border border-rose-500/40 px-2 py-0.5 rounded-md">
+                    🔴 على الفريق الأحمر (الأقل سكوراً)
+                  </span>
+                ) : (
+                  <span className="text-amber-300 font-bold bg-amber-950/70 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                    ⚖️ تعادل بالسكور - يستمر التوزيع مع نفس الفريق
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

@@ -24,6 +24,7 @@ import {
   getEffectiveLeadColor,
   BotStrategyContext,
   TURN_TIMER_DURATION,
+  computeNextRoundDealer,
 } from './utils/gameLogic';
 import { soundEngine } from './utils/soundEngine';
 import { usePWAInstall } from './utils/usePWAInstall';
@@ -180,7 +181,7 @@ export default function App() {
   const [collectingWinnerId, setCollectingWinnerId] = useState<number | null>(null);
   const [isActionPending, setIsActionPending] = useState<boolean>(false);
   const [timerRemaining, setTimerRemaining] = useState<number>(TURN_TIMER_DURATION);
-  const [lastRoundLosingTeam, setLastRoundLosingTeam] = useState<'A' | 'B' | null>(null);
+  const [currentDealingTeam, setCurrentDealingTeam] = useState<'A' | 'B'>('A');
   const [lastDealerTeamA, setLastDealerTeamA] = useState<number>(4);
   const [lastDealerTeamB, setLastDealerTeamB] = useState<number>(5);
 
@@ -323,7 +324,8 @@ export default function App() {
 
       const dealerPlayer = freshPlayers[activeDealer];
       const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${activeDealer + 1}`;
-      showCallout(`الموزع ${dealerName} وزّع الورق! المزاد يبدأ والموزع آخر من يزايد 🃏`, '🃏');
+      const dealerTeamName = activeDealer % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+      showCallout(`الموزع ${dealerName} (${dealerTeamName}) وزّع الورق! المزاد يبدأ والموزع آخر من يزايد 🃏`, '🃏');
       startTimer();
     },
     [currentHumanSeatIndex, dealerIdx, seats, showCallout, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
@@ -336,6 +338,8 @@ export default function App() {
     // User Rule: توزيع الكروت اول جولة عشوائي عند اي لاعب
     const randDealer = Math.floor(Math.random() * 6);
     setDealerIdx(randDealer);
+    const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+    setCurrentDealingTeam(initialDealingTeam);
     if (randDealer % 2 === 0) {
       setLastDealerTeamA(randDealer);
       setLastDealerTeamB(5);
@@ -343,7 +347,6 @@ export default function App() {
       setLastDealerTeamB(randDealer);
       setLastDealerTeamA(4);
     }
-    setLastRoundLosingTeam(null);
     startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
@@ -646,12 +649,6 @@ export default function App() {
       } else {
         defensePts = highestBid * 2;
       }
-
-      // Track losing team for next round dealer assignment:
-      // "اما في الجولات التالية دائما على الفريق الخاسر ويكون بالترتيب بين اللاعبين للفريق الخاسر"
-      const winningTeam: 'A' | 'B' = buyerIsWinner ? buyerTeam : (buyerTeam === 'A' ? 'B' : 'A');
-      const losingTeam: 'A' | 'B' = winningTeam === 'A' ? 'B' : 'A';
-      setLastRoundLosingTeam(losingTeam);
 
       let nextScoreA = matchScoreTeamA;
       let nextScoreB = matchScoreTeamB;
@@ -1028,6 +1025,8 @@ export default function App() {
         setMatchScoreTeamB(0);
         setRoundNumber(1);
         setDealerIdx(randDealer);
+        const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+        setCurrentDealingTeam(initialDealingTeam);
         if (randDealer % 2 === 0) {
           setLastDealerTeamA(randDealer);
           setLastDealerTeamB(5);
@@ -1035,7 +1034,6 @@ export default function App() {
           setLastDealerTeamB(randDealer);
           setLastDealerTeamA(4);
         }
-        setLastRoundLosingTeam(null);
 
         roomSync.publish({
           type: 'START_GAME',
@@ -1055,16 +1053,20 @@ export default function App() {
       }
     } else {
       // User Rule:
-      // "توزيع الكروت اول جولة عشوائي عند اي لاعب اما في الجولات التالية دائما على الفريق الخاسر ويكون بالترتيب بين اللاعبين للفريق الخاسر."
+      // "التوزيع على الفريق الخسران في السكور ( الفريق الذي مجموع نقاطه اقل من الفريق الاخر) ولا يتحول التوزيع للفريق الاخر الا اذا قلت مجموع نقاطه عن الفريق الخسران"
       const nextR = roundNumber + 1;
-      let nextDealer = (dealerIdx + 1) % 6;
-      if (lastRoundLosingTeam === 'A') {
-        nextDealer = (lastDealerTeamA + 2) % 6;
-        setLastDealerTeamA(nextDealer);
-      } else if (lastRoundLosingTeam === 'B') {
-        nextDealer = (lastDealerTeamB + 2) % 6;
-        setLastDealerTeamB(nextDealer);
-      }
+      const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
+      const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
+        matchScoreTeamA,
+        matchScoreTeamB,
+        curDealingTeam,
+        lastDealerTeamA,
+        lastDealerTeamB
+      );
+
+      setCurrentDealingTeam(nextDealingTeam);
+      setLastDealerTeamA(newLastDealerTeamA);
+      setLastDealerTeamB(newLastDealerTeamB);
       setRoundNumber(nextR);
       setDealerIdx(nextDealer);
 
@@ -1271,6 +1273,16 @@ export default function App() {
           setRoundNumber(msg.roundNumber ?? 1);
 
           if (msg.deck && msg.dealerIdx !== undefined) {
+            setDealerIdx(msg.dealerIdx);
+            const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+            setCurrentDealingTeam(incTeam);
+            if (msg.dealerIdx % 2 === 0) {
+              setLastDealerTeamA(msg.dealerIdx);
+              setLastDealerTeamB(5);
+            } else {
+              setLastDealerTeamB(msg.dealerIdx);
+              setLastDealerTeamA(4);
+            }
             startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
           }
           showCallout('بدأ اللعب للجميع! 🃏', '🚀');
@@ -1302,6 +1314,13 @@ export default function App() {
           if (msg.deck && msg.dealerIdx !== undefined) {
             setRoundNumber(msg.roundNumber ?? (roundNumber + 1));
             setDealerIdx(msg.dealerIdx);
+            const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+            setCurrentDealingTeam(incTeam);
+            if (msg.dealerIdx % 2 === 0) {
+              setLastDealerTeamA(msg.dealerIdx);
+            } else {
+              setLastDealerTeamB(msg.dealerIdx);
+            }
             if (msg.scores) {
               setMatchScoreTeamA(msg.scores.a);
               setMatchScoreTeamB(msg.scores.b);
@@ -2433,6 +2452,16 @@ export default function App() {
             setMatchScoreTeamA(0);
             setMatchScoreTeamB(0);
             setRoundNumber(1);
+            setDealerIdx(randDealer);
+            const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+            setCurrentDealingTeam(initialDealingTeam);
+            if (randDealer % 2 === 0) {
+              setLastDealerTeamA(randDealer);
+              setLastDealerTeamB(5);
+            } else {
+              setLastDealerTeamB(randDealer);
+              setLastDealerTeamA(4);
+            }
 
             roomSync.publish({
               type: 'START_GAME',
