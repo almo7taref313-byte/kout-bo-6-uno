@@ -415,7 +415,7 @@ export default function App() {
   useEffect(() => {
     if (!isMultiplayerActive || isRoomHost || phase !== 'LOBBY' || !roomCode) return;
 
-    const interval = setInterval(() => {
+    const sendJoin = () => {
       const isAlreadyAcknowledged =
         waitingPlayers.some((w) => w.clientId === roomSync.myClientId) ||
         seats.some((s) => s.clientId === roomSync.myClientId);
@@ -435,13 +435,25 @@ export default function App() {
           },
           timestamp: Date.now(),
         });
+        roomSync.publish({
+          type: 'SYNC_REQUEST',
+          roomCode,
+          senderId: roomSync.myClientId,
+          timestamp: Date.now(),
+        });
       }
-    }, 1200);
+    };
+
+    // Immediate send on mount
+    sendJoin();
+
+    // Fast retry every 800ms
+    const interval = setInterval(sendJoin, 800);
 
     return () => clearInterval(interval);
   }, [isMultiplayerActive, isRoomHost, phase, roomCode, seats, userAvatar, userCustomPhoto, userName, waitingPlayers]);
 
-  // Host heartbeat while HostTableModal is open: broadcast ROOM_STATE every 2.5s
+  // Host heartbeat while HostTableModal is open: broadcast ROOM_STATE every 1000ms
   useEffect(() => {
     if (!showHostModal || !roomCode) return;
     const interval = setInterval(() => {
@@ -455,7 +467,7 @@ export default function App() {
         vacantCount: vCount,
         timestamp: Date.now(),
       });
-    }, 2500);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [showHostModal, roomCode, seats, waitingPlayers]);

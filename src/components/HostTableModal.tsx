@@ -322,9 +322,14 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-xl">👑</span>
             <div className="text-right">
-              <h3 className="text-xs xs:text-sm sm:text-base font-black text-amber-400">
-                لوحة تحكم وتوزيع الطاولة الخاصة
-              </h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-xs xs:text-sm sm:text-base font-black text-amber-400">
+                  لوحة تحكم وتوزيع الطاولة الخاصة
+                </h3>
+                <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[9px] font-black">
+                  v2.6 ⚡
+                </span>
+              </div>
               <p className="text-[9.5px] xs:text-[10px] text-slate-400">
                 أنت منشئ الطاولة: تحكّم بتوزيع مقاعد اللاعبين وفِرقهم ثم اضغط "العب"
               </p>
