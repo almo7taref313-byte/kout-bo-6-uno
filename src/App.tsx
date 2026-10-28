@@ -1116,14 +1116,21 @@ export default function App() {
           // If this client is host, register in waiting players and broadcast current room state
           if (isRoomHost) {
             const joinerClientId = msg.player?.clientId || msg.senderId || `client_${Date.now()}`;
-            const joinerName = msg.player?.name || 'لاعب جديد';
+            let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
+            // If joiner has identical name to host or default 'أنت', make it distinct so host recognizes them
+            if (joinerName === 'أنت' || joinerName === userName) {
+              const count = waitingPlayers.filter((w) => w.clientId !== joinerClientId).length + 1;
+              joinerName = `لاعب ${count + 1}`;
+            }
 
-            // Check if already seated
-            const alreadySeated = seats.some((s) => s.clientId === joinerClientId || (s.isHuman && s.name === joinerName));
-            const alreadyWaiting = waitingPlayers.some((w) => w.clientId === joinerClientId);
+            // CRITICAL FIX: Match alreadySeated ONLY by unique clientId!
+            // Previously checked `s.name === joinerName`, which caused any joiner named 'أنت' to be rejected!
+            const alreadySeated = seats.some((s) => s.clientId && s.clientId === joinerClientId);
 
-            let updatedWaiting = waitingPlayers;
-            if (!alreadySeated && !alreadyWaiting) {
+            let updatedWaiting = [...waitingPlayers];
+            const existingIdx = updatedWaiting.findIndex((w) => w.clientId === joinerClientId);
+
+            if (!alreadySeated) {
               const newWaiting: WaitingPlayer = {
                 clientId: joinerClientId,
                 name: joinerName,
@@ -1131,10 +1138,15 @@ export default function App() {
                 customPhoto: msg.player?.customPhoto,
                 joinedAt: Date.now(),
               };
-              updatedWaiting = [...waitingPlayers, newWaiting];
+
+              if (existingIdx !== -1) {
+                updatedWaiting[existingIdx] = newWaiting;
+              } else {
+                updatedWaiting.push(newWaiting);
+                showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
+                soundEngine.playCardSlide();
+              }
               setWaitingPlayers(updatedWaiting);
-              showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
-              soundEngine.playCardSlide();
             }
 
             const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
@@ -1428,6 +1440,17 @@ export default function App() {
 
         case 'SYNC_REQUEST': {
           if (isRoomHost) {
+            const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+            roomSync.publish({
+              type: 'ROOM_STATE',
+              roomCode,
+              senderId: roomSync.myClientId,
+              seats,
+              waitingPlayers,
+              vacantCount: vCount,
+              timestamp: Date.now(),
+            });
+
             roomSync.publish({
               type: 'SYNC_STATE',
               roomCode,
@@ -1661,6 +1684,7 @@ export default function App() {
   // Open Private Table: Initialize non-human seats as VACANT and reset waiting queue
   const handleOpenPrivateTable = () => {
     setIsRoomHost(true);
+    setIsMultiplayerActive(true);
     setCurrentHumanSeatIndex(0);
     const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
     freshVacantSeats[0].clientId = roomSync.myClientId;
@@ -1670,6 +1694,12 @@ export default function App() {
     try {
       localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(freshVacantSeats));
     } catch {}
+
+    // Ensure host is connected and subscribed to this room code
+    roomSync.subscribeRoom(roomCode, (msg) => {
+      messageHandlerRef.current(msg);
+    });
+
     roomSync.publish({
       type: 'ROOM_STATE',
       roomCode,
@@ -2410,12 +2440,18 @@ export default function App() {
             const nextCode = String(Math.floor(1000 + Math.random() * 9000));
             setRoomCode(nextCode);
             setIsRoomHost(true);
+            setIsMultiplayerActive(true);
             setLastSeatReserved(null);
             setCurrentHumanSeatIndex(0);
             const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
             freshVacant[0].clientId = roomSync.myClientId;
             setSeats(freshVacant);
             setWaitingPlayers([]);
+
+            roomSync.subscribeRoom(nextCode, (msg) => {
+              messageHandlerRef.current(msg);
+            });
+
             try {
               localStorage.setItem(`kout_room_seats_${nextCode}`, JSON.stringify(freshVacant));
             } catch {}
@@ -2580,9 +2616,18 @@ export default function App() {
             const nextCode = String(Math.floor(1000 + Math.random() * 9000));
             setRoomCode(nextCode);
             setIsRoomHost(true);
+            setIsMultiplayerActive(true);
+            setCurrentHumanSeatIndex(0);
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
+            freshVacant[0].clientId = roomSync.myClientId;
+            setSeats(freshVacant);
+            setWaitingPlayers([]);
+            roomSync.subscribeRoom(nextCode, (msg) => {
+              messageHandlerRef.current(msg);
+            });
             setShowRoomsModal(false);
             setShowHostModal(true);
-            showCallout(`غرفة جديدة #${nextCode}`, '🚪');
+            showCallout(`طاولتك برمز #${nextCode} (5 مقاعد شاغرة)`, '🚪');
           }}
           onJoinRoom={(code) => {
             setShowRoomsModal(false);

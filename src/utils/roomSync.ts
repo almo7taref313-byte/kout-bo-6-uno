@@ -177,7 +177,7 @@ class RoomSyncManager {
       }
     } catch {}
 
-    // 2. Setup MQTT over WebSocket on dedicated EMQX Serverless broker
+    // 2. Setup MQTT over WebSocket with automatic fallback broker resilience
     try {
       if (this.client) {
         try {
@@ -186,16 +186,20 @@ class RoomSyncManager {
         this.client = null;
       }
 
-      const client = mqtt.connect(PRIMARY_BROKER, {
+      const activeBroker = this.hasFallenBack ? FALLBACK_BROKER : PRIMARY_BROKER;
+      const opts: mqtt.IClientOptions = {
         clientId: this.myClientId,
         clean: true,
         connectTimeout: 5000,
         reconnectPeriod: 1200,
         keepalive: 10,
-        username: BROKER_USERNAME,
-        password: BROKER_PASSWORD,
-      });
+      };
+      if (!this.hasFallenBack) {
+        opts.username = BROKER_USERNAME;
+        opts.password = BROKER_PASSWORD;
+      }
 
+      const client = mqtt.connect(activeBroker, opts);
       this.client = client;
 
       client.on('connect', () => {
@@ -235,6 +239,12 @@ class RoomSyncManager {
         this.isConnecting = false;
         this.isConnected = false;
         this.failCount++;
+        if (this.failCount >= 2 && !this.hasFallenBack) {
+          this.hasFallenBack = true;
+          if (this.currentRoomCode) {
+            setTimeout(() => this.connect(this.currentRoomCode!), 500);
+          }
+        }
       };
 
       client.on('error', handleError);
