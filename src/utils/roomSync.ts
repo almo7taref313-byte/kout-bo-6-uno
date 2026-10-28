@@ -79,8 +79,26 @@ class RoomSyncManager {
   private seenMessageHashes: Set<string> = new Set();
   private hasFallenBack: boolean = false;
   private failCount: number = 0;
+  private connStatusListeners: Set<(connected: boolean) => void> = new Set();
   public isConnected: boolean = false;
   public myClientId: string = 'kout_' + Math.random().toString(36).substring(2, 9);
+
+  public subscribeConnection(cb: (connected: boolean) => void): () => void {
+    this.connStatusListeners.add(cb);
+    cb(this.isConnected);
+    return () => {
+      this.connStatusListeners.delete(cb);
+    };
+  }
+
+  private setConnection(val: boolean) {
+    this.isConnected = val;
+    this.connStatusListeners.forEach((cb) => {
+      try {
+        cb(val);
+      } catch {}
+    });
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -198,7 +216,7 @@ class RoomSyncManager {
 
       client.on('connect', () => {
         this.isConnecting = false;
-        this.isConnected = true;
+        this.setConnection(true);
         this.failCount = 0;
         if (this.connectTimeoutTimer) clearTimeout(this.connectTimeoutTimer);
 
@@ -243,7 +261,7 @@ class RoomSyncManager {
 
       const handleError = () => {
         this.isConnecting = false;
-        this.isConnected = false;
+        this.setConnection(false);
         this.failCount++;
         if (this.failCount >= 2 && !this.hasFallenBack) {
           this.hasFallenBack = true;
@@ -347,7 +365,7 @@ class RoomSyncManager {
 
   public disconnect() {
     this.isConnecting = false;
-    this.isConnected = false;
+    this.setConnection(false);
     if (this.connectTimeoutTimer) {
       clearTimeout(this.connectTimeoutTimer);
       this.connectTimeoutTimer = null;

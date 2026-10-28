@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SeatConfig, WaitingPlayer } from '../types';
 import { AvatarView } from '../utils/avatars';
+import { roomSync } from '../utils/roomSync';
 
 interface HostTableModalProps {
   roomCode: string;
@@ -56,6 +57,11 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   const [activeAssignPlayer, setActiveAssignPlayer] = useState<WaitingPlayer | null>(null);
   const [activeSwapSeatIdx, setActiveSwapSeatIdx] = useState<number | null>(null);
   const [activePickForSeatIdx, setActivePickForSeatIdx] = useState<number | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(roomSync.isConnected);
+
+  useEffect(() => {
+    return roomSync.subscribeConnection((conn) => setIsConnected(conn));
+  }, []);
 
   const filledSeats = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '');
   const isComplete = filledSeats.length === 6;
@@ -340,6 +346,12 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               <span className="font-mono font-black text-xl xs:text-2xl text-amber-400 tracking-widest leading-none">
                 #{roomCode}
               </span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-[9px] font-bold text-slate-300">
+                  {isConnected ? 'سيرفر اللعب: متصل 🟢' : 'جاري الاتصال... 🔴'}
+                </span>
+              </div>
             </div>
             <button
               onClick={onRegenerateCode}

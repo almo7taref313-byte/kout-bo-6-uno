@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SeatConfig, WaitingPlayer } from '../types';
 import { AvatarView } from '../utils/avatars';
+import { roomSync } from '../utils/roomSync';
 
 interface WaitingLobbyModalProps {
   roomCode: string;
@@ -23,6 +24,13 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
   myCustomPhoto: _myCustomPhoto,
   onLeaveRoom,
 }) => {
+  const [isConnected, setIsConnected] = useState<boolean>(roomSync.isConnected);
+  const [pingSent, setPingSent] = useState<boolean>(false);
+
+  useEffect(() => {
+    return roomSync.subscribeConnection((conn) => setIsConnected(conn));
+  }, []);
+
   // Check if player has been placed in a seat by the host
   const assignedSeatIdx = seats.findIndex(
     (s) => s.clientId === myClientId || (s.isHuman && s.name === myName && !s.isVacant)
@@ -75,25 +83,72 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
         </div>
 
         {/* Room Code Badge */}
-        <div className="bg-slate-950 border border-indigo-500/30 rounded-2xl p-2.5 flex items-center justify-between">
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 block font-bold">رمز الطاولة الخاص:</span>
-            <span className="font-mono font-black text-xl xs:text-2xl text-amber-400 tracking-widest">
-              #{roomCode}
-            </span>
+        <div className="bg-slate-950 border border-indigo-500/30 rounded-2xl p-2.5 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 block font-bold">رمز الطاولة الخاص:</span>
+              <span className="font-mono font-black text-xl xs:text-2xl text-amber-400 tracking-widest leading-none">
+                #{roomCode}
+              </span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-[9px] font-bold text-slate-300">
+                  {isConnected ? 'سيرفر اللعب: متصل 🟢' : 'جاري الاتصال... 🔴'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleCopyLink}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[11px] font-bold border border-slate-700 transition active:scale-95 cursor-pointer"
+              >
+                📋 نسخ
+              </button>
+              <button
+                onClick={handleShareWhatsApp}
+                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-bold transition active:scale-95 cursor-pointer"
+              >
+                واتساب 💬
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
+
+          <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-400">
+              لم يظهر اسمك عند المضيف؟
+            </span>
             <button
-              onClick={handleCopyLink}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[11px] font-bold border border-slate-700 transition active:scale-95 cursor-pointer"
+              onClick={() => {
+                roomSync.publish({
+                  type: 'JOIN_REQUEST',
+                  roomCode,
+                  senderId: roomSync.myClientId,
+                  player: {
+                    name: myName,
+                    team: 'A',
+                    avatarId: _myAvatarId,
+                    customPhoto: _myCustomPhoto,
+                    isHuman: true,
+                    clientId: roomSync.myClientId,
+                  },
+                  timestamp: Date.now(),
+                });
+                roomSync.publish({
+                  type: 'SYNC_REQUEST',
+                  roomCode,
+                  senderId: roomSync.myClientId,
+                  timestamp: Date.now(),
+                });
+                setPingSent(true);
+                setTimeout(() => setPingSent(false), 2000);
+              }}
+              className={`px-3 py-1 rounded-xl text-[10px] font-black transition active:scale-95 cursor-pointer flex items-center gap-1 ${
+                pingSent
+                  ? 'bg-emerald-600 text-white shadow-emerald-500/30'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30'
+              }`}
             >
-              📋 نسخ
-            </button>
-            <button
-              onClick={handleShareWhatsApp}
-              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-bold transition active:scale-95 cursor-pointer"
-            >
-              واتساب 💬
+              <span>{pingSent ? 'تم الإرسال بنجاح ✅' : '📢 إرسال نداء للمضيف'}</span>
             </button>
           </div>
         </div>
