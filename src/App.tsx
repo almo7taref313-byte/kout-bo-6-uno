@@ -889,7 +889,7 @@ export default function App() {
     handlePlayCard(currentHumanSeatIndex, card);
   };
 
-  // Bot card play automation
+ // Bot card play automation
   useEffect(() => {
     if (phase !== 'PLAYING') return;
     if (currentTrick.length === 6) return;
@@ -900,6 +900,7 @@ export default function App() {
     if (bot.isHuman) return;
     if (isMultiplayerActive && !isRoomHost) return;
 
+    // تم رفع وقت تفكير البوت إلى 1400ms لإعطاء ركادة واقعية بين كل لاعب وآخر
     const botTimer = setTimeout(() => {
       const context: BotStrategyContext = {
         buyerId: bidWinner,
@@ -911,11 +912,10 @@ export default function App() {
       };
       const move = selectBotMove(bot, currentTrick, trumpColor, context);
       handlePlayCard(bot.id, move);
-    }, 850);
+    }, 1400);
 
     return () => clearTimeout(botTimer);
   }, [bidWinner, currentTrick, currentTurn, dealerIdx, handlePlayCard, highestBid, isMultiplayerActive, isRoomHost, phase, playedTricksInRound, players, roundNumber, trumpColor]);
-
   // Timeout handler for active turn
   useEffect(() => {
     if (timerRemaining > 0) return;
