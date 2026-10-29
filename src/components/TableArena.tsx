@@ -165,7 +165,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
 
-            // رصّ خفيف للأوراق أثناء انسحابها نحو الفائز
             const stackOffsetX = (index - 2.5) * 2;
             const stackOffsetY = (index - 2.5) * 1.5;
             const stackRotate = (index - 2.5) * 2.5;
@@ -180,7 +179,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
               top: '50%',
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
-              // إبطاء حركة الرمي إلى 450ms وإبطاء حركة اللمّ إلى 1000ms بانسيابية تامة
               transition: isCollecting
                 ? 'transform 1000ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease-in'
                 : 'transform 450ms cubic-bezier(0.25, 1, 0.5, 1)',
@@ -240,13 +238,23 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           const relPos = (idx - humanSeatIndex + 6) % 6;
           let posClass = '';
-          if (relPos === 1) posClass = 'bottom-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]';
-          else if (relPos === 2) posClass = 'top-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]';
-          else if (relPos === 3) posClass = 'top-[-16px] xs:top-[-18px] left-1/2 -translate-x-1/2';
-          else if (relPos === 4) posClass = 'top-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]';
-          else if (relPos === 5) posClass = 'bottom-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]';
+          if (relPos === 1) posClass = 'bottom-[22%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+          else if (relPos === 2) posClass = 'top-[22%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+          else if (relPos === 3) posClass = 'top-[-20px] xs:top-[-22px] left-1/2 -translate-x-1/2';
+          else if (relPos === 4) posClass = 'top-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+          else if (relPos === 5) posClass = 'bottom-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
-          const circumference = 125.6;
+          // تحديد موقع علامة الأكلات إلى جانب صورة اللاعب خارج الطاولة
+          let targetBadgePosClass = '';
+          if (relPos === 1 || relPos === 2) {
+            targetBadgePosClass = '-right-7 xs:-right-8 top-1/2 -translate-y-1/2'; // خارج الطاولة يميناً
+          } else if (relPos === 4 || relPos === 5) {
+            targetBadgePosClass = '-left-7 xs:-left-8 top-1/2 -translate-y-1/2';   // خارج الطاولة يساراً
+          } else if (relPos === 3) {
+            targetBadgePosClass = '-top-7 left-1/2 -translate-x-1/2';              // خارج الطاولة للأعلى
+          }
+
+          const circumference = 150.8;
           const offset = isTurn ? circumference * (1 - timerRemaining / TURN_TIMER_DURATION) : 0;
           const isCritical = isTurn && timerRemaining <= 4;
           const isDealer = dealerIdx === idx;
@@ -262,7 +270,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                       relPos === 1 || relPos === 2
                         ? '-left-[68px] xs:-left-[78px] sm:-left-[88px] top-1/2 -translate-y-1/2'
                         : relPos === 3
-                        ? 'top-[44px] xs:top-[50px] sm:top-[56px] left-1/2 -translate-x-1/2'
+                        ? 'top-[48px] xs:top-[54px] sm:top-[60px] left-1/2 -translate-x-1/2'
                         : '-right-[68px] xs:-right-[78px] sm:-right-[88px] top-1/2 -translate-y-1/2'
                     }`}
                   >
@@ -284,24 +292,26 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 )}
 
-                {/* الصورة الرمزية ومؤقت الدور */}
-                <div className="relative w-9 h-9 xs:w-10 xs:h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                {/* الصورة الرمزية ومؤقت الدور - تم تكبير الحاوية من أجل وضوح وجه اللاعب */}
+                <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
                   
+                  {/* علامة عدد الأكلات: دائرة بيضاء ورقم واضح ومحيط بلون الفريق بجانب الصورة خارج الطاولة */}
                   {isBuyer && (
                     <div
-                      className={`absolute -top-2 -right-2 xs:-top-2.5 xs:-right-2.5 z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-xl ${
+                      className={`absolute ${targetBadgePosClass} z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
                         player.team === 'A'
-                          ? 'border-[2.5px] xs:border-[3px] border-[#0063B0] ring-1 xs:ring-2 ring-blue-500/50 shadow-blue-600/40'
-                          : 'border-[2.5px] xs:border-[3px] border-[#EA1D2D] ring-1 xs:ring-2 ring-red-500/50 shadow-red-600/40'
+                          ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
+                          : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
                       }`}
                       title={`المشتري بـ ${highestBid}`}
                     >
-                      <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none drop-shadow-none">
+                      <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none">
                         {highestBid === 9 ? '👑' : highestBid}
                       </span>
                     </div>
                   )}
 
+                  {/* كلمة "ملزوم" واضحة عند صورة الموزع الملزوم */}
                   {isBuyer && isForcedBid && (
                     <div
                       className="absolute -top-5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-[8px] xs:text-[9px] px-2 py-0.2 rounded-full border border-yellow-200 shadow-xl shadow-amber-500/50 select-none animate-pulse flex items-center gap-0.5"
@@ -312,9 +322,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
+                  {/* علامة الموزع */}
                   {isDealer && (
                     <div
-                      className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-7 xs:h-7 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
+                      className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-6.5 xs:h-6.5 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
                       title="الموزع"
                     >
                       <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[9px] xs:text-[10px]">
@@ -324,14 +335,15 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 44 44">
-                    <circle cx="22" cy="22" r="20" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
+                  {/* حلقة مؤقت النيون المكبرة لتناسب أبعاد الصورة الجديدة */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 52 52">
+                    <circle cx="26" cy="26" r="24" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
                     {isTurn && !isTimerDisabled && (
                       <circle
                         className="timer-ring-neon"
-                        cx="22"
-                        cy="22"
-                        r="20"
+                        cx="26"
+                        cy="26"
+                        r="24"
                         stroke={isCritical ? '#ef4444' : '#f59e0b'}
                         strokeWidth="3.5"
                         fill="none"
@@ -340,9 +352,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     )}
                     {isTurn && isTimerDisabled && (
                       <circle
-                        cx="22"
-                        cy="22"
-                        r="20"
+                        cx="26"
+                        cy="26"
+                        r="24"
                         stroke="#f59e0b"
                         strokeWidth="3.5"
                         fill="none"
@@ -351,8 +363,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     )}
                   </svg>
 
+                  {/* دائرة الأفاتار المكبرة */}
                   <div
-                    className={`w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 ${
+                    className={`w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-full overflow-hidden border-2 ${
                       isPartner ? 'border-blue-400' : 'border-rose-400'
                     } bg-slate-950 shadow-md relative transition-all duration-300 ${
                       isTurn ? (isCritical ? 'glow-turn-critical-red' : 'glow-turn-phosphor') : ''
@@ -363,8 +376,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 </div>
 
                 {/* كبسولة اسم اللاعب */}
-                <div className="jawaker-pill-badge px-1.5 xs:px-2 py-0.5 mt-0.5 max-w-[70px] xs:max-w-[80px] sm:max-w-[90px] truncate flex items-center justify-center">
-                  <span className="text-[8px] xs:text-[9px] font-bold text-white truncate">
+                <div className="jawaker-pill-badge px-1.5 xs:px-2 py-0.5 mt-0.5 max-w-[76px] xs:max-w-[86px] sm:max-w-[96px] truncate flex items-center justify-center">
+                  <span className="text-[8.5px] xs:text-[9.5px] font-bold text-white truncate">
                     {player.name}
                   </span>
                 </div>
