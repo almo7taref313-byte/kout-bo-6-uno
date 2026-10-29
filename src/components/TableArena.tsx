@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// 1. مواقع استقرار الكروت أثناء الرمي (قريبة جداً من مقاعد أصحابها مع تفريغ وسط الطاولة)
+// 1. مواقع استقرار الكروت أثناء الرمي (معدلة لمنع انقلاب الكروت وفصل كروت الأطراف تماماً)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 80, rotate: 0 },       // أنت (الأسفل) - قريبة جداً من يدك
-  1: { x: 94, y: 38, rotate: -12 },    // يمين أسفل (أقرب لمقعد عبود)
-  2: { x: 94, y: -38, rotate: -18 },   // يمين أعلى (أقرب لمقعد مشاري)
-  3: { x: 0, y: -76, rotate: 4 },      // أعلى وسط (أقرب لمقعد طارق دون انقلاب)
-  4: { x: -94, y: -38, rotate: 18 },   // يسار أعلى (أقرب لمقعد بندر)
-  5: { x: -94, y: 38, rotate: 12 },    // يسار أسفل (أقرب لمقعد سعود)
+  0: { x: 0, y: 78, rotate: 0 },        // أنت (الأسفل) - زاوية 0 مستقيمة تماماً ومعتدلة للقراءة
+  1: { x: 96, y: 48, rotate: -8 },      // يمين أسفل (عبود) - مفصولة للأسفل
+  2: { x: 96, y: -48, rotate: -8 },     // يمين أعلى (مشاري) - مفصولة للأعلى لمنع التداخل
+  3: { x: 0, y: -74, rotate: 0 },       // أعلى وسط (طارق) - معتدلة غير مقلوبة
+  4: { x: -96, y: -48, rotate: 8 },     // يسار أعلى (بندر) - مفصولة للأعلى
+  5: { x: -96, y: 48, rotate: 8 },      // يسار أسفل (سعود) - مفصولة للأسفل لمنع التداخل
 };
 
-// 2. إحداثيات انزلاق الأوراق البطيء والهادئ نحو مقعد الفائز
+// 2. إحداثيات انزلاق الأوراق نحو مقعد الفائز
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 230, rotate: 0 },      // تنزلق مباشرة نحو HUD اللاعب بالأسفل
-  1: { x: 195, y: 105, rotate: 15 },   // تنزلق لمقعد اليمين أسفل
-  2: { x: 195, y: -105, rotate: 18 },  // تنزلق لمقعد اليمين أعلى
-  3: { x: 0, y: -220, rotate: 0 },     // تنزلق لمقعد اللاعب في الأعلى
-  4: { x: -195, y: -105, rotate: -18 },// تنزلق لمقعد اليسار أعلى
-  5: { x: -195, y: 105, rotate: -15 }, // تنزلق لمقعد اليسار أسفل
+  0: { x: 0, y: 230, rotate: 0 },
+  1: { x: 195, y: 115, rotate: 12 },
+  2: { x: 195, y: -115, rotate: 15 },
+  3: { x: 0, y: -220, rotate: 0 },
+  4: { x: -195, y: -115, rotate: -15 },
+  5: { x: -195, y: 115, rotate: -12 },
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -156,7 +156,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* الأوراق المرمية في ساحة اللعب مع حركة مهدأة وانسيابية */}
+        {/* الأوراق المرمية في ساحة اللعب مع ضبط التباعد وزوايا الرؤية المعتدلة */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
@@ -224,7 +224,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
         {isHumanBuyer && humanPlayer && (
           <div className="absolute bottom-1 right-3 xs:right-5 z-40 pointer-events-none select-none animate-bounce">
             {isForcedBid ? (
-              // كبسولة بيضاء محددة بلون الفريق لكلمة ملزوم
               <div
                 className={`px-3 py-1 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
                   humanPlayer.team === 'A'
@@ -238,7 +237,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 </span>
               </div>
             ) : (
-              // دائرة بيضاء للمشتري بمزايدة عادية
               <div
                 className={`w-8 h-8 xs:w-9 xs:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-2xl ${
                   humanPlayer.team === 'A'
@@ -275,20 +273,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           const relPos = (idx - humanSeatIndex + 6) % 6;
           let posClass = '';
-          if (relPos === 1) posClass = 'bottom-[22%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
-          else if (relPos === 2) posClass = 'top-[22%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+          if (relPos === 1) posClass = 'bottom-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+          else if (relPos === 2) posClass = 'top-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
           else if (relPos === 3) posClass = 'top-[-20px] xs:top-[-22px] left-1/2 -translate-x-1/2';
-          else if (relPos === 4) posClass = 'top-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
-          else if (relPos === 5) posClass = 'bottom-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+          else if (relPos === 4) posClass = 'top-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+          else if (relPos === 5) posClass = 'bottom-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
           // تحديد موقع الشارة إلى جانب صورة اللاعب خارج الطاولة تماماً
           let targetBadgePosClass = '';
           if (relPos === 1 || relPos === 2) {
-            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2'; // خارج الطاولة يميناً
+            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
           } else if (relPos === 4 || relPos === 5) {
-            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';   // خارج الطاولة يساراً
+            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';
           } else if (relPos === 3) {
-            targetBadgePosClass = '-top-8 left-1/2 -translate-x-1/2';              // خارج الطاولة للأعلى
+            targetBadgePosClass = '-top-8 left-1/2 -translate-x-1/2';
           }
 
           const circumference = 150.8;
@@ -336,7 +334,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   {isBuyer && (
                     <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
                       {isForcedBid ? (
-                        // كبسولة بيضاء محددة بإطار ولون الفريق لكلمة "ملزوم ⚡"
                         <div
                           className={`px-2.5 py-0.5 rounded-full bg-white flex items-center justify-center shadow-2xl transition-all whitespace-nowrap ${
                             player.team === 'A'
@@ -350,7 +347,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                           </span>
                         </div>
                       ) : (
-                        // الدائرة البيضاء لرقم المزايدة العادية
                         <div
                           className={`w-7 h-7 xs:w-8 xs:h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white flex items-center justify-center shadow-2xl ${
                             player.team === 'A'
