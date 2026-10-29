@@ -20,8 +20,8 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
   waitingPlayers,
   myClientId,
   myName,
-  myAvatarId: _myAvatarId,
-  myCustomPhoto: _myCustomPhoto,
+  myAvatarId,
+  myCustomPhoto,
   onLeaveRoom,
 }) => {
   const [isConnected, setIsConnected] = useState<boolean>(roomSync.isConnected);
@@ -31,12 +31,54 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
     return roomSync.subscribeConnection((conn) => setIsConnected(conn));
   }, []);
 
-  // Check if player has been placed in a seat by the host
+  // وظيفة إرسال إعلان الانضمام وطلب المزامنة
+  const sendJoinAnnouncement = () => {
+    const activeClientId = myClientId || roomSync.myClientId;
+    
+    // 1. إرسال طلب الانضمام إلى قائمة الانتظار
+    roomSync.publish({
+      type: 'JOIN_REQUEST',
+      roomCode,
+      senderId: activeClientId,
+      player: {
+        name: myName,
+        team: 'A',
+        avatarId: myAvatarId,
+        customPhoto: myCustomPhoto,
+        isHuman: true,
+        clientId: activeClientId,
+      },
+      timestamp: Date.now(),
+    });
+
+    // 2. طلب آخر حالة للغرفة من المضيف فوراً
+    roomSync.publish({
+      type: 'SYNC_REQUEST',
+      roomCode,
+      senderId: activeClientId,
+      timestamp: Date.now(),
+    });
+  };
+
+  // إرسال طلب الانضمام تلقائياً فور فتح النافذة + تكراره دورياً للتأكد من وصوله
+  useEffect(() => {
+    sendJoinAnnouncement();
+
+    // إرسال نبضة خفيفة كل 2.5 ثانية لطمأنة المضيف بوجود اللاعب حتى يتم تسكينه
+    const announceTimer = setInterval(() => {
+      sendJoinAnnouncement();
+    }, 2500);
+
+    return () => clearInterval(announceTimer);
+  }, [roomCode, myClientId, myName]);
+
+  // التحقق هل قام المضيف بتسكين اللاعب في مقعد
   const assignedSeatIdx = seats.findIndex(
-    (s) => s.clientId === myClientId || (s.isHuman && s.name === myName && !s.isVacant)
+    (s) =>
+      (s.clientId && (s.clientId === myClientId || s.clientId === roomSync.myClientId)) ||
+      (s.isHuman && s.name === myName && !s.isVacant)
   );
   const isAssigned = assignedSeatIdx >= 0;
-  const assignedSeat = isAssigned ? seats[assignedSeatIdx] : null;
 
   const hostSeat = seats[0];
   const hostName = hostSeat?.name || 'منشئ الطاولة';
@@ -124,26 +166,7 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
             </span>
             <button
               onClick={() => {
-                roomSync.publish({
-                  type: 'JOIN_REQUEST',
-                  roomCode,
-                  senderId: roomSync.myClientId,
-                  player: {
-                    name: myName,
-                    team: 'A',
-                    avatarId: _myAvatarId,
-                    customPhoto: _myCustomPhoto,
-                    isHuman: true,
-                    clientId: roomSync.myClientId,
-                  },
-                  timestamp: Date.now(),
-                });
-                roomSync.publish({
-                  type: 'SYNC_REQUEST',
-                  roomCode,
-                  senderId: roomSync.myClientId,
-                  timestamp: Date.now(),
-                });
+                sendJoinAnnouncement();
                 setPingSent(true);
                 setTimeout(() => setPingSent(false), 2000);
               }}
