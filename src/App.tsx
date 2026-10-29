@@ -795,21 +795,21 @@ export default function App() {
         });
       }
 
-      // عند اكتمال الأوراق الست للأكلة
+     // عند اكتمال الأوراق الست للأكلة
       if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // مهلة 600ms لمشاهدة الورقة الأخيرة بوضوح
+        // مهلة 1600ms (ثانية ونصف كاملة) لتثبت كل الكروت الستة على الطاولة وتراها العين بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
-          setCollectingWinnerId(winnerId);
+          setCollectingWinnerId(winnerId); // تبدأ الأوراق الآن بالانزلاق نحو الفائز
 
-          // مهلة 1400ms لتكتمل حركة الانزلاق بسلاسة واستقرار
+          // مهلة 1400ms لانزلاق الأوراق واختفائها عند صورة اللاعب
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 1400);
-        }, 600);
+        }, 1600); // <-- تم تغييرها هنا من 600 إلى 1600
       } else {
         const nextTurn = (playerId + 1) % 6;
         setCurrentTurn(nextTurn);
