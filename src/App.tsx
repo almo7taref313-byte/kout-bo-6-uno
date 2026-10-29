@@ -797,7 +797,7 @@ export default function App() {
       }
 
       // عند اكتمال الأوراق الست للأكلة
-      if (nextTrick.length === 6) {
+      if (nextTrick.length === 6) 
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
