@@ -30,9 +30,9 @@ interface CardCoord {
   rotate: number;
 }
 
-// 1. مواقع استقرار الكروت أثناء الرمي (قريبة من كل لاعب ومفروقة لمنع التداخل)
+// 1. مواقع استقرار الكروت أثناء الرمي (متباعدة بركادة وهدوء)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 78, rotate: 0 },       // أنت (الأسفل) - مستقيمة ومعتدلة
+  0: { x: 0, y: 78, rotate: 0 },       // أنت (الأسفل) - معتدلة تماماً
   1: { x: 92, y: 44, rotate: -8 },     // يمين أسفل (عبود)
   2: { x: 92, y: -44, rotate: -8 },    // يمين أعلى (مشاري)
   3: { x: 0, y: -74, rotate: 0 },      // أعلى وسط (طارق)
@@ -40,12 +40,12 @@ const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   5: { x: -92, y: 44, rotate: 8 },     // يسار أسفل (سعود)
 };
 
-// 2. إحداثيات سحب الأوراق بدقة متناهية إلى مركز صورة كل لاعب
+// 2. إحداثيات سحب الأوراق بدقة متناهية إلى مركز صورة الفائز
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 230, rotate: 0 },      // إلى صورة اللاعب بالأسفل
   1: { x: 190, y: 88, rotate: 10 },    // إلى مركز صورة عبود (يمين أسفل)
   2: { x: 190, y: -88, rotate: 10 },   // إلى مركز صورة مشاري (يمين أعلى)
-  3: { x: 0, y: -220, rotate: 0 },     // إلى مركز صورة طارق (أعلى)
+  3: { x: 0, y: -220, rotate: 0 },     // إلى مركز صورة طارق (رأس الطاولة)
   4: { x: -190, y: -88, rotate: -10 }, // إلى مركز صورة بندر (يسار أعلى)
   5: { x: -190, y: 88, rotate: -10 },  // إلى مركز صورة سعود (يسار أسفل)
 };
@@ -156,7 +156,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* الأوراق المرمية في ساحة اللعب مع رمي بطيء (800ms) ولمّ أكلة دقيق وهادئ (1300ms) */}
+        {/* الأوراق المرمية في ساحة اللعب مع رمي بطيء ورزين (1100ms) ولمّ أكلة انسيابي (1300ms) */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
@@ -177,9 +177,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
               top: '50%',
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
+              // رمي هادئ وبطيء 1100ms مع لمّ أكلة مريح 1300ms
               transition: isCollecting
                 ? 'transform 1300ms cubic-bezier(0.25, 0.9, 0.3, 1), opacity 1050ms ease-in'
-                : 'transform 800ms cubic-bezier(0.2, 0.85, 0.35, 1)',
+                : 'transform 1100ms cubic-bezier(0.16, 1, 0.3, 1)',
               opacity: isCollecting ? 0 : 1,
               zIndex: isCollecting ? 40 + index : 20 + index,
               willChange: 'transform, opacity',
@@ -271,17 +272,18 @@ export const TableArena: React.FC<TableArenaProps> = ({
           let posClass = '';
           if (relPos === 1) posClass = 'bottom-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
           else if (relPos === 2) posClass = 'top-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
-          else if (relPos === 3) posClass = 'top-[-20px] xs:top-[-22px] left-1/2 -translate-x-1/2';
+          else if (relPos === 3) posClass = 'top-[-16px] xs:top-[-18px] left-1/2 -translate-x-1/2';
           else if (relPos === 4) posClass = 'top-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           else if (relPos === 5) posClass = 'bottom-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
+          // تموضع شارة المشتري وملزوم بحيث لا تخرج أبداً خارج إطار الشاشة عند رأس الطاولة
           let targetBadgePosClass = '';
           if (relPos === 1 || relPos === 2) {
-            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
+            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2'; // يمين المقعد
           } else if (relPos === 4 || relPos === 5) {
-            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';
+            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';   // يسار المقعد
           } else if (relPos === 3) {
-            targetBadgePosClass = '-top-8 left-1/2 -translate-x-1/2';
+            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2'; // بجانب رأس الطاولة يميناً لتظهر دائماً بوضوح تام
           }
 
           const circumference = 150.8;
@@ -325,7 +327,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 {/* الحاوية المكبرة للأفاتار */}
                 <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
                   
-                  {/* شارة المشتري / الملزوم بجانب صورة اللاعب خارج الطاولة */}
+                  {/* شارة المشتري / الملزوم (تظهر بوضوح بجانب صورة اللاعب وبجانب طارق في رأس الطاولة) */}
                   {isBuyer && (
                     <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
                       {isForcedBid ? (
