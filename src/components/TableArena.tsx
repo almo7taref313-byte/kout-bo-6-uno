@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// 1. مواقع استقرار الكروت أثناء الرمي (أقرب لمقعد صاحبها مع ميلان طبيعي أنيق)
+// 1. مواقع استقرار الكروت أثناء الرمي (قريبة جداً من مقاعد أصحابها مع تفريغ وسط الطاولة)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 52, rotate: 0 },       // أنت (الأسفل) - مستقيمة تماماً
-  1: { x: 68, y: 25, rotate: -10 },    // يمين أسفل (أمام عبود)
-  2: { x: 68, y: -25, rotate: -16 },   // يمين أعلى (أمام مشاري)
-  3: { x: 0, y: -52, rotate: 4 },      // أعلى وسط (أمام طارق - ميلان خفيف دون انقلاب)
-  4: { x: -68, y: -25, rotate: 16 },   // يسار أعلى (أمام بندر)
-  5: { x: -68, y: 25, rotate: 10 },    // يسار أسفل (أمام سعود)
+  0: { x: 0, y: 80, rotate: 0 },       // أنت (الأسفل) - قريبة جداً من يدك
+  1: { x: 94, y: 38, rotate: -12 },    // يمين أسفل (أقرب لمقعد عبود)
+  2: { x: 94, y: -38, rotate: -18 },   // يمين أعلى (أقرب لمقعد مشاري)
+  3: { x: 0, y: -76, rotate: 4 },      // أعلى وسط (أقرب لمقعد طارق دون انقلاب)
+  4: { x: -94, y: -38, rotate: 18 },   // يسار أعلى (أقرب لمقعد بندر)
+  5: { x: -94, y: 38, rotate: 12 },    // يسار أسفل (أقرب لمقعد سعود)
 };
 
-// 2. إحداثيات انزلاق الأوراق بانسيابية بطيئة وهادئة نحو مقعد الفائز
+// 2. إحداثيات انزلاق الأوراق البطيء والهادئ نحو مقعد الفائز
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 220, rotate: 0 },      // تنزلق مباشرة نحو HUD اللاعب بالأسفل
-  1: { x: 185, y: 95, rotate: 15 },    // تنزلق لمقعد اليمين أسفل
-  2: { x: 185, y: -95, rotate: 18 },   // تنزلق لمقعد اليمين أعلى
-  3: { x: 0, y: -210, rotate: 0 },     // تنزلق لمقعد اللاعب في الأعلى
-  4: { x: -185, y: -95, rotate: -18 }, // تنزلق لمقعد اليسار أعلى
-  5: { x: -185, y: 95, rotate: -15 },  // تنزلق لمقعد اليسار أسفل
+  0: { x: 0, y: 230, rotate: 0 },      // تنزلق مباشرة نحو HUD اللاعب بالأسفل
+  1: { x: 195, y: 105, rotate: 15 },   // تنزلق لمقعد اليمين أسفل
+  2: { x: 195, y: -105, rotate: 18 },  // تنزلق لمقعد اليمين أعلى
+  3: { x: 0, y: -220, rotate: 0 },     // تنزلق لمقعد اللاعب في الأعلى
+  4: { x: -195, y: -105, rotate: -18 },// تنزلق لمقعد اليسار أعلى
+  5: { x: -195, y: 105, rotate: -15 }, // تنزلق لمقعد اليسار أسفل
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -154,19 +154,18 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* الأوراق المرمية في ساحة اللعب مع الانتقال الانسيابي الهادئ */}
+        {/* الأوراق المرمية في ساحة اللعب مع حركة مهدأة وانسيابية */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
             
-            // حساب الموضع النسبي للاعب الرامي ولمقعد الفائز بالنسبة للشاشة
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = TABLE_CARD_RESTING_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
 
-            // إزاحة ورصّ خفيف جداً للأوراق أثناء انجذابها نحو الفائز لتبدو كحزمة واقعية
+            // رصّ خفيف للأوراق أثناء انسحابها نحو الفائز
             const stackOffsetX = (index - 2.5) * 2;
             const stackOffsetY = (index - 2.5) * 1.5;
             const stackRotate = (index - 2.5) * 2.5;
@@ -181,10 +180,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
               top: '50%',
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
-              // حركة انسيابية بطيئة 750ms منحنى ناعم وبدون توقف مفاجئ
+              // إبطاء حركة الرمي إلى 450ms وإبطاء حركة اللمّ إلى 1000ms بانسيابية تامة
               transition: isCollecting
-                ? 'transform 750ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 650ms ease-in'
-                : 'transform 260ms cubic-bezier(0.34, 1.3, 0.64, 1)',
+                ? 'transform 1000ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease-in'
+                : 'transform 450ms cubic-bezier(0.25, 1, 0.5, 1)',
               opacity: isCollecting ? 0 : 1,
               zIndex: isCollecting ? 40 + index : 20 + index,
               willChange: 'transform, opacity',
