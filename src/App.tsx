@@ -49,6 +49,20 @@ import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
+// توليد معرف جهاز فريد وثابت في الذاكرة المحلية حتى لا يتغير عند إعادة التحميل
+const getOrCreateDeviceId = (): string => {
+  try {
+    let id = localStorage.getItem('kout_persistent_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem('kout_persistent_device_id', id);
+    }
+    return id;
+  } catch {
+    return roomSync.myClientId;
+  }
+};
+
 const DEFAULT_BOT_PROFILES = [
   { name: 'أنت', avatarId: 'kuwaiti_ghutra_white' },
   { name: 'عبود (بوت)', avatarId: 'kuwaiti_shemagh_red' },
@@ -67,8 +81,7 @@ const DEFAULT_SEATS: SeatConfig[] = [
   { id: 5, name: 'سعود (بوت)', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
 ];
 
-// Helper to create starting table for private room with 5 vacant seats
-const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null): SeatConfig[] => {
+const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null, hostDeviceId: string): SeatConfig[] => {
   return [0, 1, 2, 3, 4, 5].map((idx) => {
     if (idx === 0) {
       return {
@@ -79,7 +92,7 @@ const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhot
         customPhoto: hostPhoto || null,
         isHuman: true,
         isVacant: false,
-        clientId: roomSync.myClientId,
+        clientId: hostDeviceId,
       };
     }
     return {
@@ -95,6 +108,8 @@ const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhot
 };
 
 export default function App() {
+  const [deviceId] = useState<string>(getOrCreateDeviceId);
+
   // User profile
   const [userName, setUserName] = useState<string>(
     () => localStorage.getItem('kout_user_name') || 'أنت (اللاعب)'
@@ -139,6 +154,7 @@ export default function App() {
     s[0].name = localStorage.getItem('kout_user_name') || 'أنت';
     s[0].avatarId = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
     s[0].customPhoto = localStorage.getItem('kout_custom_photo') || null;
+    s[0].clientId = getOrCreateDeviceId();
     return s;
   });
   const [currentHumanSeatIndex, setCurrentHumanSeatIndex] = useState<number>(0);
@@ -225,7 +241,6 @@ export default function App() {
   // Timer Ref
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check if private room has all real human players (no bots)
   const isAllHumanGame =
     isMultiplayerActive &&
     ((seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
@@ -238,7 +253,6 @@ export default function App() {
     }, 1900);
   }, []);
 
-  // Sync Audio Engine
   const toggleSound = () => {
     const next = !soundEnabled;
     setSoundEnabled(next);
@@ -246,7 +260,6 @@ export default function App() {
     if (next) showCallout('المؤثرات مفعّلة 🔊', '🔊');
   };
 
-  // Timer runner
   const stopTimer = useCallback(() => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -277,7 +290,6 @@ export default function App() {
     }, 200);
   }, [isMultiplayerActive, players, seats, stopTimer]);
 
-  // Initial Deal & Start Round
   const startNewRound = useCallback(
     (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[], humanSeatOverride?: number) => {
       stopTimer();
@@ -316,9 +328,6 @@ export default function App() {
       setTricksTeamB(0);
       setRoundResult(null);
 
-      // In Kout Bo 6: Dealing and bidding go Counter-Clockwise (عكس عقارب الساعة).
-      // First bidder is the player immediately to the dealer's right: (activeDealer + 1) % 6.
-      // Bidding proceeds: (activeDealer + 1) % 6 -> ... -> activeDealer is the 6th and LAST bidder.
       const firstBidder = (activeDealer + 1) % 6;
       setCurrentTurn(firstBidder);
       setPhase('BIDDING');
@@ -326,7 +335,7 @@ export default function App() {
       const dealerPlayer = freshPlayers[activeDealer];
       const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${activeDealer + 1}`;
       const dealerTeamName = activeDealer % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-      showCallout(`الموزع ${dealerName} (${dealerTeamName}) وزّع الورق! المزاد يبدأ والموزع آخر من يزايد 🃏`, '🃏');
+      showCallout(`الموزع ${dealerName} (${dealerTeamName}) وزّع الورق! المزاد يبدأ 🃏`, '🃏');
       startTimer();
     },
     [currentHumanSeatIndex, dealerIdx, seats, showCallout, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
@@ -336,7 +345,6 @@ export default function App() {
     setMatchScoreTeamA(0);
     setMatchScoreTeamB(0);
     setRoundNumber(1);
-    // User Rule: توزيع الكروت اول جولة عشوائي عند اي لاعب
     const randDealer = Math.floor(Math.random() * 6);
     setDealerIdx(randDealer);
     const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
@@ -351,43 +359,41 @@ export default function App() {
     startNewRound(undefined, randDealer);
   }, [startNewRound]);
 
-  // Message Handler Ref for persistent, zero-drop room synchronization
   const messageHandlerRef = useRef<(msg: RoomSyncMessage) => void>(() => {});
 
-  // Join Room via 4-digit code as a waiting player
   const handleJoinRoomWaiting = useCallback(
     (code: string) => {
       setRoomCode(code);
       setIsRoomHost(false);
       setIsMultiplayerActive(true);
       setShowHostModal(false);
+      setCurrentHumanSeatIndex(-1); // جعل المقعد غير معين فور الدخول حتى يسكّنه المضيف
 
-      // Immediately connect and subscribe roomSync to this room topic
       roomSync.subscribeRoom(code, (msg) => {
         messageHandlerRef.current(msg);
       });
 
-      // Publish JOIN_REQUEST with player details & clientId to host
+      const myActiveId = getOrCreateDeviceId();
+
       roomSync.publish({
         type: 'JOIN_REQUEST',
         roomCode: code,
-        senderId: roomSync.myClientId,
+        senderId: myActiveId,
         player: {
           name: userName,
           team: 'A',
           avatarId: userAvatar,
           customPhoto: userCustomPhoto,
           isHuman: true,
-          clientId: roomSync.myClientId,
+          clientId: myActiveId,
         },
         timestamp: Date.now(),
       });
 
-      // Also send immediate SYNC_REQUEST
       roomSync.publish({
         type: 'SYNC_REQUEST',
         roomCode: code,
-        senderId: roomSync.myClientId,
+        senderId: myActiveId,
         timestamp: Date.now(),
       });
 
@@ -397,94 +403,19 @@ export default function App() {
     [showCallout, userAvatar, userCustomPhoto, userName]
   );
 
-  // Leave room for joiners
   const handleLeaveRoom = useCallback(() => {
     roomSync.publish({
       type: 'LEAVE_ROOM',
       roomCode,
-      senderId: roomSync.myClientId,
+      senderId: deviceId,
       timestamp: Date.now(),
     });
     setIsMultiplayerActive(false);
     setIsRoomHost(true);
     setWaitingPlayers([]);
+    setCurrentHumanSeatIndex(0);
     showCallout('غادرت الغرفة وعدت للرئيسية 🚪', '🚪');
-  }, [roomCode, showCallout]);
-
-  // Gentle retry of JOIN_REQUEST while in LOBBY until acknowledged by host in seats or waiting list
-  useEffect(() => {
-    if (!isMultiplayerActive || isRoomHost || phase !== 'LOBBY' || !roomCode) return;
-
-    const sendJoin = () => {
-      const isAlreadyAcknowledged =
-        waitingPlayers.some((w) => w.clientId === roomSync.myClientId) ||
-        seats.some((s) => s.clientId === roomSync.myClientId);
-
-      if (!isAlreadyAcknowledged) {
-        roomSync.publish({
-          type: 'JOIN_REQUEST',
-          roomCode,
-          senderId: roomSync.myClientId,
-          player: {
-            name: userName,
-            team: 'A',
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            isHuman: true,
-            clientId: roomSync.myClientId,
-          },
-          timestamp: Date.now(),
-        });
-        roomSync.publish({
-          type: 'SYNC_REQUEST',
-          roomCode,
-          senderId: roomSync.myClientId,
-          timestamp: Date.now(),
-        });
-      }
-    };
-
-    // Immediate send on mount
-    sendJoin();
-
-    // Fast retry every 800ms
-    const interval = setInterval(sendJoin, 800);
-
-    return () => clearInterval(interval);
-  }, [isMultiplayerActive, isRoomHost, phase, roomCode, seats, userAvatar, userCustomPhoto, userName, waitingPlayers]);
-
-  // Host heartbeat while HostTableModal is open: broadcast ROOM_STATE every 1000ms
-  useEffect(() => {
-    if (!showHostModal || !roomCode) return;
-    const interval = setInterval(() => {
-      const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-      roomSync.publish({
-        type: 'ROOM_STATE',
-        roomCode,
-        senderId: roomSync.myClientId,
-        seats,
-        waitingPlayers,
-        vacantCount: vCount,
-        timestamp: Date.now(),
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [showHostModal, roomCode, seats, waitingPlayers]);
-
-  // Handle URL Room query parameter on mount: join room and wait for host
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const r = params.get('room');
-    if (r && r.length === 4) {
-      handleJoinRoomWaiting(r);
-    }
-  }, [handleJoinRoomWaiting]);
-
-  // Initialize native mobile plugins (status bar, haptics)
-  useEffect(() => {
-    nativeBridge.init();
-  }, []);
+  }, [deviceId, roomCode, showCallout]);
 
   // Choose Trump Color
   const chooseTrumpColor = useCallback(
@@ -504,7 +435,7 @@ export default function App() {
         roomSync.publish({
           type: 'TRUMP_CHOSEN',
           roomCode,
-          senderId: roomSync.myClientId,
+          senderId: deviceId,
           color,
           playerId: winner,
           timestamp: Date.now(),
@@ -513,7 +444,7 @@ export default function App() {
 
       startTimer();
     },
-    [bidWinner, currentHumanSeatIndex, isMultiplayerActive, roomCode, showCallout, startTimer, stopTimer]
+    [bidWinner, currentHumanSeatIndex, deviceId, isMultiplayerActive, roomCode, showCallout, startTimer, stopTimer]
   );
 
   // Bidding resolution
@@ -523,11 +454,6 @@ export default function App() {
       const player = players[playerId];
       const pName = player ? player.name : `لاعب ${playerId + 1}`;
 
-      // In Kout Bo 6:
-      // If forced is true, OR if dealer is bidding and all 5 previous players passed and val === 0:
-      // The dealer is forced ("ملزوم") to buy at 5 (penalty is only 5 upon loss).
-      // If dealer voluntarily chose a bid (forced is false and val >= 5):
-      // Penalty doubles upon loss (e.g. chosen 5 -> 10 points).
       let effectiveVal = val;
       const isDealerForced = forced || (playerId === dealerIdx && highestBid <= 4 && val === 0);
       if (isDealerForced) {
@@ -564,12 +490,11 @@ export default function App() {
         setBidWinner(playerId);
       }
 
-      // Broadcast bid action to other devices
       if (isMultiplayerActive && !isFromRemote) {
         roomSync.publish({
           type: 'PLAYER_BID',
           roomCode,
-          senderId: roomSync.myClientId,
+          senderId: deviceId,
           playerId,
           val: effectiveVal,
           forced: isDealerForced,
@@ -577,7 +502,6 @@ export default function App() {
         });
       }
 
-      // If Baoon (9), finish bidding immediately
       if (effectiveVal === 9) {
         stopTimer();
         setBidWinner(playerId);
@@ -595,12 +519,10 @@ export default function App() {
         return;
       }
 
-      // Check if all 6 players finished bidding
       const historyLength = nextBids.length;
       if (historyLength === 6) {
         setTimeout(() => {
           if (newWinner === null) {
-            // Dealer forced to bid 5 ("ملزوم")
             setIsForcedBid(true);
             setHighestBid(5);
             setBidWinner(dealerIdx);
@@ -628,7 +550,7 @@ export default function App() {
         startTimer();
       }
     },
-    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, showCallout, startTimer, stopTimer]
+    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, showCallout, startTimer, stopTimer]
   );
 
   // Bot bidding automation
@@ -639,7 +561,6 @@ export default function App() {
     const bot = players[currentTurn];
     if (!bot) return;
 
-    // Never automate human players, and in multiplayer ONLY the host automates bots!
     if (bot.isHuman) return;
     if (isMultiplayerActive && !isRoomHost) return;
 
@@ -676,8 +597,6 @@ export default function App() {
       const isBaoon = highestBid === 9;
       const pts = isBaoon ? 36 : highestBid;
 
-      // User Rule:
-      // "عند خسارة الفريق الحاكم تضاعف النتيجة عليه مثال: ٥ عند الخسارة تصبح ١٠، ٦ عند الخسارة تصبح ١٢، في حال خسارة الملزوم تحتسب ٥ نقاط فقط."
       let defensePts = 0;
       if (isBaoon) {
         defensePts = 18;
@@ -706,9 +625,6 @@ export default function App() {
       const isOpponentBuyer = !isMyTeamBuyer;
       const userWon = (buyerIsWinner && isMyTeamBuyer) || (!buyerIsWinner && !isMyTeamBuyer);
       const matchStatus = getMatchTargetAndStatus(nextScoreA, nextScoreB);
-      // User Rule:
-      // "الباون اذا كان الفريقين قد حازا على ٥ نقاط او اكثر لا يعد الفوز بالباون عسم.
-      //  الباون فقط اذا كان اول جولة في اللعبة والفريقين لم يحرزا نقاطا واحرز الفريق ٩ اكلات كاملة يعتبر عسم"
       const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
       const isAsamFirstRound =
         !prevBothHadFiveOrMore &&
@@ -786,7 +702,6 @@ export default function App() {
       setPlayedTricksInRound((prev) => [...prev, trick]);
       setCollectingWinnerId(null);
 
-      // Early victory check
       const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
       const buyerTeam = buyerPlayer ? buyerPlayer.team : 'A';
       const target = highestBid;
@@ -802,31 +717,27 @@ export default function App() {
         return;
       }
 
-      // Check if 9 tricks completed
       if (nextA + nextB === 9) {
         handleRoundFinish(buyerTricks >= target, nextA, nextB);
         return;
       }
 
-      // Next trick leader
       setCurrentTurn(winnerId);
       setIsActionPending(false);
       startTimer();
     },
-    [bidWinner, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
+    [bidWinner, currentHumanSeatIndex, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
   );
 
   // Card play action
   const handlePlayCard = useCallback(
     (playerId: number, card: Card, isFromRemote = false) => {
-      // If previous trick was full (6 cards), automatically flush it for the new trick!
       let activeTrick = currentTrick;
       if (activeTrick.length >= 6) {
         activeTrick = [];
         setCollectingWinnerId(null);
       }
 
-      // Guard against duplicate card play in the active trick
       if (activeTrick.some((tp) => tp.playerId === playerId)) {
         return;
       }
@@ -859,7 +770,6 @@ export default function App() {
         nativeBridge.hapticCardPlay();
       }
 
-      // Remove from player's hand safely by id or color+rank
       setPlayers((prev) =>
         prev.map((p) => {
           if (p.id === playerId) {
@@ -875,12 +785,11 @@ export default function App() {
       const nextTrick = [...activeTrick, { playerId, card }];
       setCurrentTrick(nextTrick);
 
-      // Broadcast card play to other devices if played locally
       if (isMultiplayerActive && !isFromRemote) {
         roomSync.publish({
           type: 'CARD_PLAYED',
           roomCode,
-          senderId: roomSync.myClientId,
+          senderId: deviceId,
           playerId,
           card,
           timestamp: Date.now(),
@@ -891,12 +800,10 @@ export default function App() {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // Step 1: Wait 400ms so players see the last played card
         setTimeout(() => {
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId);
 
-          // Step 2: When cards arrive at winner's seat (600ms), resolve scores and transition
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 600);
@@ -910,7 +817,7 @@ export default function App() {
         startTimer();
       }
     },
-    [currentHumanSeatIndex, currentTrick, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
   );
 
   // Human card click
@@ -928,7 +835,6 @@ export default function App() {
       return;
     }
 
-    // If full trick of 6 cards is being swept, wait for animation
     if (currentTrick.length >= 6) {
       showCallout('لحظة، جاري لمّ الأكلة... 🧹', '⏳');
       return;
@@ -937,8 +843,6 @@ export default function App() {
     const me = players[currentHumanSeatIndex];
     if (!me) return;
 
-    // Opening rule check:
-    // User Rule: "الميكر/الجيكر لا يبدأ اللعب بهما ابدا ابدا ابدا فيحال الباقون يسمح بلعب الجيكر/الميكر بعد الحكام للحاكم فقط"
     const isMeBuyer = bidWinner === currentHumanSeatIndex;
     if (currentTrick.length === 0 && (card.isJoker || card.isMaker)) {
       if (highestBid === 9) {
@@ -962,14 +866,12 @@ export default function App() {
       }
     }
 
-    // Maker onto Joker check
     const hasJokerInTrick = currentTrick.some((p, idx) => p.card.isJoker && (highestBid === 9 || idx > 0));
     if (hasJokerInTrick && card.isMaker && me.hand.some((c) => !c.isMaker)) {
       showCallout('ما تنزل الميكر على الجيكر!', '🚫');
       return;
     }
 
-    // Following suit rule
     if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)) {
       const leadColor = getEffectiveLeadColor(currentTrick, highestBid, trumpColor);
       if (leadColor && me.hand.some((c) => c.color === leadColor)) {
@@ -993,9 +895,7 @@ export default function App() {
     const bot = players[currentTurn];
     if (!bot || bot.hand.length === 0) return;
 
-    // Never automate human player seats
     if (bot.isHuman) return;
-    // In multiplayer, ONLY the room host automates bot moves to prevent duplicate turns
     if (isMultiplayerActive && !isRoomHost) return;
 
     const botTimer = setTimeout(() => {
@@ -1018,7 +918,6 @@ export default function App() {
   useEffect(() => {
     if (timerRemaining > 0) return;
 
-    // In private room with all humans, turn timer is completely disabled
     if (isAllHumanGame) {
       return;
     }
@@ -1026,7 +925,6 @@ export default function App() {
     const cur = players[currentTurn];
     if (!cur) return;
 
-    // In multiplayer, remote human players manage their own timeout, and only host handles bots
     if (isMultiplayerActive) {
       if (cur.isHuman && currentTurn !== currentHumanSeatIndex) {
         return;
@@ -1037,7 +935,7 @@ export default function App() {
     }
 
     if (phase === 'BIDDING') {
-      submitBid(currentTurn, 0); // Force pass
+      submitBid(currentTurn, 0);
     } else if (phase === 'PLAYING') {
       if (cur.hand.length > 0) {
         const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players, highestBid, bidWinner);
@@ -1046,7 +944,6 @@ export default function App() {
     }
   }, [bidWinner, currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
 
-  // Next round / Next match
   const handleNextRoundOrMatch = () => {
     const isBaoon = highestBid === 9;
     const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
@@ -1087,7 +984,7 @@ export default function App() {
         roomSync.publish({
           type: 'START_GAME',
           roomCode,
-          senderId: roomSync.myClientId,
+          senderId: deviceId,
           seats,
           deck: sharedDeck,
           dealerIdx: randDealer,
@@ -1101,8 +998,6 @@ export default function App() {
         startNewMatch();
       }
     } else {
-      // User Rule:
-      // "التوزيع على الفريق الخسران في السكور ( الفريق الذي مجموع نقاطه اقل من الفريق الاخر) ولا يتحول التوزيع للفريق الاخر الا اذا قلت مجموع نقاطه عن الفريق الخسران"
       const nextR = roundNumber + 1;
       const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
       const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
@@ -1124,7 +1019,7 @@ export default function App() {
         roomSync.publish({
           type: 'NEW_ROUND',
           roomCode,
-          senderId: roomSync.myClientId,
+          senderId: deviceId,
           roundNumber: nextR,
           dealerIdx: nextDealer,
           deck: sharedDeck,
@@ -1138,524 +1033,252 @@ export default function App() {
     }
   };
 
-  // Room synchronization message handler (always has freshest state in scope)
+  // معالج رسائل المزامنة الصارم والدقيق
   messageHandlerRef.current = (msg: RoomSyncMessage) => {
-    if (msg.senderId === roomSync.myClientId) return;
+    if (msg.senderId === deviceId || msg.senderId === roomSync.myClientId) return;
 
     switch (msg.type) {
-        case 'JOIN_REQUEST': {
-          // If this client is host, register in waiting players and broadcast current room state
-          if (isRoomHost || showHostModal || seats[0]?.clientId === roomSync.myClientId) {
-            const joinerClientId = msg.player?.clientId || msg.senderId || `client_${Date.now()}`;
+      case 'JOIN_REQUEST': {
+        // التحقق الدقيق: هل أنا المضيف؟
+        const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
+        if (amIHost) {
+          const joinerId = msg.player?.clientId || msg.senderId;
+          if (!joinerId) return;
+
+          // التحقق الصارم بالمعرف: هل هو جالس بالفعل في مقعد؟
+          const isSeated = seats.some((s) => !s.isVacant && s.clientId === joinerId);
+
+          if (!isSeated) {
             let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
-            // If joiner has identical name to host or default 'أنت', make it distinct so host recognizes them
-            if (joinerName === 'أنت' || joinerName === userName) {
-              const count = waitingPlayers.filter((w) => w.clientId !== joinerClientId).length + 1;
-              joinerName = `لاعب ${count + 1}`;
+            
+            // إذا كان اسم المنضم مطابقاً لاسم المضيف، نميّزه حتى يعرف المضيف من هو
+            if (joinerName === userName) {
+              joinerName = `لاعب (هاتف)`;
             }
 
-            const alreadySeated = seats.some((s) => s.clientId && s.clientId === joinerClientId);
+            const newPlayer: WaitingPlayer = {
+              clientId: joinerId,
+              name: joinerName,
+              avatarId: msg.player?.avatarId || 'kuwaiti_shemagh_red',
+              customPhoto: msg.player?.customPhoto || null,
+              joinedAt: Date.now(),
+            };
 
-            if (!alreadySeated) {
-              const newWaiting: WaitingPlayer = {
-                clientId: joinerClientId,
-                name: joinerName,
-                avatarId: msg.player?.avatarId,
-                customPhoto: msg.player?.customPhoto,
-                joinedAt: Date.now(),
-              };
+            setWaitingPlayers((prev) => {
+              const idx = prev.findIndex((w) => w.clientId === joinerId);
+              let nextList: WaitingPlayer[];
+              if (idx !== -1) {
+                nextList = [...prev];
+                nextList[idx] = newPlayer;
+              } else {
+                nextList = [...prev, newPlayer];
+                showCallout(`انضم لاعب جديد: ${joinerName} ⏳`, '⏳');
+                soundEngine.playCardSlide();
+              }
 
-              setWaitingPlayers((prev) => {
-                const existingIdx = prev.findIndex((w) => w.clientId === joinerClientId);
-                let next: WaitingPlayer[];
-                if (existingIdx !== -1) {
-                  next = [...prev];
-                  next[existingIdx] = newWaiting;
-                } else {
-                  next = [...prev, newWaiting];
-                  showCallout(`انضم لاعب جديد لقائمة الانتظار: ${joinerName} ⏳`, '⏳');
-                  soundEngine.playCardSlide();
-                }
-
-                const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-                roomSync.publish({
-                  type: 'ROOM_STATE',
-                  roomCode,
-                  senderId: roomSync.myClientId,
-                  seats,
-                  waitingPlayers: next,
-                  vacantCount: vCount,
-                  timestamp: Date.now(),
-                });
-
-                return next;
-              });
-            } else {
               const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+              
+              // الرد الفوري بإرسال حالة الغرفة المحدثة
               roomSync.publish({
                 type: 'ROOM_STATE',
                 roomCode,
-                senderId: roomSync.myClientId,
+                senderId: deviceId,
                 seats,
-                waitingPlayers,
+                waitingPlayers: nextList,
                 vacantCount: vCount,
                 timestamp: Date.now(),
               });
-            }
 
-            // If game is active, broadcast full table snapshot so joining player immediately catches up
-            if (phase !== 'LOBBY') {
-              roomSync.publish({
-                type: 'SYNC_STATE',
-                roomCode,
-                senderId: roomSync.myClientId,
-                phase,
-                currentTurn,
-                currentTrick,
-                trumpColor,
-                highestBid,
-                bidWinner,
-                isForcedBid,
-                biddingHistory,
-                roundNumber,
-                dealerIdx,
-                scores: { a: matchScoreTeamA, b: matchScoreTeamB },
-                nextA: tricksTeamA,
-                nextB: tricksTeamB,
-                seats,
-                allHands: players.map((p) => ({
-                  playerId: p.id,
-                  hand: p.hand,
-                  isHuman: p.isHuman,
-                  name: p.name,
-                })),
-                timestamp: Date.now(),
-              });
-            }
-          }
-          break;
-        }
-
-        case 'LEAVE_ROOM': {
-          if (isRoomHost) {
-            const leavingId = msg.senderId;
-            const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
-            setWaitingPlayers(updatedWaiting);
-
-            let seatChanged = false;
-            const updatedSeats = seats.map((s) => {
-              if (s.clientId === leavingId && s.id !== 0) {
-                seatChanged = true;
-                return {
-                  ...s,
-                  name: '',
-                  customPhoto: null,
-                  isHuman: false,
-                  isVacant: true,
-                  clientId: undefined,
-                };
-              }
-              return s;
-            });
-
-            if (seatChanged) {
-              setSeats(updatedSeats);
-            }
-
-            const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-            roomSync.publish({
-              type: 'ROOM_STATE',
-              roomCode,
-              senderId: roomSync.myClientId,
-              seats: updatedSeats,
-              waitingPlayers: updatedWaiting,
-              vacantCount: vCount,
-              timestamp: Date.now(),
+              return nextList;
             });
           }
-          break;
         }
-
-        case 'SEAT_RESERVED': {
-          if (msg.seats) {
-            setSeats(msg.seats);
-          }
-          break;
-        }
-
-        case 'ROOM_STATE': {
-          if (msg.waitingPlayers) {
-            setWaitingPlayers(msg.waitingPlayers);
-          }
-          if (msg.seats) {
-            setSeats(msg.seats);
-
-            // If not host, see if host assigned us to a seat!
-            if (!isRoomHost) {
-              const myAssignedIdx = msg.seats.findIndex(
-                (s) =>
-                  (s.clientId && s.clientId === roomSync.myClientId) ||
-                  (!s.clientId && s.isHuman && s.name === userName)
-              );
-              if (myAssignedIdx !== -1) {
-                if (currentHumanSeatIndex !== myAssignedIdx) {
-                  setCurrentHumanSeatIndex(myAssignedIdx);
-                  const teamName = myAssignedIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-                  showCallout(`عيّنك المضيف في المقعد #${myAssignedIdx + 1} (${teamName}) 💺`, '💺');
-                  soundEngine.playCardSlide();
-                }
-              }
-            }
-          }
-          break;
-        }
-
-        case 'START_GAME': {
-          setShowHostModal(false);
-          setShowRoomsModal(false);
-          setIsMultiplayerActive(true);
-          soundEngine.init();
-          soundEngine.playCardSlide();
-
-          let activeSeats = msg.seats || seats;
-          let myAssignedIdx = currentHumanSeatIndex;
-
-          if (msg.seats) {
-            const foundIdx = msg.seats.findIndex(
-              (s) =>
-                (s.clientId && s.clientId === roomSync.myClientId) ||
-                (!s.clientId && s.isHuman && s.name === userName)
-            );
-            if (foundIdx !== -1) {
-              myAssignedIdx = foundIdx;
-              setCurrentHumanSeatIndex(foundIdx);
-            }
-            activeSeats = msg.seats.map((s, i) =>
-              i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
-            );
-            setSeats(activeSeats);
-          }
-
-          if (msg.scores) {
-            setMatchScoreTeamA(msg.scores.a);
-            setMatchScoreTeamB(msg.scores.b);
-          } else {
-            setMatchScoreTeamA(0);
-            setMatchScoreTeamB(0);
-          }
-          setRoundNumber(msg.roundNumber ?? 1);
-
-          if (msg.deck && msg.dealerIdx !== undefined) {
-            setDealerIdx(msg.dealerIdx);
-            const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
-            setCurrentDealingTeam(incTeam);
-            if (msg.dealerIdx % 2 === 0) {
-              setLastDealerTeamA(msg.dealerIdx);
-              setLastDealerTeamB(5);
-            } else {
-              setLastDealerTeamB(msg.dealerIdx);
-              setLastDealerTeamA(4);
-            }
-            startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
-          }
-          showCallout('بدأ اللعب للجميع! 🃏', '🚀');
-          break;
-        }
-
-        case 'PLAYER_BID': {
-          if (msg.playerId !== undefined && msg.val !== undefined) {
-            submitBid(msg.playerId, msg.val, msg.forced ?? false, true);
-          }
-          break;
-        }
-
-        case 'TRUMP_CHOSEN': {
-          if (msg.color) {
-            chooseTrumpColor(msg.color, msg.playerId, true);
-          }
-          break;
-        }
-
-        case 'CARD_PLAYED': {
-          if (msg.playerId !== undefined && msg.card) {
-            handlePlayCard(msg.playerId, msg.card, true);
-          }
-          break;
-        }
-
-        case 'NEW_ROUND': {
-          if (msg.deck && msg.dealerIdx !== undefined) {
-            setRoundNumber(msg.roundNumber ?? (roundNumber + 1));
-            setDealerIdx(msg.dealerIdx);
-            const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
-            setCurrentDealingTeam(incTeam);
-            if (msg.dealerIdx % 2 === 0) {
-              setLastDealerTeamA(msg.dealerIdx);
-            } else {
-              setLastDealerTeamB(msg.dealerIdx);
-            }
-            if (msg.scores) {
-              setMatchScoreTeamA(msg.scores.a);
-              setMatchScoreTeamB(msg.scores.b);
-            }
-            startNewRound(msg.deck, msg.dealerIdx, seats, currentHumanSeatIndex);
-            showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
-          }
-          break;
-        }
-
-        case 'BOT_TAKEOVER': {
-          if (msg.seatIndex !== undefined && msg.player) {
-            const seatIdx = msg.seatIndex;
-            setSeats((prev) => {
-              const next = [...prev];
-              next[seatIdx] = {
-                id: seatIdx,
-                name: msg.player!.name,
-                team: msg.player!.team,
-                avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
-                customPhoto: msg.player!.customPhoto || null,
-                isHuman: true,
-                isVacant: false,
-              };
-              return next;
-            });
-
-            setPlayers((prev) => {
-              const next = [...prev];
-              if (next[seatIdx]) {
-                next[seatIdx] = {
-                  ...next[seatIdx],
-                  name: msg.player!.name,
-                  avatarId: msg.player!.avatarId || 'kuwaiti_shemagh_red',
-                  customPhoto: msg.player!.customPhoto || null,
-                  isHuman: true,
-                  isVacant: false,
-                };
-              }
-              return next;
-            });
-
-            // If this is the Host, broadcast back the takeover confirmation along with the bot's current hand
-            if (isRoomHost) {
-              const botHand = players[seatIdx]?.hand || [];
-              roomSync.publish({
-                type: 'BOT_TAKEOVER',
-                roomCode,
-                senderId: roomSync.myClientId,
-                seatIndex: seatIdx,
-                player: msg.player,
-                hand: botHand,
-                scores: { a: matchScoreTeamA, b: matchScoreTeamB },
-                dealerIdx,
-                roundNumber,
-                color: trumpColor || undefined,
-                val: highestBid,
-                playerId: bidWinner !== null ? bidWinner : undefined,
-                timestamp: Date.now(),
-              });
-            }
-
-            showCallout(`دخل ${msg.player.name} مكان البوت في المقعد #${seatIdx} مباشرة! ⚡`, '⚡');
-            soundEngine.playCardSlide();
-          } else if (msg.hand && msg.seatIndex === currentHumanSeatIndex) {
-            // Player who took over receives their hand from host!
-            setPlayers((prev) => {
-              const next = [...prev];
-              if (next[currentHumanSeatIndex]) {
-                next[currentHumanSeatIndex] = {
-                  ...next[currentHumanSeatIndex],
-                  hand: msg.hand!,
-                  isHuman: true,
-                };
-              }
-              return next;
-            });
-            if (msg.color) setTrumpColor(msg.color);
-            if (msg.val) setHighestBid(msg.val);
-            if (msg.playerId !== undefined) setBidWinner(msg.playerId);
-            setPhase('PLAYING');
-            setShowHostModal(false);
-            setShowRoomsModal(false);
-          }
-          break;
-        }
-
-        case 'SYNC_REQUEST': {
-          if (isRoomHost || showHostModal || seats[0]?.clientId === roomSync.myClientId) {
-            const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-            roomSync.publish({
-              type: 'ROOM_STATE',
-              roomCode,
-              senderId: roomSync.myClientId,
-              seats,
-              waitingPlayers,
-              vacantCount: vCount,
-              timestamp: Date.now(),
-            });
-
-            roomSync.publish({
-              type: 'SYNC_STATE',
-              roomCode,
-              senderId: roomSync.myClientId,
-              phase,
-              currentTurn,
-              currentTrick,
-              trumpColor,
-              highestBid,
-              bidWinner,
-              isForcedBid,
-              biddingHistory,
-              roundNumber,
-              dealerIdx,
-              scores: { a: matchScoreTeamA, b: matchScoreTeamB },
-              nextA: tricksTeamA,
-              nextB: tricksTeamB,
-              seats,
-              players: players.map((p) => ({
-                id: p.id,
-                name: p.name,
-                team: p.team,
-                isHuman: p.isHuman,
-                isVacant: false,
-                hand: p.hand,
-                avatarId: p.avatarId,
-                customPhoto: p.customPhoto,
-              })),
-              allHands: players.map((p) => ({
-                playerId: p.id,
-                hand: p.hand,
-                isHuman: p.isHuman,
-                name: p.name,
-              })),
-              timestamp: Date.now(),
-            });
-          }
-          break;
-        }
-
-        case 'SYNC_STATE': {
-          if (msg.phase) {
-            setPhase(msg.phase as GamePhase);
-            if (msg.phase !== 'LOBBY') {
-              setIsMultiplayerActive(true);
-            }
-          }
-          if (msg.currentTurn !== undefined) {
-            setCurrentTurn(msg.currentTurn);
-            if (msg.currentTurn === currentHumanSeatIndex) {
-              setIsActionPending(false);
-            }
-          }
-          if (msg.currentTrick) {
-            setCurrentTrick((prev) => {
-              // Never erase the local human player's card from the table!
-              const mySeat = currentHumanSeatIndex;
-              const localHasMyPlay = prev.some((tp) => tp.playerId === mySeat);
-              const incomingHasMyPlay = msg.currentTrick!.some((tp) => tp.playerId === mySeat);
-              if (localHasMyPlay && !incomingHasMyPlay) {
-                const myPlay = prev.find((tp) => tp.playerId === mySeat)!;
-                return [...msg.currentTrick!.filter((tp) => tp.playerId !== mySeat), myPlay];
-              }
-              if (prev.length === 6 && msg.currentTrick!.length === 0) {
-                return prev;
-              }
-              return msg.currentTrick!;
-            });
-          }
-          if (msg.trumpColor !== undefined) {
-            setTrumpColor(msg.trumpColor);
-          }
-          if (msg.highestBid !== undefined) {
-            setHighestBid(msg.highestBid);
-          }
-          if (msg.bidWinner !== undefined) {
-            setBidWinner(msg.bidWinner);
-          }
-          if (msg.isForcedBid !== undefined) {
-            setIsForcedBid(msg.isForcedBid);
-          }
-          if (msg.biddingHistory) {
-            setBiddingHistory(msg.biddingHistory);
-          }
-          if (msg.roundNumber !== undefined) {
-            setRoundNumber(msg.roundNumber);
-          }
-          if (msg.dealerIdx !== undefined) {
-            setDealerIdx(msg.dealerIdx);
-          }
-          if (msg.scores) {
-            setMatchScoreTeamA(msg.scores.a);
-            setMatchScoreTeamB(msg.scores.b);
-          }
-          if (msg.nextA !== undefined) {
-            setTricksTeamA(msg.nextA);
-          }
-          if (msg.nextB !== undefined) {
-            setTricksTeamB(msg.nextB);
-          }
-          if (msg.seats) {
-            setSeats(msg.seats);
-          }
-          if (msg.players && msg.players.length === 6) {
-            setPlayers((prev) =>
-              msg.players!.map((p: Player, idx: number) => {
-                const isMe = idx === currentHumanSeatIndex;
-                const seat = (msg.seats && msg.seats[idx]) || seats[idx];
-                const localHand = prev[idx]?.hand || [];
-                // If local human player has fewer cards, do not resurrect cards already played locally!
-                const safeHand =
-                  isMe && localHand.length > 0 && localHand.length < (p.hand?.length || 0)
-                    ? localHand
-                    : (p.hand && p.hand.length > 0 ? p.hand : localHand);
-                return {
-                  ...p,
-                  id: idx,
-                  name: isMe ? userName : (seat?.name || p.name),
-                  team: idx % 2 === 0 ? 'A' : 'B',
-                  isHuman: isMe ? true : (seat?.isHuman ?? p.isHuman),
-                  isVacant: false,
-                  avatarId: isMe ? userAvatar : (seat?.avatarId || p.avatarId),
-                  customPhoto: isMe ? userCustomPhoto : (seat?.customPhoto ?? p.customPhoto),
-                  hand: safeHand,
-                };
-              })
-            );
-          } else if (msg.allHands && msg.allHands.length > 0) {
-            setPlayers((prev) => {
-              return [0, 1, 2, 3, 4, 5].map((idx) => {
-                const existing = prev[idx];
-                const synced = msg.allHands?.find((h) => h.playerId === idx);
-                const seat = (msg.seats && msg.seats[idx]) || seats[idx];
-                const isMe = idx === currentHumanSeatIndex;
-                const defBot = DEFAULT_BOT_PROFILES[idx];
-                const localHand = existing?.hand || [];
-                const safeHand =
-                  isMe && localHand.length > 0 && synced?.hand && localHand.length < synced.hand.length
-                    ? localHand
-                    : (synced?.hand && synced.hand.length > 0 ? synced.hand : localHand);
-                return {
-                  id: idx,
-                  name: isMe ? userName : (seat?.name || synced?.name || existing?.name || defBot?.name || `لاعب ${idx + 1}`),
-                  team: idx % 2 === 0 ? 'A' : 'B',
-                  isHuman: isMe ? true : (seat?.isHuman ?? synced?.isHuman ?? existing?.isHuman ?? false),
-                  isVacant: false,
-                  hand: safeHand,
-                  avatarId: isMe ? userAvatar : (seat?.avatarId || existing?.avatarId || defBot?.avatarId || 'kuwaiti_shemagh_red'),
-                  customPhoto: isMe ? userCustomPhoto : (seat?.customPhoto ?? existing?.customPhoto ?? null),
-                };
-              });
-            });
-          }
-          break;
-        }
-
-        default:
-          break;
+        break;
       }
+
+      case 'ROOM_STATE': {
+        if (msg.waitingPlayers) {
+          setWaitingPlayers(msg.waitingPlayers);
+        }
+        if (msg.seats) {
+          setSeats(msg.seats);
+
+          // إذا لم أكن المضيف، أتحقق بالمعرف فقط هل تم تسكيني في مقعد
+          if (!isRoomHost) {
+            const myAssignedIdx = msg.seats.findIndex(
+              (s) => !s.isVacant && s.clientId && (s.clientId === deviceId || s.clientId === roomSync.myClientId)
+            );
+
+            if (myAssignedIdx !== -1) {
+              if (currentHumanSeatIndex !== myAssignedIdx) {
+                setCurrentHumanSeatIndex(myAssignedIdx);
+                const teamName = myAssignedIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+                showCallout(`عيّنك المضيف في المقعد #${myAssignedIdx + 1} (${teamName}) 💺`, '💺');
+                soundEngine.playCardSlide();
+              }
+            } else {
+              // إذا لم يتم تسكيني بعد، مقعدي يظل غير معين
+              setCurrentHumanSeatIndex(-1);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'SYNC_REQUEST': {
+        const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
+        if (amIHost) {
+          const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: deviceId,
+            seats,
+            waitingPlayers,
+            vacantCount: vCount,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
+
+      case 'START_GAME': {
+        setShowHostModal(false);
+        setShowRoomsModal(false);
+        setIsMultiplayerActive(true);
+        soundEngine.init();
+        soundEngine.playCardSlide();
+
+        let activeSeats = msg.seats || seats;
+        let myAssignedIdx = currentHumanSeatIndex;
+
+        if (msg.seats) {
+          const foundIdx = msg.seats.findIndex(
+            (s) => !s.isVacant && s.clientId && (s.clientId === deviceId || s.clientId === roomSync.myClientId)
+          );
+          if (foundIdx !== -1) {
+            myAssignedIdx = foundIdx;
+            setCurrentHumanSeatIndex(foundIdx);
+          }
+          activeSeats = msg.seats.map((s, i) =>
+            i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
+          );
+          setSeats(activeSeats);
+        }
+
+        if (msg.scores) {
+          setMatchScoreTeamA(msg.scores.a);
+          setMatchScoreTeamB(msg.scores.b);
+        } else {
+          setMatchScoreTeamA(0);
+          setMatchScoreTeamB(0);
+        }
+        setRoundNumber(msg.roundNumber ?? 1);
+
+        if (msg.deck && msg.dealerIdx !== undefined) {
+          setDealerIdx(msg.dealerIdx);
+          const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+          setCurrentDealingTeam(incTeam);
+          if (msg.dealerIdx % 2 === 0) {
+            setLastDealerTeamA(msg.dealerIdx);
+            setLastDealerTeamB(5);
+          } else {
+            setLastDealerTeamB(msg.dealerIdx);
+            setLastDealerTeamA(4);
+          }
+          startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
+        }
+        showCallout('بدأ اللعب للجميع! 🃏', '🚀');
+        break;
+      }
+
+      case 'PLAYER_BID': {
+        if (msg.playerId !== undefined && msg.val !== undefined) {
+          submitBid(msg.playerId, msg.val, msg.forced ?? false, true);
+        }
+        break;
+      }
+
+      case 'TRUMP_CHOSEN': {
+        if (msg.color) {
+          chooseTrumpColor(msg.color, msg.playerId, true);
+        }
+        break;
+      }
+
+      case 'CARD_PLAYED': {
+        if (msg.playerId !== undefined && msg.card) {
+          handlePlayCard(msg.playerId, msg.card, true);
+        }
+        break;
+      }
+
+      case 'NEW_ROUND': {
+        if (msg.deck && msg.dealerIdx !== undefined) {
+          setRoundNumber(msg.roundNumber ?? (roundNumber + 1));
+          setDealerIdx(msg.dealerIdx);
+          const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+          setCurrentDealingTeam(incTeam);
+          if (msg.dealerIdx % 2 === 0) {
+            setLastDealerTeamA(msg.dealerIdx);
+          } else {
+            setLastDealerTeamB(msg.dealerIdx);
+          }
+          if (msg.scores) {
+            setMatchScoreTeamA(msg.scores.a);
+            setMatchScoreTeamB(msg.scores.b);
+          }
+          startNewRound(msg.deck, msg.dealerIdx, seats, currentHumanSeatIndex);
+          showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
+        }
+        break;
+      }
+
+      case 'LEAVE_ROOM': {
+        if (isRoomHost) {
+          const leavingId = msg.senderId;
+          const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
+          setWaitingPlayers(updatedWaiting);
+
+          let seatChanged = false;
+          const updatedSeats = seats.map((s) => {
+            if (s.clientId === leavingId && s.id !== 0) {
+              seatChanged = true;
+              return {
+                ...s,
+                name: '',
+                customPhoto: null,
+                isHuman: false,
+                isVacant: true,
+                clientId: undefined,
+              };
+            }
+            return s;
+          });
+
+          if (seatChanged) {
+            setSeats(updatedSeats);
+          }
+
+          const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: deviceId,
+            seats: updatedSeats,
+            waitingPlayers: updatedWaiting,
+            vacantCount: vCount,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
   };
 
-  // Dedicated room subscription: only re-subscribes when roomCode changes (zero drops)
   useEffect(() => {
     if (!roomCode) return;
 
@@ -1724,21 +1347,15 @@ export default function App() {
     showCallout('تم حفظ صورتك الشخصية!', '📷');
   };
 
-  // Open Private Table: Initialize non-human seats as VACANT and reset waiting queue
   const handleOpenPrivateTable = () => {
     setIsRoomHost(true);
     setIsMultiplayerActive(true);
     setCurrentHumanSeatIndex(0);
-    const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
-    freshVacantSeats[0].clientId = roomSync.myClientId;
+    const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
     setSeats(freshVacantSeats);
     setWaitingPlayers([]);
     setLastSeatReserved(null);
-    try {
-      localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(freshVacantSeats));
-    } catch {}
 
-    // Ensure host is connected and subscribed to this room code
     roomSync.subscribeRoom(roomCode, (msg) => {
       messageHandlerRef.current(msg);
     });
@@ -1746,7 +1363,7 @@ export default function App() {
     roomSync.publish({
       type: 'ROOM_STATE',
       roomCode,
-      senderId: roomSync.myClientId,
+      senderId: deviceId,
       seats: freshVacantSeats,
       waitingPlayers: [],
       vacantCount: 5,
@@ -1756,12 +1373,10 @@ export default function App() {
     showCallout(`طاولتك الخاصة #${roomCode} (تحكم باللاعبين والمقاعد) 🚪`, '👥');
   };
 
-  // Host Action: Assign waiting player to a seat
   const handleAssignWaitingPlayerToSeat = (player: WaitingPlayer, seatIdx: number) => {
     if (!isRoomHost) return;
     const team: 'A' | 'B' = seatIdx % 2 === 0 ? 'A' : 'B';
 
-    // If there was an existing human player in that seat (other than seat 0), return them to waiting list
     let nextWaiting = waitingPlayers.filter((w) => w.clientId !== player.clientId);
     const existingOccupant = seats[seatIdx];
     if (existingOccupant && existingOccupant.isHuman && existingOccupant.name && seatIdx !== 0) {
@@ -1793,7 +1408,7 @@ export default function App() {
     roomSync.publish({
       type: 'ROOM_STATE',
       roomCode,
-      senderId: roomSync.myClientId,
+      senderId: deviceId,
       seats: nextSeats,
       waitingPlayers: nextWaiting,
       vacantCount: vCount,
@@ -1805,7 +1420,6 @@ export default function App() {
     showCallout(`تم تسكين ${player.name} في المقعد #${seatIdx + 1} (${teamLabel}) ✅`, '💺');
   };
 
-  // Host Action: Move seated player back to waiting list
   const handleMovePlayerToWaiting = (seatIdx: number) => {
     if (!isRoomHost) return;
     if (seatIdx === 0) {
@@ -1845,7 +1459,7 @@ export default function App() {
     roomSync.publish({
       type: 'ROOM_STATE',
       roomCode,
-      senderId: roomSync.myClientId,
+      senderId: deviceId,
       seats: nextSeats,
       waitingPlayers: nextWaiting,
       vacantCount: vCount,
@@ -1855,7 +1469,6 @@ export default function App() {
     showCallout(`تم نقل ${occupant.name || `المقعد #${seatIdx + 1}`} إلى قائمة الانتظار ⏳`, '⏳');
   };
 
-  // Host Action: Swap seats between two positions
   const handleSwapSeats = (idxA: number, idxB: number) => {
     if (!isRoomHost) return;
     if (idxA === idxB) return;
@@ -1864,7 +1477,6 @@ export default function App() {
     const seatA = { ...nextSeats[idxA] };
     const seatB = { ...nextSeats[idxB] };
 
-    // Swap content but maintain correct team by position:
     nextSeats[idxA] = {
       ...seatB,
       id: idxA,
@@ -1876,7 +1488,6 @@ export default function App() {
       team: idxB % 2 === 0 ? 'A' : 'B',
     };
 
-    // If host was in idxA or idxB, update currentHumanSeatIndex
     if (currentHumanSeatIndex === idxA) {
       setCurrentHumanSeatIndex(idxB);
     } else if (currentHumanSeatIndex === idxB) {
@@ -1889,7 +1500,7 @@ export default function App() {
     roomSync.publish({
       type: 'ROOM_STATE',
       roomCode,
-      senderId: roomSync.myClientId,
+      senderId: deviceId,
       seats: nextSeats,
       waitingPlayers,
       vacantCount: vCount,
@@ -1900,11 +1511,9 @@ export default function App() {
     showCallout(`تم تبديل المقعدين #${idxA + 1} و #${idxB + 1} 🔄`, '🔄');
   };
 
-  // Seat Configuration Actions: moving human into seat / taking over bot
   const handleSitInSeat = (targetIdx: number) => {
     if (targetIdx === currentHumanSeatIndex) return;
     const oldIdx = currentHumanSeatIndex;
-    const isMatchOngoing = phase !== 'LOBBY';
 
     setSeats((prev) => {
       const next = [...prev];
@@ -1915,9 +1524,10 @@ export default function App() {
         customPhoto: userCustomPhoto,
         isHuman: true,
         isVacant: false,
+        clientId: deviceId,
         team: targetIdx % 2 === 0 ? 'A' : 'B',
       };
-      if (!isMatchOngoing) {
+      if (oldIdx >= 0) {
         next[oldIdx] = {
           ...next[oldIdx],
           name: '',
@@ -1925,199 +1535,29 @@ export default function App() {
           customPhoto: null,
           isHuman: false,
           isVacant: true,
+          clientId: undefined,
           team: oldIdx % 2 === 0 ? 'A' : 'B',
         };
       }
 
       const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
 
-      try {
-        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-      } catch {}
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        waitingPlayers,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
 
-      if (isMatchOngoing) {
-        roomSync.publish({
-          type: 'BOT_TAKEOVER',
-          roomCode,
-          senderId: roomSync.myClientId,
-          seatIndex: targetIdx,
-          player: {
-            name: userName,
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            team: targetIdx % 2 === 0 ? 'A' : 'B',
-            isHuman: true,
-          },
-          timestamp: Date.now(),
-        });
-      } else {
-        roomSync.publish({
-          type: 'SEAT_RESERVED',
-          roomCode,
-          senderId: roomSync.myClientId,
-          seatIndex: targetIdx,
-          oldSeatIndex: oldIdx,
-          player: {
-            name: userName,
-            avatarId: userAvatar,
-            customPhoto: userCustomPhoto,
-            team: targetIdx % 2 === 0 ? 'A' : 'B',
-            isHuman: true,
-          },
-          seats: next,
-          vacantCount: vCount,
-          timestamp: Date.now(),
-        });
-      }
-
-      return next;
-    });
-
-    setPlayers((prev) => {
-      const next = [...prev];
-      if (next[targetIdx]) {
-        next[targetIdx] = {
-          ...next[targetIdx],
-          name: userName,
-          avatarId: userAvatar,
-          customPhoto: userCustomPhoto,
-          isHuman: true,
-          isVacant: false,
-        };
-      }
       return next;
     });
 
     setCurrentHumanSeatIndex(targetIdx);
-    setLastSeatReserved({
-      seatIndex: targetIdx,
-      name: userName,
-      team: targetIdx % 2 === 0 ? 'A' : 'B',
-      avatarId: userAvatar,
-      customPhoto: userCustomPhoto,
-    });
-
-    const teamName = targetIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-    if (isMatchOngoing) {
-      showCallout(`اخترت المقعد #${targetIdx + 1} (${teamName}) - اضغط زر الدخول بالأسفل 💺`, '💺');
-    } else {
-      showCallout(`انتقلت للمقعد #${targetIdx + 1} في ${teamName} 💺`, '💺');
-    }
   };
 
-  // Enter ongoing match as the selected seat (human or replacement of bot/player)
-  const handleEnterOngoingMatch = () => {
-    setShowHostModal(false);
-    setShowRoomsModal(false);
-    setIsMultiplayerActive(true);
-    setIsActionPending(false);
-    setPhase((prev) => (prev === 'LOBBY' ? 'PLAYING' : prev));
-
-    // Make sure current seat is marked human in both seats and players
-    setSeats((prev) => {
-      const next = [...prev];
-      if (next[currentHumanSeatIndex]) {
-        next[currentHumanSeatIndex] = {
-          ...next[currentHumanSeatIndex],
-          name: userName,
-          avatarId: userAvatar,
-          customPhoto: userCustomPhoto,
-          isHuman: true,
-          isVacant: false,
-          team: currentHumanSeatIndex % 2 === 0 ? 'A' : 'B',
-        };
-        try {
-          localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-        } catch {}
-      }
-      return next;
-    });
-
-    setPlayers((prev) => {
-      const next = [...prev];
-      if (next[currentHumanSeatIndex]) {
-        next[currentHumanSeatIndex] = {
-          ...next[currentHumanSeatIndex],
-          name: userName,
-          avatarId: userAvatar,
-          customPhoto: userCustomPhoto,
-          isHuman: true,
-          isVacant: false,
-        };
-      }
-      return next;
-    });
-
-    // Broadcast takeover to all participants
-    roomSync.publish({
-      type: 'BOT_TAKEOVER',
-      roomCode,
-      senderId: roomSync.myClientId,
-      seatIndex: currentHumanSeatIndex,
-      player: {
-        name: userName,
-        avatarId: userAvatar,
-        customPhoto: userCustomPhoto,
-        team: currentHumanSeatIndex % 2 === 0 ? 'A' : 'B',
-        isHuman: true,
-      },
-      timestamp: Date.now(),
-    });
-
-    // Request immediate full sync from host
-    roomSync.publish({
-      type: 'SYNC_REQUEST',
-      roomCode,
-      senderId: roomSync.myClientId,
-      timestamp: Date.now(),
-    });
-
-    soundEngine.init();
-    soundEngine.playCardSlide();
-    const teamName = currentHumanSeatIndex % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-    showCallout(`دخلت الطاولة وبدأت اللعب مع ${teamName}! ⚡`, '🚀');
-  };
-
-  // Mobile visibility, tab reactivation, and ongoing match heartbeat sync
-  useEffect(() => {
-    if (!roomCode || !isMultiplayerActive) return;
-
-    const requestSync = () => {
-      roomSync.publish({
-        type: 'SYNC_REQUEST',
-        roomCode,
-        senderId: roomSync.myClientId,
-        timestamp: Date.now(),
-      });
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        roomSync.handleWakeup();
-        requestSync();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', requestSync);
-    window.addEventListener('focus', requestSync);
-
-    // Gentle idle recovery: only request sync if game has stalled with no updates for 25s
-    const idleRecoveryInterval = setInterval(() => {
-      if (!isRoomHost && phase !== 'LOBBY') {
-        requestSync();
-      }
-    }, 25000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', requestSync);
-      window.removeEventListener('focus', requestSync);
-      clearInterval(idleRecoveryInterval);
-    };
-  }, [isMultiplayerActive, isRoomHost, phase, roomCode]);
-
-  // Convert seat to bot
   const handleConvertToBot = (idx: number) => {
     if (idx === currentHumanSeatIndex) {
       showCallout('لا يمكنك تحويل مقعدك إلى بوت!', '⚠️');
@@ -2132,15 +1572,13 @@ export default function App() {
         customPhoto: null,
         isHuman: false,
         isVacant: false,
+        clientId: undefined,
       };
       const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-      try {
-        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-      } catch {}
       roomSync.publish({
         type: 'ROOM_STATE',
         roomCode,
-        senderId: roomSync.myClientId,
+        senderId: deviceId,
         seats: next,
         vacantCount: vCount,
         timestamp: Date.now(),
@@ -2151,7 +1589,6 @@ export default function App() {
     showCallout(`تم تحويل المقعد #${idx} إلى بوت 🤖`, '🤖');
   };
 
-  // Direct Vacate seat
   const handleVacateSeatDirect = (idx: number) => {
     if (idx === currentHumanSeatIndex) {
       showCallout('لا يمكنك تفريغ مقعدك الحالي!', '⚠️');
@@ -2165,15 +1602,13 @@ export default function App() {
         customPhoto: null,
         isHuman: false,
         isVacant: true,
+        clientId: undefined,
       };
       const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-      try {
-        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-      } catch {}
       roomSync.publish({
         type: 'ROOM_STATE',
         roomCode,
-        senderId: roomSync.myClientId,
+        senderId: deviceId,
         seats: next,
         vacantCount: vCount,
         timestamp: Date.now(),
@@ -2183,7 +1618,6 @@ export default function App() {
     showCallout(`أصبح المقعد #${idx} شاغراً ⏳`, '⏳');
   };
 
-  // Fill all vacant seats with bots
   const handleFillAllWithBots = () => {
     setSeats((prev) => {
       const next = prev.map((seat, idx) => {
@@ -2196,17 +1630,15 @@ export default function App() {
             customPhoto: null,
             isHuman: false,
             isVacant: false,
+            clientId: undefined,
           };
         }
         return seat;
       });
-      try {
-        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-      } catch {}
       roomSync.publish({
         type: 'ROOM_STATE',
         roomCode,
-        senderId: roomSync.myClientId,
+        senderId: deviceId,
         seats: next,
         vacantCount: 0,
         timestamp: Date.now(),
@@ -2217,7 +1649,6 @@ export default function App() {
     showCallout('تم ملء الشواغر ببوتات ذكية 🤖', '🤖');
   };
 
-  // Vacate all non-human seats
   const handleVacateAllSeats = () => {
     setSeats((prev) => {
       const next = prev.map((seat, idx) => {
@@ -2228,16 +1659,14 @@ export default function App() {
           customPhoto: null,
           isHuman: false,
           isVacant: true,
+          clientId: undefined,
         };
       });
       const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-      try {
-        localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(next));
-      } catch {}
       roomSync.publish({
         type: 'ROOM_STATE',
         roomCode,
-        senderId: roomSync.myClientId,
+        senderId: deviceId,
         seats: next,
         vacantCount: vCount,
         timestamp: Date.now(),
@@ -2275,6 +1704,7 @@ export default function App() {
         name: '',
         customPhoto: null,
         isHuman: false,
+        clientId: undefined,
       };
       return next;
     });
@@ -2282,7 +1712,6 @@ export default function App() {
     showCallout('تم جعل المقعد شاغراً', '🔄');
   };
 
-  // Screen orientation & fullscreen controls
   const handleSetAutoScreen = () => {
     document.body.classList.remove('forced-landscape-mode');
     setShowScreenModal(false);
@@ -2329,11 +1758,11 @@ export default function App() {
           onFastPlay={() => {
             soundEngine.init();
             soundEngine.playCardSlide();
-            // Reset to default standard match seats
             const stdSeats = JSON.parse(JSON.stringify(DEFAULT_SEATS));
             stdSeats[0].name = userName;
             stdSeats[0].avatarId = userAvatar;
             stdSeats[0].customPhoto = userCustomPhoto;
+            stdSeats[0].clientId = deviceId;
             setSeats(stdSeats);
             setCurrentHumanSeatIndex(0);
             setIsRoomHost(true);
@@ -2486,8 +1915,7 @@ export default function App() {
             setIsMultiplayerActive(true);
             setLastSeatReserved(null);
             setCurrentHumanSeatIndex(0);
-            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
-            freshVacant[0].clientId = roomSync.myClientId;
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
             setSeats(freshVacant);
             setWaitingPlayers([]);
 
@@ -2495,13 +1923,10 @@ export default function App() {
               messageHandlerRef.current(msg);
             });
 
-            try {
-              localStorage.setItem(`kout_room_seats_${nextCode}`, JSON.stringify(freshVacant));
-            } catch {}
             roomSync.publish({
               type: 'ROOM_STATE',
               roomCode: nextCode,
-              senderId: roomSync.myClientId,
+              senderId: deviceId,
               seats: freshVacant,
               waitingPlayers: [],
               vacantCount: 5,
@@ -2537,11 +1962,6 @@ export default function App() {
             soundEngine.init();
             soundEngine.playCardSlide();
 
-            try {
-              localStorage.setItem(`kout_room_start_${roomCode}`, String(Date.now()));
-              localStorage.setItem(`kout_room_seats_${roomCode}`, JSON.stringify(finalFilledSeats));
-            } catch {}
-
             const sharedDeck = buildDeck();
             const randDealer = Math.floor(Math.random() * 6);
 
@@ -2563,7 +1983,7 @@ export default function App() {
             roomSync.publish({
               type: 'START_GAME',
               roomCode,
-              senderId: roomSync.myClientId,
+              senderId: deviceId,
               seats: finalFilledSeats,
               deck: sharedDeck,
               dealerIdx: randDealer,
@@ -2575,7 +1995,6 @@ export default function App() {
             startNewRound(sharedDeck, randDealer, finalFilledSeats);
             showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
           }}
-          onEnterOngoingMatch={handleEnterOngoingMatch}
           onClose={() => setShowHostModal(false)}
         />
       )}
@@ -2586,7 +2005,7 @@ export default function App() {
           roomCode={roomCode}
           seats={seats}
           waitingPlayers={waitingPlayers}
-          myClientId={roomSync.myClientId}
+          myClientId={deviceId}
           myName={userName}
           myAvatarId={userAvatar}
           myCustomPhoto={userCustomPhoto}
@@ -2661,8 +2080,7 @@ export default function App() {
             setIsRoomHost(true);
             setIsMultiplayerActive(true);
             setCurrentHumanSeatIndex(0);
-            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto);
-            freshVacant[0].clientId = roomSync.myClientId;
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
             setSeats(freshVacant);
             setWaitingPlayers([]);
             roomSync.subscribeRoom(nextCode, (msg) => {
