@@ -64,9 +64,15 @@ export interface RoomSyncMessage {
 
 export type RoomMessageCallback = (msg: RoomSyncMessage) => void;
 
-// Universal global high-speed public brokers (Reachable worldwide without credentials or account quotas)
-const PRIMARY_BROKER = 'wss://broker.emqx.io:8084/mqtt';
-const FALLBACK_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+// 1. رابط خادمك السحابي المخصص على EMQX Cloud
+const PRIMARY_BROKER = 'wss://ca867d88.ala.eu-central-1.emqxsl.com:8084/mqtt';
+const FALLBACK_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+// 2. بيانات الدخول لخادمك (إذا فعلت خيار المصادقة في EMQX ضع البيانات هنا)
+const BROKER_AUTH = {
+  username: '', // اكتب اسم المستخدم هنا إذا تم إنشاؤه في EMQX Access Control
+  password: '', // اكتب كلمة المرور هنا
+};
 
 class RoomSyncManager {
   private client: MqttClient | null = null;
@@ -102,7 +108,6 @@ class RoomSyncManager {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Mobile visibility & online recovery listener
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           this.handleWakeup();
@@ -115,7 +120,6 @@ class RoomSyncManager {
         this.handleWakeup();
       });
 
-      // Cross-tab storage event synchronization
       window.addEventListener('storage', (evt) => {
         if (evt.key && this.currentRoomCode && evt.key.startsWith(`kout_room_event_${this.currentRoomCode}`)) {
           try {
@@ -147,16 +151,12 @@ class RoomSyncManager {
 
   public handleWakeup() {
     if (!this.currentRoomCode) return;
-
-    // Reset connecting lock if it got hung
     this.isConnecting = false;
 
-    // If client is disconnected, reconnect immediately
     if (!this.client || !this.client.connected) {
       this.connect(this.currentRoomCode);
     }
 
-    // Immediately queue full state sync request
     this.publish({
       type: 'SYNC_REQUEST',
       roomCode: this.currentRoomCode,
@@ -176,12 +176,11 @@ class RoomSyncManager {
     if (this.connectTimeoutTimer) {
       clearTimeout(this.connectTimeoutTimer);
     }
-    // Safety watchdog: never let isConnecting stay stuck
     this.connectTimeoutTimer = setTimeout(() => {
       this.isConnecting = false;
-    }, 4500);
+    }, 6000);
 
-    // 1. Setup local BroadcastChannel
+    // 1. Local BroadcastChannel
     try {
       if (typeof BroadcastChannel !== 'undefined' && !this.bc) {
         this.bc = new BroadcastChannel(`kout_bc_${roomCode}`);
@@ -193,7 +192,7 @@ class RoomSyncManager {
       }
     } catch {}
 
-    // 2. Setup MQTT over WebSocket with automatic fallback broker resilience
+    // 2. Setup MQTT over WebSocket
     try {
       if (this.client) {
         try {
@@ -206,10 +205,17 @@ class RoomSyncManager {
       const opts: mqtt.IClientOptions = {
         clientId: this.myClientId,
         clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 1200,
-        keepalive: 10,
+        connectTimeout: 8000,
+        reconnectPeriod: 1500,
+        keepalive: 30,
+        rejectUnauthorized: false,
       };
+
+      // إضافة بيانات المصادقة إذا كانت متوفرة
+      if (BROKER_AUTH.username && !this.hasFallenBack) {
+        opts.username = BROKER_AUTH.username;
+        opts.password = BROKER_AUTH.password;
+      }
 
       const client = mqtt.connect(activeBroker, opts);
       this.client = client;
@@ -220,12 +226,10 @@ class RoomSyncManager {
         this.failCount = 0;
         if (this.connectTimeoutTimer) clearTimeout(this.connectTimeoutTimer);
 
-        client.subscribe(topic, { qos: 0 }, (err) => {
+        // رفع مستوى الموثوقية لـ QoS 1 لضمان وصول الرسائل وعدم ضياعها
+        client.subscribe(topic, { qos: 1 }, (err) => {
           if (!err) {
-            // Flush any actions that occurred while connecting
             this.flushQueue();
-
-            // Request state sync
             this.publish({
               type: 'SYNC_REQUEST',
               roomCode,
@@ -250,20 +254,19 @@ class RoomSyncManager {
 
             const data: RoomSyncMessage = JSON.parse(rawStr);
             if (data && data.senderId !== this.myClientId) {
-              console.log('[RoomSync] Received:', data.type, 'from:', data.senderId);
               this.notifyListeners(data);
             }
           } catch (err) {
-            console.error('[RoomSync] Failed to parse message payload:', err);
+            console.error('[RoomSync] Payload parse error:', err);
           }
         }
       });
 
-      const handleError = () => {
+      const handleError = (err?: any) => {
         this.isConnecting = false;
         this.setConnection(false);
         this.failCount++;
-        if (this.failCount >= 2 && !this.hasFallenBack) {
+        if (this.failCount >= 3 && !this.hasFallenBack) {
           this.hasFallenBack = true;
           if (this.currentRoomCode) {
             setTimeout(() => this.connect(this.currentRoomCode!), 500);
@@ -295,19 +298,16 @@ class RoomSyncManager {
       }
     }
 
-    // 1. BroadcastChannel (same browser tab-to-tab)
     try {
       if (this.bc) {
         this.bc.postMessage(fullMsg);
       }
     } catch {}
 
-    // 2. LocalStorage for same-device cross-tab event
     try {
       localStorage.setItem(`kout_room_event_${targetRoom}`, JSON.stringify(fullMsg));
     } catch {}
 
-    // 3. Queue and flush via dedicated MQTT broker
     this.outboundQueue.push(fullMsg);
     this.flushQueue();
   }
@@ -329,7 +329,8 @@ class RoomSyncManager {
       }
       const topic = `kout_bo6/room_${targetRoom}`;
       try {
-        this.client.publish(topic, JSON.stringify(msg), { qos: 0 });
+        // الإرسال بـ QoS 1 لضمان استلام الهواتف للأمر بدون فقدان
+        this.client.publish(topic, JSON.stringify(msg), { qos: 1 });
         this.outboundQueue.shift();
       } catch {
         break;
@@ -338,10 +339,10 @@ class RoomSyncManager {
   }
 
   private notifyListeners(msg: RoomSyncMessage) {
-    // Deduplicate identical packets
     const seatsSummary = msg.seats ? msg.seats.map((s) => `${s.id}:${s.name}:${s.isHuman ? 1 : 0}`).join(',') : '';
     const waitingSummary = msg.waitingPlayers ? msg.waitingPlayers.map((w) => w.clientId).join(',') : '';
     const hash = `${msg.senderId}_${msg.type}_${msg.timestamp}_${msg.playerId ?? ''}_${msg.card?.id ?? ''}_${msg.roundNumber ?? ''}_${seatsSummary}_${waitingSummary}`;
+    
     if (this.seenMessageHashes.has(hash)) {
       return;
     }
