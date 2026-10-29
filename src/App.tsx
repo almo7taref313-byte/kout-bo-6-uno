@@ -666,15 +666,17 @@ export default function App() {
         showCallout(isBaoon ? 'يالردي! 💔' : 'خسرت يا حلو! ❌', isBaoon ? '💔' : '❌');
       }
 
-      setRoundResult({
+     setRoundResult({
         buyerWinner: buyerIsWinner,
         bidWinner,
         highestBid,
         isForcedBid,
       });
-    },
-    [bidWinner, currentHumanSeatIndex, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, roundNumber, showCallout, stopTimer]
-  );
+
+      // انتقال تلقائي فوري وسلس للجولة القادمة دون إظهار الشاشة
+      setTimeout(() => {
+        handleNextRoundOrMatch();
+      }, 2500); // مهلة 2.5 ثانية للاستمتاع بصوت الفوز/الهتاف ثم بدء الجولة التالية
 
   // Trick Resolution
   const resolveTrick = useCallback(
