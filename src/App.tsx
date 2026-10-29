@@ -803,9 +803,9 @@ export default function App() {
         // مهلة 600ms لمشاهدة الورقة الأخيرة بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
-          setCollectingWinnerId(winnerId); // تبدأ الحركة الهادئة نحو صورة الفائز مباشرة
+          setCollectingWinnerId(winnerId);
 
-          // مهلة 1400ms لتكتمل حركة الـ 1300ms بالكامل وتدخل الأوراق في يد الفائز بهدوء
+          // مهلة 1400ms لتكتمل حركة الانزلاق بسلاسة واستقرار
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 1400);
@@ -2108,4 +2108,3 @@ export default function App() {
       )}
     </div>
   );
-}
