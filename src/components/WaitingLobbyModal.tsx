@@ -73,10 +73,9 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
   }, [roomCode, myClientId, myName]);
 
   // التحقق هل قام المضيف بتسكين اللاعب في مقعد
+  // الاعتماد الصارم على clientId فقط حتى لا يحصل تشابه إذا تساوت الأسماء
   const assignedSeatIdx = seats.findIndex(
-    (s) =>
-      (s.clientId && (s.clientId === myClientId || s.clientId === roomSync.myClientId)) ||
-      (s.isHuman && s.name === myName && !s.isVacant)
+    (s) => !s.isVacant && s.clientId && (s.clientId === myClientId || s.clientId === roomSync.myClientId)
   );
   const isAssigned = assignedSeatIdx >= 0;
 
