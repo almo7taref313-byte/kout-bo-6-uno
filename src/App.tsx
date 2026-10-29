@@ -49,7 +49,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
-// توليد معرف جهاز فريد وثابت في الذاكرة المحلية حتى لا يتغير عند إعادة التحميل
 const getOrCreateDeviceId = (): string => {
   try {
     let id = localStorage.getItem('kout_persistent_device_id');
@@ -797,7 +796,7 @@ export default function App() {
       }
 
       // عند اكتمال الأوراق الست للأكلة
-      if (nextTrick.length === 6) 
+      if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
@@ -806,7 +805,7 @@ export default function App() {
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId); // تبدأ الحركة الهادئة نحو صورة الفائز مباشرة
 
-          // مهلة 1400ms لتكتمل حركة الـ 1200ms بالكامل وتدخل الأوراق في يد الفائز بهدوء
+          // مهلة 1400ms لتكتمل حركة الـ 1300ms بالكامل وتدخل الأوراق في يد الفائز بهدوء
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 1400);
