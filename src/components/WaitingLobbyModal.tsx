@@ -161,24 +161,45 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
 
           <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80">
             <span className="text-[10px] text-slate-400">
-              لم يظهر اسمك عند المضيف؟
-            </span>
-            <button
-              onClick={() => {
-                sendJoinAnnouncement();
-                setPingSent(true);
-                setTimeout(() => setPingSent(false), 2000);
-              }}
-              className={`px-3 py-1 rounded-xl text-[10px] font-black transition active:scale-95 cursor-pointer flex items-center gap-1 ${
-                pingSent
-                  ? 'bg-emerald-600 text-white shadow-emerald-500/30'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30'
-              }`}
-            >
-              <span>{pingSent ? 'تم الإرسال بنجاح ✅' : '📢 إرسال نداء للمضيف'}</span>
-            </button>
-          </div>
-        </div>
+              // 1. وظيفة صريحة لإرسال طلب الانضمام بالرمز المكتوب على الشاشة
+  const handleSendJoinRequest = () => {
+    if (!roomCode) return;
+
+    roomSync.publish({
+      type: 'JOIN_REQUEST',
+      roomCode: String(roomCode).trim(), // الرمز الصريح المكتوب على الشاشة
+      senderId: myClientId || roomSync.myClientId,
+      player: {
+        name: myName || 'لاعب جديد',
+        team: 'A',
+        avatarId: _myAvatarId,
+        customPhoto: _myCustomPhoto,
+        isHuman: true,
+        clientId: myClientId || roomSync.myClientId,
+      },
+      timestamp: Date.now(),
+    });
+
+    roomSync.publish({
+      type: 'SYNC_REQUEST',
+      roomCode: String(roomCode).trim(),
+      senderId: myClientId || roomSync.myClientId,
+      timestamp: Date.now(),
+    });
+  };
+
+  // 2. مؤقت دوري يرسل النداء كل ثانية ونصف تلقائياً فور فتح الشاشة
+  useEffect(() => {
+    handleSendJoinRequest();
+
+    const interval = setInterval(() => {
+      if (roomSync.isConnected && roomCode) {
+        handleSendJoinRequest();
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [roomCode, myClientId, myName]);
 
         {/* Player Current Status Alert Banner */}
         {isAssigned ? (
