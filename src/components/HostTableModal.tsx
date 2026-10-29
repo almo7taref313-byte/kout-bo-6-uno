@@ -91,16 +91,10 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
     return () => unsubscribe();
   }, [roomCode, broadcastCurrentRoomState]);
 
-  // بث دوري ومباشر لحالة المقاعد لتحديث شاشات الهواتف فوراً
+  // إرسال التحديث فقط عند تغيير المقاعد أو قائمة الانتظار فعلياً
   useEffect(() => {
     broadcastCurrentRoomState();
-
-    const syncInterval = setInterval(() => {
-      broadcastCurrentRoomState();
-    }, 2000);
-
-    return () => clearInterval(syncInterval);
-  }, [broadcastCurrentRoomState]);
+  }, [seats, waitingPlayers, broadcastCurrentRoomState]);
 
   const filledSeats = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '');
   const isComplete = filledSeats.length === 6;
