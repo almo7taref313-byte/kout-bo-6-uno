@@ -1872,27 +1872,12 @@ export default function App() {
         />
       )}
 
-      {/* Round Result Modal */}
-      {phase === 'ROUND_END' && roundResult && (
+     {/* تم إلغاء ظهور شاشة نتيجة الجولة تماماً */}
+      {/* {phase === 'ROUND_END' && roundResult && (
         <RoundResultModal
-          buyerWinner={roundResult.buyerWinner}
-          bidWinner={roundResult.bidWinner}
-          highestBid={roundResult.highestBid}
-          isForcedBid={roundResult.isForcedBid}
-          tricksTeamA={tricksTeamA}
-          tricksTeamB={tricksTeamB}
-          matchScoreTeamA={matchScoreTeamA}
-          matchScoreTeamB={matchScoreTeamB}
-          roundNumber={roundNumber}
-          players={players}
-          humanSeatIndex={currentHumanSeatIndex}
-          onNextRound={handleNextRoundOrMatch}
-          onReturnToLobby={() => {
-            stopTimer();
-            setPhase('LOBBY');
-          }}
+          ...
         />
-      )}
+      )} */}
 
       {/* Host Friends & Custom Table Modal */}
       {showHostModal && (
