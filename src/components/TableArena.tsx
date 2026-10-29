@@ -196,7 +196,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 style={cardStyle}
                 className="pointer-events-none flex flex-col items-center"
               >
-                <div className={!isCollecting ? 'card-played-anim' : ''}>
+                <div>
                   <UnoCard
                     card={play.card}
                     isClickable={false}
