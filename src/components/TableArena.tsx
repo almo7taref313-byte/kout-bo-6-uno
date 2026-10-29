@@ -1,428 +1,2112 @@
-import React from 'react';
-import { BidRecord, CalloutMessage, Player, SuitColor, TrickPlay } from '../types';
-import { SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
-import { AvatarView } from '../utils/avatars';
-import { UnoCard } from './UnoCard';
-import { ComicBidBubble } from './ComicBidBubble';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BidRecord,
+  CalloutMessage,
+  Card,
+  GamePhase,
+  Player,
+  SeatConfig,
+  SuitColor,
+  TrickPlay,
+  WaitingPlayer,
+} from './types';
+import {
+  buildDeck,
+  calculateBotBid,
+  evaluateTrickWinner,
+  getTimeoutFallbackMove,
+  isLegalMove,
+  selectBotBestTrump,
+  selectBotMove,
+  sortHandCards,
+  SUIT_COLORS,
+  getMatchTargetAndStatus,
+  getEffectiveLeadColor,
+  BotStrategyContext,
+  TURN_TIMER_DURATION,
+  computeNextRoundDealer,
+} from './utils/gameLogic';
+import { soundEngine } from './utils/soundEngine';
+import { usePWAInstall } from './utils/usePWAInstall';
+import { nativeBridge } from './utils/nativeBridge';
 
-interface TableArenaProps {
-  players: Player[];
-  currentTrick: TrickPlay[];
-  trumpColor: SuitColor | null;
-  highestBid: number;
-  bidWinner: number | null;
-  isForcedBid: boolean;
-  biddingHistory: BidRecord[];
-  currentTurn: number;
-  timerRemaining: number;
-  phase: string;
-  callout: CalloutMessage | null;
-  humanSeatIndex?: number;
-  collectingWinnerId?: number | null;
-  dealerIdx?: number;
-  isBaoonPendingTrump?: boolean;
-  isTimerDisabled?: boolean;
-}
+// Components
+import { ScoreBoard } from './components/ScoreBoard';
+import { TableArena } from './components/TableArena';
+import { PlayerHand } from './components/PlayerHand';
+import { LobbyScreen } from './components/LobbyScreen';
+import { BiddingModal } from './components/BiddingModal';
+import { RoundResultModal } from './components/RoundResultModal';
+import { HostTableModal } from './components/HostTableModal';
+import { EditSeatModal } from './components/EditSeatModal';
+import { ProfileModal } from './components/ProfileModal';
+import { RulesModal } from './components/RulesModal';
+import { InstallModal } from './components/InstallModal';
+import { ScreenModeModal } from './components/ScreenModeModal';
+import { RoomsModal } from './components/RoomsModal';
+import { ExitConfirmModal } from './components/ExitConfirmModal';
+import { SettingsModal } from './components/SettingsModal';
+import { WaitingLobbyModal } from './components/WaitingLobbyModal';
+import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
-interface CardCoord {
-  x: number;
-  y: number;
-  rotate: number;
-}
-
-// 1. مواقع استقرار الكروت أثناء الرمي (قريبة جداً من أصحابها وبحركة مهدأة)
-const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 78, rotate: 0 },       // أنت (الأسفل) - مستقيمة تماماً
-  1: { x: 92, y: 44, rotate: -8 },     // يمين أسفل (عبود)
-  2: { x: 92, y: -44, rotate: -8 },    // يمين أعلى (مشاري)
-  3: { x: 0, y: -74, rotate: 0 },      // أعلى وسط (طارق)
-  4: { x: -92, y: -44, rotate: 8 },    // يسار أعلى (بندر)
-  5: { x: -92, y: 44, rotate: 8 },     // يسار أسفل (سعود)
+// توليد معرف جهاز فريد وثابت في الذاكرة المحلية حتى لا يتغير عند إعادة التحميل
+const getOrCreateDeviceId = (): string => {
+  try {
+    let id = localStorage.getItem('kout_persistent_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem('kout_persistent_device_id', id);
+    }
+    return id;
+  } catch {
+    return roomSync.myClientId;
+  }
 };
 
-// 2. إحداثيات انزلاق الأوراق الدقيقة لمراكز صور اللاعبين الفعلية دون أي انحراف
-const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 225, rotate: 0 },      // إلى مركز صورة اللاعب بالأسفل
-  1: { x: 165, y: 135, rotate: 10 },   // إلى مركز صورة المقعد 1 (عبود)
-  2: { x: 165, y: -135, rotate: 12 },  // إلى مركز صورة المقعد 2 (مشاري)
-  3: { x: 0, y: -215, rotate: 0 },     // إلى مركز صورة المقعد 3 (طارق)
-  4: { x: -165, y: -135, rotate: -12 },// إلى مركز صورة المقعد 4 (بندر)
-  5: { x: -165, y: 135, rotate: -10 }, // إلى مركز صورة المقعد 5 (سعود)
+const DEFAULT_BOT_PROFILES = [
+  { name: 'أنت', avatarId: 'kuwaiti_ghutra_white' },
+  { name: 'عبود (بوت)', avatarId: 'kuwaiti_shemagh_red' },
+  { name: 'مشاري (بوت)', avatarId: 'kuwaiti_gahfiya' },
+  { name: 'طارق (بوت)', avatarId: 'kuwaiti_dishdasha_plain' },
+  { name: 'بندر (بوت)', avatarId: 'kuwaiti_gahfiya_glasses' },
+  { name: 'سعود (بوت)', avatarId: 'kuwaiti_winter_ghutra' },
+];
+
+const DEFAULT_SEATS: SeatConfig[] = [
+  { id: 0, name: 'أنت', team: 'A', avatarId: 'kuwaiti_ghutra_white', customPhoto: null, isHuman: true, isVacant: false },
+  { id: 1, name: 'عبود (بوت)', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 2, name: 'مشاري (بوت)', team: 'A', avatarId: 'kuwaiti_gahfiya', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 3, name: 'طارق (بوت)', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 4, name: 'بندر (بوت)', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 5, name: 'سعود (بوت)', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
+];
+
+const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null, hostDeviceId: string): SeatConfig[] => {
+  return [0, 1, 2, 3, 4, 5].map((idx) => {
+    if (idx === 0) {
+      return {
+        id: 0,
+        name: hostName || 'منشئ الغرفة 👑',
+        team: 'A',
+        avatarId: hostAvatar || 'kuwaiti_ghutra_white',
+        customPhoto: hostPhoto || null,
+        isHuman: true,
+        isVacant: false,
+        clientId: hostDeviceId,
+      };
+    }
+    return {
+      id: idx,
+      name: '',
+      team: idx % 2 === 0 ? 'A' : 'B',
+      avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+      customPhoto: null,
+      isHuman: false,
+      isVacant: true,
+    };
+  });
 };
 
-export const TableArena: React.FC<TableArenaProps> = ({
-  players,
-  humanSeatIndex = 0,
-  currentTrick,
-  trumpColor,
-  highestBid,
-  bidWinner,
-  isForcedBid,
-  biddingHistory,
-  currentTurn,
-  timerRemaining,
-  phase,
-  callout,
-  collectingWinnerId = null,
-  dealerIdx = 0,
-  isBaoonPendingTrump,
-  isTimerDisabled = false,
-}) => {
-  const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
-  const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
-  const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
-  const isHumanBuyer = bidWinner === humanSeatIndex && highestBid > 4;
-  const humanPlayer = players[humanSeatIndex];
+export default function App() {
+  const [deviceId] = useState<string>(getOrCreateDeviceId);
 
-  return (
-    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-1 xs:px-2 py-0.5 sm:py-2 relative overflow-hidden">
-      
-      {/* Jawaker Vertical Stadium Table */}
-      <div className={`jawaker-table-felt rounded-[36px] xs:rounded-[44px] sm:rounded-[56px] md:rounded-[64px] w-[80%] xs:w-[82%] sm:w-[85%] md:w-[88%] max-w-[420px] sm:max-w-[480px] md:max-w-[540px] h-[94%] max-h-[460px] sm:max-h-[520px] relative flex items-center justify-center p-1.5 xs:p-2 select-none shadow-2xl transition-all duration-300 ${
-        isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
-      }`}>
-        
-        {/* أضواء الباون الاحتفالية */}
-        {isBaoonActive && (
-          <>
-            <div className="baoon-lights-frame" />
-            <div className="absolute inset-1 pointer-events-none z-30 rounded-[34px] xs:rounded-[42px] sm:rounded-[54px] md:rounded-[62px] overflow-hidden">
-              <div className="absolute top-1.5 left-6 right-6 flex justify-around">
-                {['#ea1d2d', '#fed000', '#2eb844', '#0063b0', '#e11d48', '#a855f7', '#f97316', '#38bdf8'].map((col, i) => (
-                  <div
-                    key={`top-${i}`}
-                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
-                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.12}s` }}
-                  />
-                ))}
-              </div>
-              <div className="absolute bottom-1.5 left-6 right-6 flex justify-around">
-                {['#38bdf8', '#f97316', '#a855f7', '#e11d48', '#0063b0', '#2eb844', '#fed000', '#ea1d2d'].map((col, i) => (
-                  <div
-                    key={`bottom-${i}`}
-                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
-                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.12 + 0.06}s` }}
-                  />
-                ))}
-              </div>
-              <div className="absolute top-10 bottom-10 left-1.5 flex flex-col justify-around">
-                {['#ea1d2d', '#2eb844', '#fed000', '#a855f7'].map((col, i) => (
-                  <div
-                    key={`left-${i}`}
-                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
-                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.18}s` }}
-                  />
-                ))}
-              </div>
-              <div className="absolute top-10 bottom-10 right-1.5 flex flex-col justify-around">
-                {['#0063b0', '#e11d48', '#38bdf8', '#f97316'].map((col, i) => (
-                  <div
-                    key={`right-${i}`}
-                    className="w-2.5 h-2.5 rounded-full festive-bulb border border-white/60 shadow-md"
-                    style={{ backgroundColor: col, color: col, animationDelay: `${i * 0.18 + 0.08}s` }}
-                  />
-                ))}
-              </div>
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500 text-slate-950 font-black px-3.5 py-1 rounded-full text-[11px] sm:text-xs shadow-2xl border border-yellow-200 animate-bounce flex items-center gap-1.5 z-40">
-                <span>👑</span>
-                <span>باون كاسح! تحديد الحكم...</span>
-                <span>✨</span>
-              </div>
-            </div>
-          </>
-        )}
+  // User profile
+  const [userName, setUserName] = useState<string>(
+    () => localStorage.getItem('kout_user_name') || 'أنت (اللاعب)'
+  );
+  const [userAvatar, setUserAvatar] = useState<string>(
+    () => localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white'
+  );
+  const [userCustomPhoto, setUserCustomPhoto] = useState<string | null>(
+    () => localStorage.getItem('kout_custom_photo') || null
+  );
 
-        {/* علامة الطاولة المائية */}
-        <div className="table-felt-watermark">
-          <span className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest">
-            كوت بو ٦ أونو
-          </span>
-        </div>
+  // Room
+  const [roomCode, setRoomCode] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const r = params.get('room');
+    return r && r.length === 4 ? r : String(Math.floor(1000 + Math.random() * 9000));
+  });
+  const [isRoomHost, setIsRoomHost] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !Boolean(params.get('room'));
+  });
+  const [isMultiplayerActive, setIsMultiplayerActive] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const r = params.get('room');
+    return Boolean(r && r.length === 4);
+  });
+  const [waitingPlayers, setWaitingPlayers] = useState<WaitingPlayer[]>([]);
+  const [lastSeatReserved, setLastSeatReserved] = useState<{
+    seatIndex: number;
+    name: string;
+    team: string;
+    avatarId?: string;
+    customPhoto?: string | null;
+  } | null>(null);
 
-        {/* تحذير الجيكر أو الميكر */}
-        {currentTrick.length > 0 && highestBid !== 9 && (currentTrick[0].card.isJoker || currentTrick[0].card.isMaker) && (
-          <div className="absolute top-1/2 -translate-y-1/2 left-2 xs:left-3 sm:left-4 z-40 pointer-events-none animate-pulse">
-            <div className="bg-gradient-to-r from-red-950/95 via-rose-900/95 to-red-950/95 border-2 border-red-500/90 text-amber-200 px-2.5 xs:px-3 py-1.5 sm:py-2 rounded-xl xs:rounded-2xl shadow-2xl flex items-center gap-1.5 xs:gap-2 shadow-red-950/90 ring-2 ring-red-400/40 backdrop-blur-sm">
-              <span className="text-base xs:text-lg sm:text-xl animate-bounce">⚠️</span>
-              <div className="text-right">
-                <div className="text-[10px] xs:text-[11.5px] sm:text-xs font-black text-yellow-300 whitespace-nowrap drop-shadow">
-                  {currentTrick[0].card.isJoker ? 'الجيكر خاس يالردي!' : 'الميكر خاس يالردي!'}
-                </div>
-                <div className="text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] text-slate-200 font-bold whitespace-nowrap">
-                  الكرت التالي يحدد لون اللعب المطلوب
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+  // Settings
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
-        {/* الأوراق المرمية في ساحة اللعب مع توجيه دقيق للأفاتر وسرعة رمي هادئة */}
-        <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
-          {currentTrick.map((play, index) => {
-            const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
+  // Seats & Players
+  const [seats, setSeats] = useState<SeatConfig[]>(() => {
+    const s = JSON.parse(JSON.stringify(DEFAULT_SEATS));
+    s[0].name = localStorage.getItem('kout_user_name') || 'أنت';
+    s[0].avatarId = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
+    s[0].customPhoto = localStorage.getItem('kout_custom_photo') || null;
+    s[0].clientId = getOrCreateDeviceId();
+    return s;
+  });
+  const [currentHumanSeatIndex, setCurrentHumanSeatIndex] = useState<number>(0);
+  const [players, setPlayers] = useState<Player[]>(() => {
+    return [0, 1, 2, 3, 4, 5].map((idx) => {
+      const isUser = idx === 0;
+      const defBot = DEFAULT_BOT_PROFILES[idx];
+      return {
+        id: idx,
+        name: isUser ? (localStorage.getItem('kout_user_name') || 'أنت') : (defBot?.name || `بوت ${idx + 1}`),
+        team: idx % 2 === 0 ? 'A' : 'B',
+        isHuman: isUser,
+        isVacant: false,
+        hand: [],
+        avatarId: isUser ? (localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white') : (defBot?.avatarId || 'kuwaiti_shemagh_red'),
+        customPhoto: isUser ? (localStorage.getItem('kout_custom_photo') || null) : null,
+      };
+    });
+  });
+
+  // Game Engine State
+  const [phase, setPhase] = useState<GamePhase>('LOBBY');
+  const [roundNumber, setRoundNumber] = useState<number>(1);
+  const [dealerIdx, setDealerIdx] = useState<number>(0);
+  const [matchScoreTeamA, setMatchScoreTeamA] = useState<number>(0);
+  const [matchScoreTeamB, setMatchScoreTeamB] = useState<number>(0);
+  const [tricksTeamA, setTricksTeamA] = useState<number>(0);
+  const [tricksTeamB, setTricksTeamB] = useState<number>(0);
+
+  // Bidding & Trump
+  const [highestBid, setHighestBid] = useState<number>(4);
+  const [bidWinner, setBidWinner] = useState<number | null>(null);
+  const [isForcedBid, setIsForcedBid] = useState<boolean>(false);
+  const [biddingHistory, setBiddingHistory] = useState<BidRecord[]>([]);
+  const [trumpColor, setTrumpColor] = useState<SuitColor | null>(null);
+
+  // Turn & Trick
+  const [currentTurn, setCurrentTurn] = useState<number>(0);
+  const [currentTrick, setCurrentTrick] = useState<TrickPlay[]>([]);
+  const [playedTricksInRound, setPlayedTricksInRound] = useState<TrickPlay[][]>([]);
+  const [collectingWinnerId, setCollectingWinnerId] = useState<number | null>(null);
+  const [isActionPending, setIsActionPending] = useState<boolean>(false);
+  const [timerRemaining, setTimerRemaining] = useState<number>(TURN_TIMER_DURATION);
+  const [currentDealingTeam, setCurrentDealingTeam] = useState<'A' | 'B'>('A');
+  const [lastDealerTeamA, setLastDealerTeamA] = useState<number>(4);
+  const [lastDealerTeamB, setLastDealerTeamB] = useState<number>(5);
+
+  // Kuwaiti Callouts Banner
+  const [callout, setCallout] = useState<CalloutMessage | null>(null);
+
+  // Modals
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showRoomsModal, setShowRoomsModal] = useState<boolean>(false);
+  const [showHostModal, setShowHostModal] = useState<boolean>(false);
+  const [editingSeatIndex, setEditingSeatIndex] = useState<number | null>(null);
+  const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
+  const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
+  const [showScreenModal, setShowScreenModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+
+  // PWA Install Hook
+  const { isInstallable, install: triggerPWAInstall } = usePWAInstall();
+
+  const handleOpenInstall = async () => {
+    if (isInstallable) {
+      const accepted = await triggerPWAInstall();
+      if (accepted) {
+        showCallout('تم تثبيت اللعبة بنجاح! 🎉', '🎉');
+        return;
+      }
+    }
+    setShowInstallModal(true);
+  };
+
+  // Round Result Modal State
+  const [roundResult, setRoundResult] = useState<{
+    buyerWinner: boolean;
+    bidWinner: number | null;
+    highestBid: number;
+    isForcedBid: boolean;
+  } | null>(null);
+
+  // Timer Ref
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isAllHumanGame =
+    isMultiplayerActive &&
+    ((seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
+      (players.length === 6 && players.every((p) => p.isHuman)));
+
+  const showCallout = useCallback((text: string, emoji = '📢') => {
+    setCallout({ text, emoji, timestamp: Date.now() });
+    setTimeout(() => {
+      setCallout((prev) => (prev && Date.now() - prev.timestamp >= 1800 ? null : prev));
+    }, 1900);
+  }, []);
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    soundEngine.enabled = next;
+    if (next) showCallout('المؤثرات مفعّلة 🔊', '🔊');
+  };
+
+  const stopTimer = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+  }, []);
+
+  const startTimer = useCallback(() => {
+    stopTimer();
+    const allHumans =
+      (seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
+      (players.length === 6 && players.every((p) => p.isHuman));
+    if (isMultiplayerActive && allHumans) {
+      setTimerRemaining(0);
+      return;
+    }
+
+    setTimerRemaining(TURN_TIMER_DURATION);
+
+    timerIntervalRef.current = setInterval(() => {
+      setTimerRemaining((prev) => {
+        if (prev <= 0.25) {
+          stopTimer();
+          return 0;
+        }
+        return prev - 0.2;
+      });
+    }, 200);
+  }, [isMultiplayerActive, players, seats, stopTimer]);
+
+  const startNewRound = useCallback(
+    (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[], humanSeatOverride?: number) => {
+      stopTimer();
+      setIsActionPending(false);
+
+      const activeDealer = forcedDealerIdx !== undefined ? forcedDealerIdx : dealerIdx;
+      setDealerIdx(activeDealer);
+
+      const activeSeats = seatsOverride || seats;
+      const activeHumanSeat = humanSeatOverride !== undefined ? humanSeatOverride : currentHumanSeatIndex;
+      const deck = deckOverride || buildDeck();
+      const freshPlayers: Player[] = activeSeats.map((seatCfg, idx) => {
+        const isMe = idx === activeHumanSeat;
+        const isHumanPlayer = Boolean(seatCfg.isHuman || isMe);
+        return {
+          ...seatCfg,
+          name: isMe ? userName : (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : DEFAULT_BOT_PROFILES[idx].name),
+          avatarId: isMe ? userAvatar : (seatCfg.avatarId || DEFAULT_BOT_PROFILES[idx].avatarId),
+          customPhoto: isMe ? userCustomPhoto : seatCfg.customPhoto,
+          isHuman: isHumanPlayer,
+          isVacant: false,
+          hand: sortHandCards(deck.slice(idx * 9, (idx + 1) * 9), null),
+        };
+      });
+
+      setPlayers(freshPlayers);
+      setTrumpColor(null);
+      setBidWinner(null);
+      setHighestBid(4);
+      setIsForcedBid(false);
+      setBiddingHistory([]);
+      setCurrentTrick([]);
+      setPlayedTricksInRound([]);
+      setCollectingWinnerId(null);
+      setTricksTeamA(0);
+      setTricksTeamB(0);
+      setRoundResult(null);
+
+      const firstBidder = (activeDealer + 1) % 6;
+      setCurrentTurn(firstBidder);
+      setPhase('BIDDING');
+
+      const dealerPlayer = freshPlayers[activeDealer];
+      const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${activeDealer + 1}`;
+      const dealerTeamName = activeDealer % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+      showCallout(`الموزع ${dealerName} (${dealerTeamName}) وزّع الورق! المزاد يبدأ 🃏`, '🃏');
+      startTimer();
+    },
+    [currentHumanSeatIndex, dealerIdx, seats, showCallout, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
+  );
+
+  const startNewMatch = useCallback(() => {
+    setMatchScoreTeamA(0);
+    setMatchScoreTeamB(0);
+    setRoundNumber(1);
+    const randDealer = Math.floor(Math.random() * 6);
+    setDealerIdx(randDealer);
+    const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+    setCurrentDealingTeam(initialDealingTeam);
+    if (randDealer % 2 === 0) {
+      setLastDealerTeamA(randDealer);
+      setLastDealerTeamB(5);
+    } else {
+      setLastDealerTeamB(randDealer);
+      setLastDealerTeamA(4);
+    }
+    startNewRound(undefined, randDealer);
+  }, [startNewRound]);
+
+  const messageHandlerRef = useRef<(msg: RoomSyncMessage) => void>(() => {});
+
+  const handleJoinRoomWaiting = useCallback(
+    (code: string) => {
+      setRoomCode(code);
+      setIsRoomHost(false);
+      setIsMultiplayerActive(true);
+      setShowHostModal(false);
+      setCurrentHumanSeatIndex(-1);
+
+      roomSync.subscribeRoom(code, (msg) => {
+        messageHandlerRef.current(msg);
+      });
+
+      const myActiveId = getOrCreateDeviceId();
+
+      roomSync.publish({
+        type: 'JOIN_REQUEST',
+        roomCode: code,
+        senderId: myActiveId,
+        player: {
+          name: userName,
+          team: 'A',
+          avatarId: userAvatar,
+          customPhoto: userCustomPhoto,
+          isHuman: true,
+          clientId: myActiveId,
+        },
+        timestamp: Date.now(),
+      });
+
+      roomSync.publish({
+        type: 'SYNC_REQUEST',
+        roomCode: code,
+        senderId: myActiveId,
+        timestamp: Date.now(),
+      });
+
+      soundEngine.playCardSlide();
+      showCallout(`دخلت غرفة الطاولة #${code}! أنت في قائمة الانتظار ⏳`, '⏳');
+    },
+    [showCallout, userAvatar, userCustomPhoto, userName]
+  );
+
+  const handleLeaveRoom = useCallback(() => {
+    roomSync.publish({
+      type: 'LEAVE_ROOM',
+      roomCode,
+      senderId: deviceId,
+      timestamp: Date.now(),
+    });
+    setIsMultiplayerActive(false);
+    setIsRoomHost(true);
+    setWaitingPlayers([]);
+    setCurrentHumanSeatIndex(0);
+    showCallout('غادرت الغرفة وعدت للرئيسية 🚪', '🚪');
+  }, [deviceId, roomCode, showCallout]);
+
+  // Choose Trump Color
+  const chooseTrumpColor = useCallback(
+    (color: SuitColor, winnerId?: number, isFromRemote = false) => {
+      stopTimer();
+      setTrumpColor(color);
+      setPhase('PLAYING');
+
+      const winner = winnerId !== undefined ? winnerId : bidWinner !== null ? bidWinner : currentHumanSeatIndex;
+      setCurrentTurn(winner);
+      setIsActionPending(false);
+
+      soundEngine.playCardSlide();
+      showCallout(`الحكم ${SUIT_COLORS[color].name}! العب يا بطل`, '♠️');
+
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'TRUMP_CHOSEN',
+          roomCode,
+          senderId: deviceId,
+          color,
+          playerId: winner,
+          timestamp: Date.now(),
+        });
+      }
+
+      startTimer();
+    },
+    [bidWinner, currentHumanSeatIndex, deviceId, isMultiplayerActive, roomCode, showCallout, startTimer, stopTimer]
+  );
+
+  // Bidding resolution
+  const submitBid = useCallback(
+    (playerId: number, val: number, forced = false, isFromRemote = false) => {
+      stopTimer();
+      const player = players[playerId];
+      const pName = player ? player.name : `لاعب ${playerId + 1}`;
+
+      let effectiveVal = val;
+      const isDealerForced = forced || (playerId === dealerIdx && highestBid <= 4 && val === 0);
+      if (isDealerForced) {
+        effectiveVal = 5;
+        setIsForcedBid(true);
+      } else if (effectiveVal > highestBid) {
+        setIsForcedBid(false);
+      }
+
+      if (effectiveVal === 0) {
+        soundEngine.playPassTone();
+        showCallout(`${pName}: طـوف!`, '✋');
+      } else if (effectiveVal === 9) {
+        soundEngine.playBidTone(true);
+        showCallout(`بااااون من ${pName}! 👑`, '👑');
+      } else if (isDealerForced) {
+        soundEngine.playBidTone(false);
+        showCallout(`الموزع ${pName} ملزوم بـ 5! ⚡`, '⚡');
+      } else {
+        soundEngine.playBidTone(false);
+        showCallout(`${pName} شرا بـ ${effectiveVal}!`, '🔥');
+      }
+
+      const nextBids = [...biddingHistory, { playerId, val: effectiveVal }];
+      setBiddingHistory(nextBids);
+
+      let newHighest = highestBid;
+      let newWinner = bidWinner;
+
+      if (effectiveVal > highestBid) {
+        newHighest = effectiveVal;
+        newWinner = playerId;
+        setHighestBid(effectiveVal);
+        setBidWinner(playerId);
+      }
+
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'PLAYER_BID',
+          roomCode,
+          senderId: deviceId,
+          playerId,
+          val: effectiveVal,
+          forced: isDealerForced,
+          timestamp: Date.now(),
+        });
+      }
+
+      if (effectiveVal === 9) {
+        stopTimer();
+        setBidWinner(playerId);
+        setHighestBid(9);
+        setCurrentTurn(playerId);
+        setPhase('CHOOSE_TRUMP');
+
+        const buyer = players[playerId];
+        if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+          setTimeout(() => {
+            const bestCol = selectBotBestTrump(buyer.hand);
+            chooseTrumpColor(bestCol, playerId);
+          }, 900);
+        }
+        return;
+      }
+
+      const historyLength = nextBids.length;
+      if (historyLength === 6) {
+        setTimeout(() => {
+          if (newWinner === null) {
+            setIsForcedBid(true);
+            setHighestBid(5);
+            setBidWinner(dealerIdx);
+            const dealer = players[dealerIdx];
+            showCallout(`الموزع ${dealer?.name || ''} ملزوم بـ 5 وتحديد الحكم ⚡`, '⚡');
+
+            setPhase('CHOOSE_TRUMP');
+            if (dealer && !dealer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+              const bestCol = selectBotBestTrump(dealer.hand);
+              chooseTrumpColor(bestCol, dealerIdx);
+            }
+          } else {
+            const buyer = players[newWinner];
+            setPhase('CHOOSE_TRUMP');
+            showCallout(`رسا المزاد على ${buyer?.name || ''} بـ ${newHighest}! تحديد الحكم... 🎯`, '🎯');
+            if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
+              const bestCol = selectBotBestTrump(buyer.hand);
+              chooseTrumpColor(bestCol, newWinner);
+            }
+          }
+        }, 1400);
+      } else {
+        const nextTurn = (currentTurn + 1) % 6;
+        setCurrentTurn(nextTurn);
+        startTimer();
+      }
+    },
+    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, showCallout, startTimer, stopTimer]
+  );
+
+  // Bot bidding automation
+  useEffect(() => {
+    if (phase !== 'BIDDING') return;
+    if (highestBid >= 9) return;
+
+    const bot = players[currentTurn];
+    if (!bot) return;
+
+    if (bot.isHuman) return;
+    if (isMultiplayerActive && !isRoomHost) return;
+
+    const botTimer = setTimeout(() => {
+      let bidVal = 0;
+      let isForced = false;
+      const isFirstBidder = bot.id === (dealerIdx + 1) % 6;
+      if (bot.id === dealerIdx && highestBid <= 4) {
+        const estBid = calculateBotBid(bot.hand, 4, false, roundNumber);
+        if (estBid >= 5) {
+          bidVal = estBid;
+          isForced = false;
+        } else {
+          bidVal = 5;
+          isForced = true;
+        }
+      } else {
+        bidVal = calculateBotBid(bot.hand, highestBid, isFirstBidder, roundNumber);
+      }
+      submitBid(bot.id, bidVal, isForced);
+    }, 1700);
+
+    return () => clearTimeout(botTimer);
+  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, roundNumber, submitBid]);
+
+  // Round Completion logic
+  const handleRoundFinish = useCallback(
+    (buyerIsWinner: boolean, curTricksA: number, curTricksB: number) => {
+      stopTimer();
+      setPhase('ROUND_END');
+
+      const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
+      const buyerTeam = buyerPlayer.team;
+      const isBaoon = highestBid === 9;
+      const pts = isBaoon ? 36 : highestBid;
+
+      let defensePts = 0;
+      if (isBaoon) {
+        defensePts = 18;
+      } else if (isForcedBid) {
+        defensePts = 5;
+      } else {
+        defensePts = highestBid * 2;
+      }
+
+      let nextScoreA = matchScoreTeamA;
+      let nextScoreB = matchScoreTeamB;
+
+      if (buyerIsWinner) {
+        if (buyerTeam === 'A') nextScoreA += pts;
+        else nextScoreB += pts;
+      } else {
+        if (buyerTeam === 'A') nextScoreB += defensePts;
+        else nextScoreA += defensePts;
+      }
+
+      setMatchScoreTeamA(nextScoreA);
+      setMatchScoreTeamB(nextScoreB);
+
+      const humanTeam = players[currentHumanSeatIndex]?.team || 'A';
+      const isMyTeamBuyer = buyerTeam === humanTeam;
+      const isOpponentBuyer = !isMyTeamBuyer;
+      const userWon = (buyerIsWinner && isMyTeamBuyer) || (!buyerIsWinner && !isMyTeamBuyer);
+      const matchStatus = getMatchTargetAndStatus(nextScoreA, nextScoreB);
+      const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
+      const isAsamFirstRound =
+        !prevBothHadFiveOrMore &&
+        isBaoon &&
+        buyerIsWinner &&
+        roundNumber === 1 &&
+        matchScoreTeamA === 0 &&
+        matchScoreTeamB === 0 &&
+        (buyerTeam === 'A' ? curTricksA : curTricksB) === 9;
+      const isZeroAsam = !matchStatus.bothHaveFiveOrMore && (matchStatus.isZeroAsam || isAsamFirstRound);
+
+      if (userWon) {
+        nativeBridge.hapticVictory();
+      }
+
+      if (isZeroAsam) {
+        if (userWon) {
+          soundEngine.playVictoryFanfare(true);
+          showCallout('كفو عطيتهم عسم! 👑', '👑');
+        } else {
+          soundEngine.playBustedSound();
+          showCallout('عطاكم عسم! 🎯', '🎯');
+        }
+      } else if (matchStatus.isMatchOver) {
+        if (userWon) {
+          soundEngine.playVictoryFanfare(true);
+          showCallout('فوز بالمباراة! كفووووو 🏆', '🏆');
+        } else {
+          soundEngine.playBustedSound();
+          showCallout('خسرتوا المباراة! خيرها بغيرها 💔', '💔');
+        }
+      } else if (isOpponentBuyer && buyerIsWinner) {
+        soundEngine.playBustedSound();
+        showCallout('يابوها! 💥', '💥');
+      } else if (userWon) {
+        soundEngine.playVictoryFanfare(isBaoon);
+        showCallout(isBaoon ? 'كفووووو! 👑' : 'فزت يا حلو! 🎉', isBaoon ? '👑' : '🎉');
+      } else {
+        soundEngine.playBustedSound();
+        showCallout(isBaoon ? 'يالردي! 💔' : 'خسرت يا حلو! ❌', isBaoon ? '💔' : '❌');
+      }
+
+      setRoundResult({
+        buyerWinner: buyerIsWinner,
+        bidWinner,
+        highestBid,
+        isForcedBid,
+      });
+    },
+    [bidWinner, currentHumanSeatIndex, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, roundNumber, showCallout, stopTimer]
+  );
+
+  // Trick Resolution
+  const resolveTrick = useCallback(
+    (trick: TrickPlay[], precomputedWinnerId?: number) => {
+      const winnerId = precomputedWinnerId !== undefined ? precomputedWinnerId : evaluateTrickWinner(trick, trumpColor, highestBid);
+      const winnerPlayer = players[winnerId];
+
+      let nextA = tricksTeamA;
+      let nextB = tricksTeamB;
+
+      if (winnerPlayer && winnerPlayer.team === 'A') {
+        nextA++;
+        setTricksTeamA(nextA);
+      } else {
+        nextB++;
+        setTricksTeamB(nextB);
+      }
+
+      if (winnerPlayer && winnerPlayer.team === (players[currentHumanSeatIndex]?.team || 'A')) {
+        nativeBridge.hapticTrickWin();
+      }
+
+      setCurrentTrick([]);
+      setPlayedTricksInRound((prev) => [...prev, trick]);
+      setCollectingWinnerId(null);
+
+      const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
+      const buyerTeam = buyerPlayer ? buyerPlayer.team : 'A';
+      const target = highestBid;
+      const buyerTricks = buyerTeam === 'A' ? nextA : nextB;
+      const oppTricks = buyerTeam === 'A' ? nextB : nextA;
+
+      if (buyerTricks >= target) {
+        handleRoundFinish(true, nextA, nextB);
+        return;
+      }
+      if (9 - oppTricks < target) {
+        handleRoundFinish(false, nextA, nextB);
+        return;
+      }
+
+      if (nextA + nextB === 9) {
+        handleRoundFinish(buyerTricks >= target, nextA, nextB);
+        return;
+      }
+
+      setCurrentTurn(winnerId);
+      setIsActionPending(false);
+      startTimer();
+    },
+    [bidWinner, currentHumanSeatIndex, handleRoundFinish, highestBid, players, startTimer, tricksTeamA, tricksTeamB, trumpColor]
+  );
+
+  // Card play action
+  const handlePlayCard = useCallback(
+    (playerId: number, card: Card, isFromRemote = false) => {
+      let activeTrick = currentTrick;
+      if (activeTrick.length >= 6) {
+        activeTrick = [];
+        setCollectingWinnerId(null);
+      }
+
+      if (activeTrick.some((tp) => tp.playerId === playerId)) {
+        return;
+      }
+
+      stopTimer();
+
+      if (card.isJoker) {
+        soundEngine.playJokerSlam();
+        if (activeTrick.length === 0) {
+          if (highestBid !== 9) {
+            showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          }
+        } else {
+          showCallout('يا سلام على الجيكر!!', '🃏');
+        }
+      } else if (card.isMaker) {
+        soundEngine.playJokerSlam();
+        if (activeTrick.length === 0) {
+          if (highestBid !== 9) {
+            showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
+          }
+        } else {
+          showCallout('الميكر نزل وقصها!', '🌈');
+        }
+      } else {
+        soundEngine.playCardSlide();
+      }
+
+      if (playerId === currentHumanSeatIndex) {
+        nativeBridge.hapticCardPlay();
+      }
+
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.id === playerId) {
+            return {
+              ...p,
+              hand: p.hand.filter((c) => c.id !== card.id && !(c.color === card.color && c.rank === card.rank)),
+            };
+          }
+          return p;
+        })
+      );
+
+      const nextTrick = [...activeTrick, { playerId, card }];
+      setCurrentTrick(nextTrick);
+
+      if (isMultiplayerActive && !isFromRemote) {
+        roomSync.publish({
+          type: 'CARD_PLAYED',
+          roomCode,
+          senderId: deviceId,
+          playerId,
+          card,
+          timestamp: Date.now(),
+        });
+      }
+
+      // عند اكتمال الأوراق الست للأكلة
+      if (nextTrick.length === 6) {
+        setIsActionPending(true);
+        const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
+
+        // مهلة 600ms لمشاهدة الورقة الأخيرة بوضوح
+        setTimeout(() => {
+          soundEngine.playTrickSweep();
+          setCollectingWinnerId(winnerId); // تبدأ الحركة الهادئة نحو صورة الفائز مباشرة
+
+          // مهلة 1400ms لتكتمل حركة الـ 1300ms بالكامل وتدخل الأوراق في يد الفائز بهدوء
+          setTimeout(() => {
+            resolveTrick(nextTrick, winnerId);
+          }, 1400);
+        }, 600);
+      } else {
+        const nextTurn = (playerId + 1) % 6;
+        setCurrentTurn(nextTurn);
+        if (nextTurn === currentHumanSeatIndex) {
+          setIsActionPending(false);
+        }
+        startTimer();
+      }
+    },
+    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
+  );
+
+  // Human card click
+  const handleHumanCardClick = (card: Card) => {
+    if (phase === 'BIDDING') {
+      showCallout(card.roleTitle || card.label, '👁️');
+      return;
+    }
+
+    if (phase !== 'PLAYING') return;
+
+    if (currentTurn !== currentHumanSeatIndex) {
+      const cur = players[currentTurn];
+      showCallout(`اصبر يا معود! الدور عند ${cur ? cur.name : 'الخصم'} ⏳`, '✋');
+      return;
+    }
+
+    if (currentTrick.length >= 6) {
+      showCallout('لحظة، جاري لمّ الأكلة... 🧹', '⏳');
+      return;
+    }
+
+    const me = players[currentHumanSeatIndex];
+    if (!me) return;
+
+    const isMeBuyer = bidWinner === currentHumanSeatIndex;
+    if (currentTrick.length === 0 && (card.isJoker || card.isMaker)) {
+      if (highestBid === 9) {
+        if (!isMeBuyer) {
+          showCallout('في الباون: افتتاح الأكلة بالجيكر أو الميكر للحاكم فقط! 👑', '⚠️');
+          return;
+        }
+        const hasTrumpsInHand = Boolean(
+          trumpColor && me.hand.some((c) => c.color === trumpColor)
+        );
+        if (hasTrumpsInHand) {
+          showCallout('في الباون: العب جميع أوراق الحكم أولاً ثم الجيكر/الميكر! 👑', '⚠️');
+          return;
+        }
+      } else {
+        const hasOther = me.hand.some((c) => !c.isJoker && !c.isMaker);
+        if (hasOther) {
+          showCallout('الميكر والجيكر لا يبدأ اللعب بهما أبداً! 🚫', '⚠️');
+          return;
+        }
+      }
+    }
+
+    const hasJokerInTrick = currentTrick.some((p, idx) => p.card.isJoker && (highestBid === 9 || idx > 0));
+    if (hasJokerInTrick && card.isMaker && me.hand.some((c) => !c.isMaker)) {
+      showCallout('ما تنزل الميكر على الجيكر!', '🚫');
+      return;
+    }
+
+    if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)) {
+      const leadColor = getEffectiveLeadColor(currentTrick, highestBid, trumpColor);
+      if (leadColor && me.hand.some((c) => c.color === leadColor)) {
+        const colName = SUIT_COLORS[leadColor]?.name || leadColor;
+        showCallout(`لازم تنزل نفس لون الأكلة (${colName})! ⚠️`, '⚠️');
+      } else {
+        showCallout('الكرت غير مسموح بهذه الأكلة! ⚠️', '⚠️');
+      }
+      return;
+    }
+
+    setIsActionPending(true);
+    handlePlayCard(currentHumanSeatIndex, card);
+  };
+
+  // Bot card play automation
+  useEffect(() => {
+    if (phase !== 'PLAYING') return;
+    if (currentTrick.length === 6) return;
+
+    const bot = players[currentTurn];
+    if (!bot || bot.hand.length === 0) return;
+
+    if (bot.isHuman) return;
+    if (isMultiplayerActive && !isRoomHost) return;
+
+    const botTimer = setTimeout(() => {
+      const context: BotStrategyContext = {
+        buyerId: bidWinner,
+        highestBid,
+        playedTricks: playedTricksInRound,
+        players,
+        dealerIdx,
+        roundNumber,
+      };
+      const move = selectBotMove(bot, currentTrick, trumpColor, context);
+      handlePlayCard(bot.id, move);
+    }, 850);
+
+    return () => clearTimeout(botTimer);
+  }, [bidWinner, currentTrick, currentTurn, dealerIdx, handlePlayCard, highestBid, isMultiplayerActive, isRoomHost, phase, playedTricksInRound, players, roundNumber, trumpColor]);
+
+  // Timeout handler for active turn
+  useEffect(() => {
+    if (timerRemaining > 0) return;
+
+    if (isAllHumanGame) {
+      return;
+    }
+
+    const cur = players[currentTurn];
+    if (!cur) return;
+
+    if (isMultiplayerActive) {
+      if (cur.isHuman && currentTurn !== currentHumanSeatIndex) {
+        return;
+      }
+      if (!cur.isHuman && !isRoomHost) {
+        return;
+      }
+    }
+
+    if (phase === 'BIDDING') {
+      submitBid(currentTurn, 0);
+    } else if (phase === 'PLAYING') {
+      if (cur.hand.length > 0) {
+        const chosen = getTimeoutFallbackMove(cur.hand, currentTrick, trumpColor, cur.id, players, highestBid, bidWinner);
+        handlePlayCard(cur.id, chosen);
+      }
+    }
+  }, [bidWinner, currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
+
+  const handleNextRoundOrMatch = () => {
+    const isBaoon = highestBid === 9;
+    const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
+    const buyerTricks = buyerPlayer ? (buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB) : 0;
+    const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
+    const isAsamFirstRound =
+      !prevBothHadFiveOrMore &&
+      isBaoon &&
+      buyerTricks >= 9 &&
+      roundNumber === 1 &&
+      (buyerPlayer ? (buyerPlayer.team === 'A' ? matchScoreTeamB === 0 : matchScoreTeamA === 0) : false);
+    const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
+    const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
+
+    if (isMultiplayerActive && !isRoomHost) {
+      showCallout('في انتظار المضيف لبدء الجولة القادمة ⏳', '⏳');
+      return;
+    }
+
+    if (isMatchOver) {
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        const randDealer = Math.floor(Math.random() * 6);
+        setMatchScoreTeamA(0);
+        setMatchScoreTeamB(0);
+        setRoundNumber(1);
+        setDealerIdx(randDealer);
+        const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+        setCurrentDealingTeam(initialDealingTeam);
+        if (randDealer % 2 === 0) {
+          setLastDealerTeamA(randDealer);
+          setLastDealerTeamB(5);
+        } else {
+          setLastDealerTeamB(randDealer);
+          setLastDealerTeamA(4);
+        }
+
+        roomSync.publish({
+          type: 'START_GAME',
+          roomCode,
+          senderId: deviceId,
+          seats,
+          deck: sharedDeck,
+          dealerIdx: randDealer,
+          roundNumber: 1,
+          scores: { a: 0, b: 0 },
+          timestamp: Date.now(),
+        });
+
+        startNewRound(sharedDeck, randDealer);
+      } else {
+        startNewMatch();
+      }
+    } else {
+      const nextR = roundNumber + 1;
+      const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
+      const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
+        matchScoreTeamA,
+        matchScoreTeamB,
+        curDealingTeam,
+        lastDealerTeamA,
+        lastDealerTeamB
+      );
+
+      setCurrentDealingTeam(nextDealingTeam);
+      setLastDealerTeamA(newLastDealerTeamA);
+      setLastDealerTeamB(newLastDealerTeamB);
+      setRoundNumber(nextR);
+      setDealerIdx(nextDealer);
+
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        roomSync.publish({
+          type: 'NEW_ROUND',
+          roomCode,
+          senderId: deviceId,
+          roundNumber: nextR,
+          dealerIdx: nextDealer,
+          deck: sharedDeck,
+          scores: { a: matchScoreTeamA, b: matchScoreTeamB },
+          timestamp: Date.now(),
+        });
+        startNewRound(sharedDeck, nextDealer);
+      } else {
+        startNewRound(undefined, nextDealer);
+      }
+    }
+  };
+
+  // معالج رسائل المزامنة
+  messageHandlerRef.current = (msg: RoomSyncMessage) => {
+    if (msg.senderId === deviceId || msg.senderId === roomSync.myClientId) return;
+
+    switch (msg.type) {
+      case 'JOIN_REQUEST': {
+        const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
+        if (amIHost) {
+          const joinerId = msg.player?.clientId || msg.senderId;
+          if (!joinerId) return;
+
+          const isSeated = seats.some((s) => !s.isVacant && s.clientId === joinerId);
+
+          if (!isSeated) {
+            let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
             
-            const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
-            const rest = TABLE_CARD_RESTING_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
-            
-            const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
-            const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
+            if (joinerName === userName) {
+              joinerName = `لاعب (هاتف)`;
+            }
 
-            const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
-            const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
-            const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate : rest.rotate;
-            const targetScale = isCollecting ? 0.15 : 1;
-
-            const cardStyle: React.CSSProperties = {
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
-              // إبطاء الرمي إلى 650ms وإبطاء حركة اللمّ إلى 1200ms لتكون انسيابية وهادئة للعين
-              transition: isCollecting
-                ? 'transform 1200ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 1000ms ease-in'
-                : 'transform 650ms cubic-bezier(0.25, 1, 0.4, 1)',
-              opacity: isCollecting ? 0 : 1,
-              zIndex: isCollecting ? 40 + index : 20 + index,
-              willChange: 'transform, opacity',
-              transformOrigin: 'center center',
+            const newPlayer: WaitingPlayer = {
+              clientId: joinerId,
+              name: joinerName,
+              avatarId: msg.player?.avatarId || 'kuwaiti_shemagh_red',
+              customPhoto: msg.player?.customPhoto || null,
+              joinedAt: Date.now(),
             };
 
-            return (
-              <div
-                key={`${play.playerId}-${play.card.id}`}
-                style={cardStyle}
-                className="pointer-events-none flex flex-col items-center"
-              >
-                <div>
-                  <UnoCard
-                    card={play.card}
-                    isClickable={false}
-                    size="table"
-                    trumpColor={trumpColor}
-                  />
-                </div>
-              </div>
+            setWaitingPlayers((prev) => {
+              const idx = prev.findIndex((w) => w.clientId === joinerId);
+              let nextList: WaitingPlayer[];
+              if (idx !== -1) {
+                nextList = [...prev];
+                nextList[idx] = newPlayer;
+              } else {
+                nextList = [...prev, newPlayer];
+                showCallout(`انضم لاعب جديد: ${joinerName} ⏳`, '⏳');
+                soundEngine.playCardSlide();
+              }
+
+              const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+              
+              roomSync.publish({
+                type: 'ROOM_STATE',
+                roomCode,
+                senderId: deviceId,
+                seats,
+                waitingPlayers: nextList,
+                vacantCount: vCount,
+                timestamp: Date.now(),
+              });
+
+              return nextList;
+            });
+          }
+        }
+        break;
+      }
+
+      case 'ROOM_STATE': {
+        if (msg.waitingPlayers) {
+          setWaitingPlayers(msg.waitingPlayers);
+        }
+        if (msg.seats) {
+          setSeats(msg.seats);
+
+          if (!isRoomHost) {
+            const myAssignedIdx = msg.seats.findIndex(
+              (s) => !s.isVacant && s.clientId && (s.clientId === deviceId || s.clientId === roomSync.myClientId)
             );
-          })}
-        </div>
 
-        {/* فقاعة مزاد اللاعب البشري */}
-        {phase === 'BIDDING' && humanLatestBid && players[humanSeatIndex] && (
-          <div className="absolute bottom-2 xs:bottom-3 left-1/2 -translate-x-1/2 z-35 pointer-events-none">
-            <ComicBidBubble
-              val={humanLatestBid.val}
-              team={players[humanSeatIndex].team}
-              seatPosition="bottom-center"
-            />
-          </div>
-        )}
+            if (myAssignedIdx !== -1) {
+              if (currentHumanSeatIndex !== myAssignedIdx) {
+                setCurrentHumanSeatIndex(myAssignedIdx);
+                const teamName = myAssignedIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+                showCallout(`عيّنك المضيف في المقعد #${myAssignedIdx + 1} (${teamName}) 💺`, '💺');
+                soundEngine.playCardSlide();
+              }
+            } else {
+              setCurrentHumanSeatIndex(-1);
+            }
+          }
+        }
+        break;
+      }
 
-        {/* شارة اللاعب البشري (أنت) بالأسفل خارج الطاولة */}
-        {isHumanBuyer && humanPlayer && (
-          <div className="absolute bottom-1 right-3 xs:right-5 z-40 pointer-events-none select-none animate-bounce">
-            {isForcedBid ? (
-              <div
-                className={`px-3 py-1 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
-                  humanPlayer.team === 'A'
-                    ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
-                    : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
-                }`}
-                title="أنت ملزوم بـ 5"
-              >
-                <span className="font-black text-black text-xs xs:text-sm leading-none whitespace-nowrap">
-                  ملزوم ⚡
-                </span>
-              </div>
-            ) : (
-              <div
-                className={`w-8 h-8 xs:w-9 xs:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-2xl ${
-                  humanPlayer.team === 'A'
-                    ? 'border-[3px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/50'
-                    : 'border-[3px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/50'
-                }`}
-                title={`أنت المشتري بـ ${highestBid}`}
-              >
-                <span className="font-mono font-black text-black text-sm xs:text-base leading-none">
-                  {highestBid === 9 ? '👑' : highestBid}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+      case 'SYNC_REQUEST': {
+        const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
+        if (amIHost) {
+          const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: deviceId,
+            seats,
+            waitingPlayers,
+            vacantCount: vCount,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
 
-        {/* مقاعد اللاعبين الخمسة الأخرى حول حافة الطاولة */}
-        {botSeatIndices.map((idx) => {
-          const player = players[idx] || {
-            id: idx,
-            name: `بوت ${idx + 1}`,
-            team: idx % 2 === 0 ? 'A' : 'B',
-            isHuman: false,
-            hand: [],
-            tricksWon: 0,
-            avatarId: 'kuwaiti_shemagh_red',
-            customPhoto: null,
-          };
+      case 'START_GAME': {
+        setShowHostModal(false);
+        setShowRoomsModal(false);
+        setIsMultiplayerActive(true);
+        soundEngine.init();
+        soundEngine.playCardSlide();
 
-          const isPartner = player.team === 'A';
-          const isTurn = currentTurn === idx && phase !== 'ROUND_END' && phase !== 'MATCH_OVER';
-          const isBuyer = bidWinner === idx && highestBid > 4;
-          const latestBid = biddingHistory.filter((b) => b.playerId === idx).pop();
+        let activeSeats = msg.seats || seats;
+        let myAssignedIdx = currentHumanSeatIndex;
 
-          const relPos = (idx - humanSeatIndex + 6) % 6;
-          let posClass = '';
-          if (relPos === 1) posClass = 'bottom-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
-          else if (relPos === 2) posClass = 'top-[20%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
-          else if (relPos === 3) posClass = 'top-[-20px] xs:top-[-22px] left-1/2 -translate-x-1/2';
-          else if (relPos === 4) posClass = 'top-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
-          else if (relPos === 5) posClass = 'bottom-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+        if (msg.seats) {
+          const foundIdx = msg.seats.findIndex(
+            (s) => !s.isVacant && s.clientId && (s.clientId === deviceId || s.clientId === roomSync.myClientId)
+          );
+          if (foundIdx !== -1) {
+            myAssignedIdx = foundIdx;
+            setCurrentHumanSeatIndex(foundIdx);
+          }
+          activeSeats = msg.seats.map((s, i) =>
+            i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
+          );
+          setSeats(activeSeats);
+        }
 
-          let targetBadgePosClass = '';
-          if (relPos === 1 || relPos === 2) {
-            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
-          } else if (relPos === 4 || relPos === 5) {
-            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';
-          } else if (relPos === 3) {
-            targetBadgePosClass = '-top-8 left-1/2 -translate-x-1/2';
+        if (msg.scores) {
+          setMatchScoreTeamA(msg.scores.a);
+          setMatchScoreTeamB(msg.scores.b);
+        } else {
+          setMatchScoreTeamA(0);
+          setMatchScoreTeamB(0);
+        }
+        setRoundNumber(msg.roundNumber ?? 1);
+
+        if (msg.deck && msg.dealerIdx !== undefined) {
+          setDealerIdx(msg.dealerIdx);
+          const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+          setCurrentDealingTeam(incTeam);
+          if (msg.dealerIdx % 2 === 0) {
+            setLastDealerTeamA(msg.dealerIdx);
+            setLastDealerTeamB(5);
+          } else {
+            setLastDealerTeamB(msg.dealerIdx);
+            setLastDealerTeamA(4);
+          }
+          startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
+        }
+        showCallout('بدأ اللعب للجميع! 🃏', '🚀');
+        break;
+      }
+
+      case 'PLAYER_BID': {
+        if (msg.playerId !== undefined && msg.val !== undefined) {
+          submitBid(msg.playerId, msg.val, msg.forced ?? false, true);
+        }
+        break;
+      }
+
+      case 'TRUMP_CHOSEN': {
+        if (msg.color) {
+          chooseTrumpColor(msg.color, msg.playerId, true);
+        }
+        break;
+      }
+
+      case 'CARD_PLAYED': {
+        if (msg.playerId !== undefined && msg.card) {
+          handlePlayCard(msg.playerId, msg.card, true);
+        }
+        break;
+      }
+
+      case 'NEW_ROUND': {
+        if (msg.deck && msg.dealerIdx !== undefined) {
+          setRoundNumber(msg.roundNumber ?? (roundNumber + 1));
+          setDealerIdx(msg.dealerIdx);
+          const incTeam = msg.dealerIdx % 2 === 0 ? 'A' : 'B';
+          setCurrentDealingTeam(incTeam);
+          if (msg.dealerIdx % 2 === 0) {
+            setLastDealerTeamA(msg.dealerIdx);
+          } else {
+            setLastDealerTeamB(msg.dealerIdx);
+          }
+          if (msg.scores) {
+            setMatchScoreTeamA(msg.scores.a);
+            setMatchScoreTeamB(msg.scores.b);
+          }
+          startNewRound(msg.deck, msg.dealerIdx, seats, currentHumanSeatIndex);
+          showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
+        }
+        break;
+      }
+
+      case 'LEAVE_ROOM': {
+        if (isRoomHost) {
+          const leavingId = msg.senderId;
+          const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
+          setWaitingPlayers(updatedWaiting);
+
+          let seatChanged = false;
+          const updatedSeats = seats.map((s) => {
+            if (s.clientId === leavingId && s.id !== 0) {
+              seatChanged = true;
+              return {
+                ...s,
+                name: '',
+                customPhoto: null,
+                isHuman: false,
+                isVacant: true,
+                clientId: undefined,
+              };
+            }
+            return s;
+          });
+
+          if (seatChanged) {
+            setSeats(updatedSeats);
           }
 
-          const circumference = 150.8;
-          const offset = isTurn ? circumference * (1 - timerRemaining / TURN_TIMER_DURATION) : 0;
-          const isCritical = isTurn && timerRemaining <= 4;
-          const isDealer = dealerIdx === idx;
+          const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: deviceId,
+            seats: updatedSeats,
+            waitingPlayers: updatedWaiting,
+            vacantCount: vCount,
+            timestamp: Date.now(),
+          });
+        }
+        break;
+      }
 
-          return (
-            <div key={idx} className={`absolute ${posClass} z-30`}>
-              <div className="relative flex flex-col items-center">
+      default:
+        break;
+    }
+  };
 
-                {/* فقاعة المزاد */}
-                {phase === 'BIDDING' && latestBid && (
-                  <div
-                    className={`absolute z-35 pointer-events-none ${
-                      relPos === 1 || relPos === 2
-                        ? '-left-[68px] xs:-left-[78px] sm:-left-[88px] top-1/2 -translate-y-1/2'
-                        : relPos === 3
-                        ? 'top-[48px] xs:top-[54px] sm:top-[60px] left-1/2 -translate-x-1/2'
-                        : '-right-[68px] xs:-right-[78px] sm:-right-[88px] top-1/2 -translate-y-1/2'
-                    }`}
-                  >
-                    <ComicBidBubble
-                      val={latestBid.val}
-                      team={player.team}
-                      seatPosition={
-                        relPos === 1
-                          ? 'bottom-right'
-                          : relPos === 2
-                          ? 'top-right'
-                          : relPos === 3
-                          ? 'top-center'
-                          : relPos === 4
-                          ? 'top-left'
-                          : 'bottom-left'
-                      }
-                    />
-                  </div>
-                )}
+  useEffect(() => {
+    if (!roomCode) return;
 
-                {/* الحاوية المكبرة للأفاتار */}
-                <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
-                  
-                  {/* شارة المشتري / الملزوم بجانب صورة اللاعب خارج الطاولة */}
-                  {isBuyer && (
-                    <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
-                      {isForcedBid ? (
-                        <div
-                          className={`px-2.5 py-0.5 rounded-full bg-white flex items-center justify-center shadow-2xl transition-all whitespace-nowrap ${
-                            player.team === 'A'
-                              ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
-                              : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
-                          }`}
-                          title="الموزع ملزوم بـ 5"
-                        >
-                          <span className="font-black text-black text-[9px] xs:text-[10px] leading-none">
-                            ملزوم ⚡
-                          </span>
-                        </div>
-                      ) : (
-                        <div
-                          className={`w-7 h-7 xs:w-8 xs:h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white flex items-center justify-center shadow-2xl ${
-                            player.team === 'A'
-                              ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
-                              : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
-                          }`}
-                          title={`المشتري بـ ${highestBid}`}
-                        >
-                          <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none">
-                            {highestBid === 9 ? '👑' : highestBid}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+    const unsubscribe = roomSync.subscribeRoom(roomCode, (msg: RoomSyncMessage) => {
+      messageHandlerRef.current(msg);
+    });
 
-                  {/* علامة الموزع */}
-                  {isDealer && (
-                    <div
-                      className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-6.5 xs:h-6.5 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
-                      title="الموزع"
-                    >
-                      <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[9px] xs:text-[10px]">
-                        <span className="font-extrabold tracking-tighter">D</span>
-                        <span className="text-[8px] -mr-0.5">🃏</span>
-                      </div>
-                    </div>
-                  )}
+    return () => {
+      unsubscribe();
+    };
+  }, [roomCode]);
 
-                  {/* حلقة مؤقت النيون */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 52 52">
-                    <circle cx="26" cy="26" r="24" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
-                    {isTurn && !isTimerDisabled && (
-                      <circle
-                        className="timer-ring-neon"
-                        cx="26"
-                        cy="26"
-                        r="24"
-                        stroke={isCritical ? '#ef4444' : '#f59e0b'}
-                        strokeWidth="3.5"
-                        fill="none"
-                        style={{ strokeDashoffset: offset }}
-                      />
-                    )}
-                    {isTurn && isTimerDisabled && (
-                      <circle
-                        cx="26"
-                        cy="26"
-                        r="24"
-                        stroke="#f59e0b"
-                        strokeWidth="3.5"
-                        fill="none"
-                        className="animate-pulse"
-                      />
-                    )}
-                  </svg>
+  // Profile Save
+  const handleSaveProfileName = (newName: string) => {
+    setUserName(newName);
+    localStorage.setItem('kout_user_name', newName);
+    setSeats((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) copy[currentHumanSeatIndex].name = newName;
+      return copy;
+    });
+    setPlayers((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) copy[currentHumanSeatIndex].name = newName;
+      return copy;
+    });
+  };
 
-                  {/* دائرة الأفاتار */}
-                  <div
-                    className={`w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-full overflow-hidden border-2 ${
-                      isPartner ? 'border-blue-400' : 'border-rose-400'
-                    } bg-slate-950 shadow-md relative transition-all duration-300 ${
-                      isTurn ? (isCritical ? 'glow-turn-critical-red' : 'glow-turn-phosphor') : ''
-                    }`}
-                  >
-                    <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
-                  </div>
-                </div>
+  const handleSelectAvatar = (avId: string) => {
+    setUserAvatar(avId);
+    setUserCustomPhoto(null);
+    localStorage.setItem('kout_user_avatar', avId);
+    localStorage.removeItem('kout_custom_photo');
+    setSeats((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) {
+        copy[currentHumanSeatIndex].avatarId = avId;
+        copy[currentHumanSeatIndex].customPhoto = null;
+      }
+      return copy;
+    });
+    setPlayers((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) {
+        copy[currentHumanSeatIndex].avatarId = avId;
+        copy[currentHumanSeatIndex].customPhoto = null;
+      }
+      return copy;
+    });
+    showCallout('تم اختيار الشخصية!', '👤');
+  };
 
-                {/* كبسولة اسم اللاعب */}
-                <div className="jawaker-pill-badge px-1.5 xs:px-2 py-0.5 mt-0.5 max-w-[76px] xs:max-w-[86px] sm:max-w-[96px] truncate flex items-center justify-center">
-                  <span className="text-[8.5px] xs:text-[9.5px] font-bold text-white truncate">
-                    {player.name}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </main>
+  const handleUploadPhoto = (dataUrl: string) => {
+    setUserCustomPhoto(dataUrl);
+    localStorage.setItem('kout_custom_photo', dataUrl);
+    setSeats((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) copy[currentHumanSeatIndex].customPhoto = dataUrl;
+      return copy;
+    });
+    setPlayers((prev) => {
+      const copy = [...prev];
+      if (copy[currentHumanSeatIndex]) copy[currentHumanSeatIndex].customPhoto = dataUrl;
+      return copy;
+    });
+    showCallout('تم حفظ صورتك الشخصية!', '📷');
+  };
+
+  const handleOpenPrivateTable = () => {
+    setIsRoomHost(true);
+    setIsMultiplayerActive(true);
+    setCurrentHumanSeatIndex(0);
+    const freshVacantSeats = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
+    setSeats(freshVacantSeats);
+    setWaitingPlayers([]);
+    setLastSeatReserved(null);
+
+    roomSync.subscribeRoom(roomCode, (msg) => {
+      messageHandlerRef.current(msg);
+    });
+
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: deviceId,
+      seats: freshVacantSeats,
+      waitingPlayers: [],
+      vacantCount: 5,
+      timestamp: Date.now(),
+    });
+    setShowHostModal(true);
+    showCallout(`طاولتك الخاصة #${roomCode} (تحكم باللاعبين والمقاعد) 🚪`, '👥');
+  };
+
+  const handleAssignWaitingPlayerToSeat = (player: WaitingPlayer, seatIdx: number) => {
+    if (!isRoomHost) return;
+    const team: 'A' | 'B' = seatIdx % 2 === 0 ? 'A' : 'B';
+
+    let nextWaiting = waitingPlayers.filter((w) => w.clientId !== player.clientId);
+    const existingOccupant = seats[seatIdx];
+    if (existingOccupant && existingOccupant.isHuman && existingOccupant.name && seatIdx !== 0) {
+      nextWaiting.push({
+        clientId: existingOccupant.clientId || `seat_${seatIdx}_${Date.now()}`,
+        name: existingOccupant.name,
+        avatarId: existingOccupant.avatarId,
+        customPhoto: existingOccupant.customPhoto,
+        joinedAt: Date.now(),
+      });
+    }
+
+    const nextSeats = [...seats];
+    nextSeats[seatIdx] = {
+      id: seatIdx,
+      name: player.name,
+      team,
+      avatarId: player.avatarId || 'kuwaiti_shemagh_red',
+      customPhoto: player.customPhoto || null,
+      isHuman: true,
+      isVacant: false,
+      clientId: player.clientId,
+    };
+
+    setSeats(nextSeats);
+    setWaitingPlayers(nextWaiting);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: deviceId,
+      seats: nextSeats,
+      waitingPlayers: nextWaiting,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    soundEngine.playCardSlide();
+    const teamLabel = team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
+    showCallout(`تم تسكين ${player.name} في المقعد #${seatIdx + 1} (${teamLabel}) ✅`, '💺');
+  };
+
+  const handleMovePlayerToWaiting = (seatIdx: number) => {
+    if (!isRoomHost) return;
+    if (seatIdx === 0) {
+      showCallout('أنت المضيف ورئيس الطاولة، لا يمكن نقلك للانتظار!', '⚠️');
+      return;
+    }
+    const occupant = seats[seatIdx];
+    if (!occupant || occupant.isVacant) return;
+
+    let nextWaiting = [...waitingPlayers];
+    if (occupant.isHuman && occupant.name) {
+      if (!nextWaiting.some((w) => w.clientId === occupant.clientId)) {
+        nextWaiting.push({
+          clientId: occupant.clientId || `seat_${seatIdx}_${Date.now()}`,
+          name: occupant.name,
+          avatarId: occupant.avatarId,
+          customPhoto: occupant.customPhoto,
+          joinedAt: Date.now(),
+        });
+      }
+    }
+
+    const nextSeats = [...seats];
+    nextSeats[seatIdx] = {
+      ...nextSeats[seatIdx],
+      name: '',
+      customPhoto: null,
+      isHuman: false,
+      isVacant: true,
+      clientId: undefined,
+    };
+
+    setSeats(nextSeats);
+    setWaitingPlayers(nextWaiting);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: deviceId,
+      seats: nextSeats,
+      waitingPlayers: nextWaiting,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    showCallout(`تم نقل ${occupant.name || `المقعد #${seatIdx + 1}`} إلى قائمة الانتظار ⏳`, '⏳');
+  };
+
+  const handleSwapSeats = (idxA: number, idxB: number) => {
+    if (!isRoomHost) return;
+    if (idxA === idxB) return;
+
+    const nextSeats = [...seats];
+    const seatA = { ...nextSeats[idxA] };
+    const seatB = { ...nextSeats[idxB] };
+
+    nextSeats[idxA] = {
+      ...seatB,
+      id: idxA,
+      team: idxA % 2 === 0 ? 'A' : 'B',
+    };
+    nextSeats[idxB] = {
+      ...seatA,
+      id: idxB,
+      team: idxB % 2 === 0 ? 'A' : 'B',
+    };
+
+    if (currentHumanSeatIndex === idxA) {
+      setCurrentHumanSeatIndex(idxB);
+    } else if (currentHumanSeatIndex === idxB) {
+      setCurrentHumanSeatIndex(idxA);
+    }
+
+    setSeats(nextSeats);
+
+    const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: deviceId,
+      seats: nextSeats,
+      waitingPlayers,
+      vacantCount: vCount,
+      timestamp: Date.now(),
+    });
+
+    soundEngine.playCardSlide();
+    showCallout(`تم تبديل المقعدين #${idxA + 1} و #${idxB + 1} 🔄`, '🔄');
+  };
+
+  const handleSitInSeat = (targetIdx: number) => {
+    if (targetIdx === currentHumanSeatIndex) return;
+    const oldIdx = currentHumanSeatIndex;
+
+    setSeats((prev) => {
+      const next = [...prev];
+      next[targetIdx] = {
+        ...next[targetIdx],
+        name: userName,
+        avatarId: userAvatar,
+        customPhoto: userCustomPhoto,
+        isHuman: true,
+        isVacant: false,
+        clientId: deviceId,
+        team: targetIdx % 2 === 0 ? 'A' : 'B',
+      };
+      if (oldIdx >= 0) {
+        next[oldIdx] = {
+          ...next[oldIdx],
+          name: '',
+          avatarId: DEFAULT_BOT_PROFILES[oldIdx]?.avatarId || 'kuwaiti_ghutra_white',
+          customPhoto: null,
+          isHuman: false,
+          isVacant: true,
+          clientId: undefined,
+          team: oldIdx % 2 === 0 ? 'A' : 'B',
+        };
+      }
+
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        waitingPlayers,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+
+      return next;
+    });
+
+    setCurrentHumanSeatIndex(targetIdx);
+  };
+
+  const handleConvertToBot = (idx: number) => {
+    if (idx === currentHumanSeatIndex) {
+      showCallout('لا يمكنك تحويل مقعدك إلى بوت!', '⚠️');
+      return;
+    }
+    setSeats((prev) => {
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
+        avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+        customPhoto: null,
+        isHuman: false,
+        isVacant: false,
+        clientId: undefined,
+      };
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+      return next;
+    });
+    soundEngine.playCardSlide();
+    showCallout(`تم تحويل المقعد #${idx} إلى بوت 🤖`, '🤖');
+  };
+
+  const handleVacateSeatDirect = (idx: number) => {
+    if (idx === currentHumanSeatIndex) {
+      showCallout('لا يمكنك تفريغ مقعدك الحالي!', '⚠️');
+      return;
+    }
+    setSeats((prev) => {
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        name: '',
+        customPhoto: null,
+        isHuman: false,
+        isVacant: true,
+        clientId: undefined,
+      };
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+      return next;
+    });
+    showCallout(`أصبح المقعد #${idx} شاغراً ⏳`, '⏳');
+  };
+
+  const handleFillAllWithBots = () => {
+    setSeats((prev) => {
+      const next = prev.map((seat, idx) => {
+        if (idx === currentHumanSeatIndex) return seat;
+        if (seat.isVacant || !seat.name || seat.name.trim() === '') {
+          return {
+            ...seat,
+            name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
+            avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+            customPhoto: null,
+            isHuman: false,
+            isVacant: false,
+            clientId: undefined,
+          };
+        }
+        return seat;
+      });
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        vacantCount: 0,
+        timestamp: Date.now(),
+      });
+      return next;
+    });
+    soundEngine.playCardSlide();
+    showCallout('تم ملء الشواغر ببوتات ذكية 🤖', '🤖');
+  };
+
+  const handleVacateAllSeats = () => {
+    setSeats((prev) => {
+      const next = prev.map((seat, idx) => {
+        if (idx === currentHumanSeatIndex) return seat;
+        return {
+          ...seat,
+          name: '',
+          customPhoto: null,
+          isHuman: false,
+          isVacant: true,
+          clientId: undefined,
+        };
+      });
+      const vCount = next.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+      roomSync.publish({
+        type: 'ROOM_STATE',
+        roomCode,
+        senderId: deviceId,
+        seats: next,
+        vacantCount: vCount,
+        timestamp: Date.now(),
+      });
+      return next;
+    });
+    showCallout('تم إفراغ جميع المقاعد ⏳', '⏳');
+  };
+
+  const handleSaveSeatDetails = (updated: Partial<SeatConfig>) => {
+    if (editingSeatIndex === null) return;
+    setSeats((prev) => {
+      const next = [...prev];
+      next[editingSeatIndex] = {
+        ...next[editingSeatIndex],
+        ...updated,
+      };
+      return next;
+    });
+    setEditingSeatIndex(null);
+    showCallout('تم حفظ بيانات المقعد!', '✅');
+  };
+
+  const handleVacateSeat = () => {
+    if (editingSeatIndex === null) return;
+    if (editingSeatIndex === currentHumanSeatIndex) {
+      showCallout('لا يمكنك تفريغ مقعدك الحالي!', '⚠️');
+      return;
+    }
+    setSeats((prev) => {
+      const next = [...prev];
+      next[editingSeatIndex] = {
+        ...next[editingSeatIndex],
+        isVacant: true,
+        name: '',
+        customPhoto: null,
+        isHuman: false,
+        clientId: undefined,
+      };
+      return next;
+    });
+    setEditingSeatIndex(null);
+    showCallout('تم جعل المقعد شاغراً', '🔄');
+  };
+
+  const handleSetAutoScreen = () => {
+    document.body.classList.remove('forced-landscape-mode');
+    setShowScreenModal(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    showCallout('وضع الشاشة: تلقائي 🔄', '🔄');
+  };
+
+  const handleSetLandscapeScreen = () => {
+    setShowScreenModal(false);
+    const isPortrait = window.innerHeight > window.innerWidth;
+    if (isPortrait) {
+      document.body.classList.add('forced-landscape-mode');
+    } else {
+      document.body.classList.remove('forced-landscape-mode');
+    }
+    showCallout('تم تحويل العرض إلى الوضع الأفقي 📱', '🖥️');
+  };
+
+  const handleToggleFullscreen = () => {
+    setShowScreenModal(false);
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {
+        showCallout('تثبيت التطبيق مطلوب لملء الشاشة', '📲');
+      });
+      showCallout('ملء الشاشة ⛶', '⛶');
+    } else {
+      document.exitFullscreen().catch(() => {});
+      showCallout('إلغاء ملء الشاشة 🔲', '🔲');
+    }
+  };
+
+  return (
+    <div id="gameMainWrapper" className="h-[100dvh] max-h-[100dvh] w-full max-w-full flex flex-col justify-between select-none overflow-hidden safe-top safe-bottom relative">
+      
+      {/* 0. Main Lobby Screen */}
+      {phase === 'LOBBY' && (
+        <LobbyScreen
+          userName={userName}
+          avatarId={userAvatar}
+          customPhoto={userCustomPhoto}
+          soundEnabled={soundEnabled}
+          onFastPlay={() => {
+            soundEngine.init();
+            soundEngine.playCardSlide();
+            const stdSeats = JSON.parse(JSON.stringify(DEFAULT_SEATS));
+            stdSeats[0].name = userName;
+            stdSeats[0].avatarId = userAvatar;
+            stdSeats[0].customPhoto = userCustomPhoto;
+            stdSeats[0].clientId = deviceId;
+            setSeats(stdSeats);
+            setCurrentHumanSeatIndex(0);
+            setIsRoomHost(true);
+            startNewMatch();
+          }}
+          onOpenHostTable={() => {
+            setIsRoomHost(true);
+            handleOpenPrivateTable();
+          }}
+          onJoinRoomCode={(code) => {
+            handleJoinRoomWaiting(code);
+          }}
+          onOpenProfile={() => setShowProfileModal(true)}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenInstallModal={handleOpenInstall}
+          onExitApp={() => setShowExitConfirm(true)}
+        />
+      )}
+
+      {/* 1. Main Game Table Screen */}
+      {phase !== 'LOBBY' && (
+        <>
+          <ScoreBoard
+            scoreTeamA={matchScoreTeamA}
+            scoreTeamB={matchScoreTeamB}
+            tricksTeamA={tricksTeamA}
+            tricksTeamB={tricksTeamB}
+            highestBid={highestBid}
+            bidWinner={bidWinner}
+            isForcedBid={isForcedBid}
+            trumpColor={trumpColor}
+            players={players}
+            roomCode={roomCode}
+            soundEnabled={soundEnabled}
+            onToggleSound={toggleSound}
+            onOpenProfile={() => setShowProfileModal(true)}
+            onOpenRooms={() => setShowRoomsModal(true)}
+            onOpenRules={() => setShowRulesModal(true)}
+            onOpenScreenModal={() => setShowScreenModal(true)}
+            onOpenSettings={() => setShowSettingsModal(true)}
+            onReturnToLobby={() => {
+              stopTimer();
+              setPhase('LOBBY');
+            }}
+            onExitGame={() => setShowExitConfirm(true)}
+          />
+
+          <TableArena
+            players={players}
+            humanSeatIndex={currentHumanSeatIndex}
+            currentTrick={currentTrick}
+            trumpColor={trumpColor}
+            highestBid={highestBid}
+            bidWinner={bidWinner}
+            isForcedBid={isForcedBid}
+            biddingHistory={biddingHistory}
+            currentTurn={currentTurn}
+            timerRemaining={timerRemaining}
+            phase={phase}
+            callout={callout}
+            collectingWinnerId={collectingWinnerId}
+            dealerIdx={dealerIdx}
+            isBaoonPendingTrump={highestBid === 9 && trumpColor === null}
+            isTimerDisabled={isAllHumanGame}
+          />
+
+          <PlayerHand
+            player={players[currentHumanSeatIndex] || players[0]}
+            currentTurn={currentTurn}
+            phase={phase}
+            isActionPending={isActionPending}
+            currentTrick={currentTrick}
+            trumpColor={trumpColor}
+            highestBid={highestBid}
+            bidWinner={bidWinner}
+            isForcedBid={isForcedBid}
+            timerRemaining={timerRemaining}
+            onCardClick={handleHumanCardClick}
+            onSendPhrase={showCallout}
+            dealerIdx={dealerIdx}
+            isTimerDisabled={isAllHumanGame}
+          />
+        </>
+      )}
+
+      {/* Bidding Modal for Human player */}
+      {phase === 'BIDDING' && currentTurn === currentHumanSeatIndex && (
+        <BiddingModal
+          step="BID"
+          highestBid={highestBid}
+          bidWinner={bidWinner}
+          players={players}
+          onBid={(val, forced) => submitBid(currentHumanSeatIndex, val, forced)}
+          onPass={() => submitBid(currentHumanSeatIndex, 0, false)}
+          onPickTrump={(col) => chooseTrumpColor(col, currentHumanSeatIndex)}
+          isDealer={currentHumanSeatIndex === dealerIdx}
+          noBidsYet={highestBid <= 4 && biddingHistory.every((b) => b.val === 0)}
+        />
+      )}
+
+      {/* Trump Selection for Human winner */}
+      {phase === 'CHOOSE_TRUMP' && ((bidWinner === currentHumanSeatIndex) || (isForcedBid && dealerIdx === currentHumanSeatIndex)) && (
+        <BiddingModal
+          step="TRUMP"
+          highestBid={highestBid}
+          bidWinner={bidWinner}
+          players={players}
+          onBid={() => {}}
+          onPass={() => {}}
+          onPickTrump={(col) => chooseTrumpColor(col, currentHumanSeatIndex)}
+        />
+      )}
+
+      {/* Round Result Modal */}
+      {phase === 'ROUND_END' && roundResult && (
+        <RoundResultModal
+          buyerWinner={roundResult.buyerWinner}
+          bidWinner={roundResult.bidWinner}
+          highestBid={roundResult.highestBid}
+          isForcedBid={roundResult.isForcedBid}
+          tricksTeamA={tricksTeamA}
+          tricksTeamB={tricksTeamB}
+          matchScoreTeamA={matchScoreTeamA}
+          matchScoreTeamB={matchScoreTeamB}
+          roundNumber={roundNumber}
+          players={players}
+          humanSeatIndex={currentHumanSeatIndex}
+          onNextRound={handleNextRoundOrMatch}
+          onReturnToLobby={() => {
+            stopTimer();
+            setPhase('LOBBY');
+          }}
+        />
+      )}
+
+      {/* Host Friends & Custom Table Modal */}
+      {showHostModal && (
+        <HostTableModal
+          roomCode={roomCode}
+          seats={seats}
+          currentHumanSeatIndex={currentHumanSeatIndex}
+          isHost={isRoomHost}
+          waitingPlayers={waitingPlayers}
+          lastSeatReserved={lastSeatReserved}
+          isMatchOngoing={phase !== 'LOBBY'}
+          onRegenerateCode={() => {
+            const nextCode = String(Math.floor(1000 + Math.random() * 9000));
+            setRoomCode(nextCode);
+            setIsRoomHost(true);
+            setIsMultiplayerActive(true);
+            setLastSeatReserved(null);
+            setCurrentHumanSeatIndex(0);
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
+            setSeats(freshVacant);
+            setWaitingPlayers([]);
+
+            roomSync.subscribeRoom(nextCode, (msg) => {
+              messageHandlerRef.current(msg);
+            });
+
+            roomSync.publish({
+              type: 'ROOM_STATE',
+              roomCode: nextCode,
+              senderId: deviceId,
+              seats: freshVacant,
+              waitingPlayers: [],
+              vacantCount: 5,
+              timestamp: Date.now(),
+            });
+            showCallout(`غرفة جديدة #${nextCode} (5 مقاعد شاغرة) 🔄`, '🔄');
+          }}
+          onSitInSeat={handleSitInSeat}
+          onAssignWaitingPlayerToSeat={handleAssignWaitingPlayerToSeat}
+          onMovePlayerToWaiting={handleMovePlayerToWaiting}
+          onSwapSeats={handleSwapSeats}
+          onConvertToBot={handleConvertToBot}
+          onVacateSeat={handleVacateSeatDirect}
+          onFillAllWithBots={handleFillAllWithBots}
+          onVacateAllSeats={handleVacateAllSeats}
+          onEditSeat={(idx) => setEditingSeatIndex(idx)}
+          onStartGame={() => {
+            const finalFilledSeats = seats.map((seat, idx) => {
+              if (seat.isVacant || !seat.name || seat.name.trim() === '') {
+                return {
+                  ...seat,
+                  name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
+                  avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+                  customPhoto: null,
+                  isHuman: false,
+                  isVacant: false,
+                };
+              }
+              return seat;
+            });
+            setSeats(finalFilledSeats);
+            setShowHostModal(false);
+            soundEngine.init();
+            soundEngine.playCardSlide();
+
+            const sharedDeck = buildDeck();
+            const randDealer = Math.floor(Math.random() * 6);
+
+            setIsMultiplayerActive(true);
+            setMatchScoreTeamA(0);
+            setMatchScoreTeamB(0);
+            setRoundNumber(1);
+            setDealerIdx(randDealer);
+            const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+            setCurrentDealingTeam(initialDealingTeam);
+            if (randDealer % 2 === 0) {
+              setLastDealerTeamA(randDealer);
+              setLastDealerTeamB(5);
+            } else {
+              setLastDealerTeamB(randDealer);
+              setLastDealerTeamA(4);
+            }
+
+            roomSync.publish({
+              type: 'START_GAME',
+              roomCode,
+              senderId: deviceId,
+              seats: finalFilledSeats,
+              deck: sharedDeck,
+              dealerIdx: randDealer,
+              roundNumber: 1,
+              scores: { a: 0, b: 0 },
+              timestamp: Date.now(),
+            });
+
+            startNewRound(sharedDeck, randDealer, finalFilledSeats);
+            showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
+          }}
+          onClose={() => setShowHostModal(false)}
+        />
+      )}
+
+      {/* Waiting Lobby for players who joined via 4-digit code */}
+      {isMultiplayerActive && !isRoomHost && phase === 'LOBBY' && (
+        <WaitingLobbyModal
+          roomCode={roomCode}
+          seats={seats}
+          waitingPlayers={waitingPlayers}
+          myClientId={deviceId}
+          myName={userName}
+          myAvatarId={userAvatar}
+          myCustomPhoto={userCustomPhoto}
+          onLeaveRoom={handleLeaveRoom}
+        />
+      )}
+
+      {/* Edit Seat Modal */}
+      {editingSeatIndex !== null && seats[editingSeatIndex] && (
+        <EditSeatModal
+          seat={seats[editingSeatIndex]}
+          isMyCurrentSeat={editingSeatIndex === currentHumanSeatIndex}
+          onSaveSeat={handleSaveSeatDetails}
+          onVacateSeat={handleVacateSeat}
+          onClose={() => setEditingSeatIndex(null)}
+        />
+      )}
+
+      {/* Profile & Avatar Modal */}
+      {showProfileModal && (
+        <ProfileModal
+          currentName={userName}
+          currentAvatarId={userAvatar}
+          onSaveName={handleSaveProfileName}
+          onSelectAvatar={handleSelectAvatar}
+          onUploadCustomPhoto={handleUploadPhoto}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
+
+      {/* Rules Guide Modal */}
+      {showRulesModal && <RulesModal onClose={() => setShowRulesModal(false)} />}
+
+      {/* Install App Modal */}
+      {showInstallModal && (
+        <InstallModal
+          isInstallable={isInstallable}
+          onNativeInstall={triggerPWAInstall}
+          onClose={() => setShowInstallModal(false)}
+        />
+      )}
+
+      {/* Screen Orientation / Fullscreen Modal */}
+      {showScreenModal && (
+        <ScreenModeModal
+          onSetAuto={handleSetAutoScreen}
+          onSetLandscape={handleSetLandscapeScreen}
+          onToggleFullscreen={handleToggleFullscreen}
+          onClose={() => setShowScreenModal(false)}
+        />
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
+          onOpenProfile={() => setShowProfileModal(true)}
+          onOpenRules={() => setShowRulesModal(true)}
+          onOpenScreenModal={() => setShowScreenModal(true)}
+          onClose={() => setShowSettingsModal(false)}
+        />
+      )}
+
+      {/* Rooms Modal */}
+      {showRoomsModal && (
+        <RoomsModal
+          currentRoomCode={roomCode}
+          onGenerateNewRoom={() => {
+            const nextCode = String(Math.floor(1000 + Math.random() * 9000));
+            setRoomCode(nextCode);
+            setIsRoomHost(true);
+            setIsMultiplayerActive(true);
+            setCurrentHumanSeatIndex(0);
+            const freshVacant = createVacantPrivateSeats(userName, userAvatar, userCustomPhoto, deviceId);
+            setSeats(freshVacant);
+            setWaitingPlayers([]);
+            roomSync.subscribeRoom(nextCode, (msg) => {
+              messageHandlerRef.current(msg);
+            });
+            setShowRoomsModal(false);
+            setShowHostModal(true);
+            showCallout(`طاولتك برمز #${nextCode} (5 مقاعد شاغرة)`, '🚪');
+          }}
+          onJoinRoom={(code) => {
+            setShowRoomsModal(false);
+            handleJoinRoomWaiting(code);
+          }}
+          onClose={() => setShowRoomsModal(false)}
+        />
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <ExitConfirmModal
+          onConfirm={() => {
+            setShowExitConfirm(false);
+            stopTimer();
+            setPhase('LOBBY');
+            showCallout('القائمة الرئيسية', '👋');
+          }}
+          onCancel={() => setShowExitConfirm(false)}
+        />
+      )}
+    </div>
   );
-};
+}
