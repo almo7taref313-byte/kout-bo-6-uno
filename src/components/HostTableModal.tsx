@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SeatConfig, WaitingPlayer } from '../types';
 import { AvatarView } from '../utils/avatars';
-import { roomSync } from '../utils/roomSync';
+import { roomSync, RoomSyncMessage } from '../utils/roomSync';
 
 interface HostTableModalProps {
   roomCode: string;
@@ -62,6 +62,45 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   useEffect(() => {
     return roomSync.subscribeConnection((conn) => setIsConnected(conn));
   }, []);
+
+  // بث حالة الغرفة والمقاعد الحالية لجميع الأجهزة المتصلة
+  const broadcastCurrentRoomState = useCallback(() => {
+    if (!roomCode) return;
+    const filledCount = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '').length;
+    roomSync.publish({
+      type: 'ROOM_STATE',
+      roomCode,
+      senderId: roomSync.myClientId,
+      seats,
+      waitingPlayers,
+      vacantCount: 6 - filledCount,
+      timestamp: Date.now(),
+    });
+  }, [roomCode, seats, waitingPlayers]);
+
+  // الرد الفوري على أي جهاز يطلب المزامنة (SYNC_REQUEST)
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = roomSync.subscribeRoom(roomCode, (msg: RoomSyncMessage) => {
+      if (msg.type === 'SYNC_REQUEST' && msg.senderId !== roomSync.myClientId) {
+        broadcastCurrentRoomState();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, broadcastCurrentRoomState]);
+
+  // بث دوري ومباشر لحالة المقاعد لتحديث شاشات الهواتف فوراً
+  useEffect(() => {
+    broadcastCurrentRoomState();
+
+    const syncInterval = setInterval(() => {
+      broadcastCurrentRoomState();
+    }, 2000);
+
+    return () => clearInterval(syncInterval);
+  }, [broadcastCurrentRoomState]);
 
   const filledSeats = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '');
   const isComplete = filledSeats.length === 6;
@@ -162,7 +201,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </div>
           ) : isVacant ? (
             <>
-              {/* If there are waiting players, direct button to assign one */}
               {waitingPlayers.length > 0 ? (
                 <button
                   onClick={() => setActivePickForSeatIdx(activePickForSeatIdx === idx ? null : idx)}
@@ -174,7 +212,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                 </button>
               ) : null}
 
-              {/* Quick bot or manual seat button */}
               <div className="grid grid-cols-2 gap-1 w-full">
                 <button
                   onClick={() => onConvertToBot(idx)}
@@ -192,7 +229,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                 </button>
               </div>
 
-              {/* Waiting player picker popup for this seat */}
               {activePickForSeatIdx === idx && waitingPlayers.length > 0 && (
                 <div className="bg-slate-900 border border-emerald-400 rounded-xl p-1.5 flex flex-col gap-1 text-right mt-1 shadow-xl">
                   <span className="text-[8px] font-black text-emerald-300">اختر لاعباً لتسكينه:</span>
@@ -219,7 +255,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </>
           ) : (
             <>
-              {/* Host actions on filled seat */}
               <div className="flex flex-col gap-1 w-full">
                 {seat.isHuman ? (
                   <div className="grid grid-cols-2 gap-1 w-full">
@@ -257,7 +292,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                   </div>
                 )}
 
-                {/* Seat Swap Target Picker */}
                 {activeSwapSeatIdx === idx && (
                   <div className="bg-slate-900 border border-indigo-400 rounded-xl p-1.5 flex flex-col gap-1 text-right mt-1 shadow-xl">
                     <span className="text-[8px] font-black text-indigo-300">انقل / بدّل مع:</span>
@@ -281,7 +315,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                   </div>
                 )}
 
-                {/* Replace Bot with Waiting Player Picker */}
                 {activePickForSeatIdx === idx && waitingPlayers.length > 0 && (
                   <div className="bg-slate-900 border border-emerald-400 rounded-xl p-1.5 flex flex-col gap-1 text-right mt-1 shadow-xl">
                     <span className="text-[8px] font-black text-emerald-300">اختر لاعباً ليحل مكان البوت:</span>
@@ -382,7 +415,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
           </div>
         </div>
 
-        {/* Waiting Players Queue Section (قائمة الانتظار للمنضمين) */}
+        {/* Waiting Players Queue Section */}
         <div className="bg-slate-950/90 border-2 border-indigo-500/40 rounded-2xl p-2.5 text-right shadow-inner">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80 mb-2">
             <div className="flex items-center gap-1.5">
@@ -431,7 +464,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                       </button>
                     </div>
 
-                    {/* Quick Seat Selector for this waiting player */}
+                    {/* Quick Seat Selector */}
                     {isPicking && (
                       <div className="mt-2 pt-2 border-t border-slate-800 flex flex-col gap-1.5 animate-fadeIn">
                         <span className="text-[10px] font-black text-amber-300">
@@ -528,9 +561,9 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
           </div>
         </div>
 
-        {/* 6 Seats Table Display Grouped by Team */}
+        {/* 6 Seats Table Display */}
         <div className="space-y-2">
-          {/* 🔵 الفريق الأزرق (مقاعد 1، 3، 5 - index 0, 2, 4) */}
+          {/* Team Blue */}
           <div className="p-2 rounded-xl bg-blue-950/40 border-2 border-blue-500/40 text-right">
             <div className="flex items-center justify-between text-xs font-black text-blue-400 mb-1.5 px-1">
               <span className="flex items-center gap-1">
@@ -546,7 +579,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </div>
           </div>
 
-          {/* 🔴 الفريق الأحمر (مقاعد 2، 4، 6 - index 1, 3, 5) */}
+          {/* Team Red */}
           <div className="p-2 rounded-xl bg-rose-950/40 border-2 border-rose-500/40 text-right">
             <div className="flex items-center justify-between text-xs font-black text-rose-400 mb-1.5 px-1">
               <span className="flex items-center gap-1">
