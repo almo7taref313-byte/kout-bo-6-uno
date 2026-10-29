@@ -204,6 +204,113 @@ class SoundEngineClass {
       osc.stop(now + idx * 0.07 + 0.22);
     });
   }
+
+  // صوت التصفيق والتصفير التشويقي عند فوز الحاكم
+  playCheeringAndWhistle() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 1. تصفير تشويقي صاعد ونازل
+    const osc = this.ctx.createOscillator();
+    const oscGain = this.ctx.createGain();
+    osc.type = 'sine';
+
+    osc.frequency.setValueAtTime(950, now);
+    osc.frequency.exponentialRampToValueAtTime(2100, now + 0.25);
+    osc.frequency.exponentialRampToValueAtTime(1450, now + 0.45);
+    osc.frequency.exponentialRampToValueAtTime(2350, now + 0.8);
+
+    oscGain.gain.setValueAtTime(0.001, now);
+    oscGain.gain.linearRampToValueAtTime(0.2, now + 0.08);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+
+    osc.connect(oscGain);
+    oscGain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 1.1);
+
+    // 2. تصفيق جماعي حماسي متكرر
+    for (let i = 0; i < 18; i++) {
+      if (!this.ctx) return;
+      const clapTime = now + 0.05 + i * 0.07 + Math.random() * 0.03;
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.045);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let j = 0; j < bufferSize; j++) {
+        data[j] = Math.random() * 2 - 1;
+      }
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1150 + Math.random() * 500;
+      filter.Q.value = 1.2;
+
+      const clapGain = this.ctx.createGain();
+      clapGain.gain.setValueAtTime(0.18, clapTime);
+      clapGain.gain.exponentialRampToValueAtTime(0.001, clapTime + 0.045);
+
+      noise.connect(filter);
+      filter.connect(clapGain);
+      clapGain.connect(this.ctx.destination);
+
+      noise.start(clapTime);
+      noise.stop(clapTime + 0.045);
+    }
+  }
+
+  // نغمة حزينة استهزائية ساخرة عند خسارة الحاكم (Sad Trombone)
+  playSadTromboneMock() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const notes = [
+      { freq: 311.13, duration: 0.32, vibrato: true },
+      { freq: 293.66, duration: 0.32, vibrato: true },
+      { freq: 277.18, duration: 0.32, vibrato: true },
+      { freq: 246.94, duration: 0.85, slideDown: true },
+    ];
+
+    let start = now + 0.05;
+    notes.forEach((note) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(note.freq, start);
+
+      if (note.slideDown) {
+        osc.frequency.exponentialRampToValueAtTime(140, start + note.duration);
+      } else if (note.vibrato) {
+        osc.frequency.linearRampToValueAtTime(note.freq + 6, start + note.duration * 0.5);
+        osc.frequency.linearRampToValueAtTime(note.freq - 6, start + note.duration);
+      }
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(700, start);
+      filter.frequency.linearRampToValueAtTime(320, start + note.duration);
+
+      gain.gain.setValueAtTime(0.24, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + note.duration);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(start);
+      osc.stop(start + note.duration);
+
+      start += note.duration + 0.06;
+    });
+  }
 }
 
 export const soundEngine = new SoundEngineClass();
