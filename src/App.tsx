@@ -367,7 +367,7 @@ export default function App() {
       setIsRoomHost(false);
       setIsMultiplayerActive(true);
       setShowHostModal(false);
-      setCurrentHumanSeatIndex(-1); // جعل المقعد غير معين فور الدخول حتى يسكّنه المضيف
+      setCurrentHumanSeatIndex(-1);
 
       roomSync.subscribeRoom(code, (msg) => {
         messageHandlerRef.current(msg);
@@ -796,17 +796,20 @@ export default function App() {
         });
       }
 
+      // عند اكتمال الأوراق الست للأكلة
       if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
+        // مهلة 400ms ليرى الجميع الكرت الأخير بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
-          setCollectingWinnerId(winnerId);
+          setCollectingWinnerId(winnerId); // تبدأ حركة الانزلاق الهادئة
 
+          // انتظار 800ms كاملة لضمان وصول واستقرار الأوراق في مقعد الفائز قبل تفريغها
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
-          }, 600);
+          }, 800);
         }, 400);
       } else {
         const nextTurn = (playerId + 1) % 6;
@@ -1033,25 +1036,22 @@ export default function App() {
     }
   };
 
-  // معالج رسائل المزامنة الصارم والدقيق
+  // معالج رسائل المزامنة
   messageHandlerRef.current = (msg: RoomSyncMessage) => {
     if (msg.senderId === deviceId || msg.senderId === roomSync.myClientId) return;
 
     switch (msg.type) {
       case 'JOIN_REQUEST': {
-        // التحقق الدقيق: هل أنا المضيف؟
         const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
         if (amIHost) {
           const joinerId = msg.player?.clientId || msg.senderId;
           if (!joinerId) return;
 
-          // التحقق الصارم بالمعرف: هل هو جالس بالفعل في مقعد؟
           const isSeated = seats.some((s) => !s.isVacant && s.clientId === joinerId);
 
           if (!isSeated) {
             let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
             
-            // إذا كان اسم المنضم مطابقاً لاسم المضيف، نميّزه حتى يعرف المضيف من هو
             if (joinerName === userName) {
               joinerName = `لاعب (هاتف)`;
             }
@@ -1078,7 +1078,6 @@ export default function App() {
 
               const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
               
-              // الرد الفوري بإرسال حالة الغرفة المحدثة
               roomSync.publish({
                 type: 'ROOM_STATE',
                 roomCode,
@@ -1103,7 +1102,6 @@ export default function App() {
         if (msg.seats) {
           setSeats(msg.seats);
 
-          // إذا لم أكن المضيف، أتحقق بالمعرف فقط هل تم تسكيني في مقعد
           if (!isRoomHost) {
             const myAssignedIdx = msg.seats.findIndex(
               (s) => !s.isVacant && s.clientId && (s.clientId === deviceId || s.clientId === roomSync.myClientId)
@@ -1117,7 +1115,6 @@ export default function App() {
                 soundEngine.playCardSlide();
               }
             } else {
-              // إذا لم يتم تسكيني بعد، مقعدي يظل غير معين
               setCurrentHumanSeatIndex(-1);
             }
           }
