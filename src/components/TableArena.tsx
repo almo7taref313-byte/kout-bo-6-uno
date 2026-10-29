@@ -71,6 +71,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
   const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
   const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
+  const isHumanBuyer = bidWinner === humanSeatIndex && highestBid > 4;
+  const humanPlayer = players[humanSeatIndex];
 
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-1 xs:px-2 py-0.5 sm:py-2 relative overflow-hidden">
@@ -218,6 +220,41 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
+        {/* شارة اللاعب البشري (أنت) بالأسفل خارج الطاولة */}
+        {isHumanBuyer && humanPlayer && (
+          <div className="absolute bottom-1 right-3 xs:right-5 z-40 pointer-events-none select-none animate-bounce">
+            {isForcedBid ? (
+              // كبسولة بيضاء محددة بلون الفريق لكلمة ملزوم
+              <div
+                className={`px-3 py-1 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
+                  humanPlayer.team === 'A'
+                    ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
+                    : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
+                }`}
+                title="أنت ملزوم بـ 5"
+              >
+                <span className="font-black text-black text-xs xs:text-sm leading-none whitespace-nowrap">
+                  ملزوم ⚡
+                </span>
+              </div>
+            ) : (
+              // دائرة بيضاء للمشتري بمزايدة عادية
+              <div
+                className={`w-8 h-8 xs:w-9 xs:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-2xl ${
+                  humanPlayer.team === 'A'
+                    ? 'border-[3px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/50'
+                    : 'border-[3px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/50'
+                }`}
+                title={`أنت المشتري بـ ${highestBid}`}
+              >
+                <span className="font-mono font-black text-black text-sm xs:text-base leading-none">
+                  {highestBid === 9 ? '👑' : highestBid}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* مقاعد اللاعبين الخمسة الأخرى حول حافة الطاولة */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
@@ -244,14 +281,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
           else if (relPos === 4) posClass = 'top-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           else if (relPos === 5) posClass = 'bottom-[22%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
-          // تحديد موقع علامة الأكلات إلى جانب صورة اللاعب خارج الطاولة
+          // تحديد موقع الشارة إلى جانب صورة اللاعب خارج الطاولة تماماً
           let targetBadgePosClass = '';
           if (relPos === 1 || relPos === 2) {
-            targetBadgePosClass = '-right-7 xs:-right-8 top-1/2 -translate-y-1/2'; // خارج الطاولة يميناً
+            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2'; // خارج الطاولة يميناً
           } else if (relPos === 4 || relPos === 5) {
-            targetBadgePosClass = '-left-7 xs:-left-8 top-1/2 -translate-y-1/2';   // خارج الطاولة يساراً
+            targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';   // خارج الطاولة يساراً
           } else if (relPos === 3) {
-            targetBadgePosClass = '-top-7 left-1/2 -translate-x-1/2';              // خارج الطاولة للأعلى
+            targetBadgePosClass = '-top-8 left-1/2 -translate-x-1/2';              // خارج الطاولة للأعلى
           }
 
           const circumference = 150.8;
@@ -292,33 +329,41 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 )}
 
-                {/* الصورة الرمزية ومؤقت الدور - تم تكبير الحاوية من أجل وضوح وجه اللاعب */}
+                {/* الحاوية المكبرة للأفاتار */}
                 <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
                   
-                  {/* علامة عدد الأكلات: دائرة بيضاء ورقم واضح ومحيط بلون الفريق بجانب الصورة خارج الطاولة */}
+                  {/* شارة المشتري / الملزوم بجانب صورة اللاعب خارج الطاولة */}
                   {isBuyer && (
-                    <div
-                      className={`absolute ${targetBadgePosClass} z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
-                        player.team === 'A'
-                          ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
-                          : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
-                      }`}
-                      title={`المشتري بـ ${highestBid}`}
-                    >
-                      <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none">
-                        {highestBid === 9 ? '👑' : highestBid}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* كلمة "ملزوم" واضحة عند صورة الموزع الملزوم */}
-                  {isBuyer && isForcedBid && (
-                    <div
-                      className="absolute -top-5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-[8px] xs:text-[9px] px-2 py-0.2 rounded-full border border-yellow-200 shadow-xl shadow-amber-500/50 select-none animate-pulse flex items-center gap-0.5"
-                      title="الموزع ملزوم"
-                    >
-                      <span>ملزوم</span>
-                      <span className="text-[7.5px]">⚡</span>
+                    <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
+                      {isForcedBid ? (
+                        // كبسولة بيضاء محددة بإطار ولون الفريق لكلمة "ملزوم ⚡"
+                        <div
+                          className={`px-2.5 py-0.5 rounded-full bg-white flex items-center justify-center shadow-2xl transition-all whitespace-nowrap ${
+                            player.team === 'A'
+                              ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
+                              : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
+                          }`}
+                          title="الموزع ملزوم بـ 5"
+                        >
+                          <span className="font-black text-black text-[9px] xs:text-[10px] leading-none">
+                            ملزوم ⚡
+                          </span>
+                        </div>
+                      ) : (
+                        // الدائرة البيضاء لرقم المزايدة العادية
+                        <div
+                          className={`w-7 h-7 xs:w-8 xs:h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white flex items-center justify-center shadow-2xl ${
+                            player.team === 'A'
+                              ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
+                              : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
+                          }`}
+                          title={`المشتري بـ ${highestBid}`}
+                        >
+                          <span className="font-mono font-black text-black text-xs xs:text-sm sm:text-base leading-none">
+                            {highestBid === 9 ? '👑' : highestBid}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -335,7 +380,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* حلقة مؤقت النيون المكبرة لتناسب أبعاد الصورة الجديدة */}
+                  {/* حلقة مؤقت النيون */}
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 52 52">
                     <circle cx="26" cy="26" r="24" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
                     {isTurn && !isTimerDisabled && (
@@ -363,7 +408,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     )}
                   </svg>
 
-                  {/* دائرة الأفاتار المكبرة */}
+                  {/* دائرة الأفاتار */}
                   <div
                     className={`w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-full overflow-hidden border-2 ${
                       isPartner ? 'border-blue-400' : 'border-rose-400'
