@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// 1. مواقع استقرار الكروت أثناء الرمي (معدلة لمنع انقلاب الكروت وفصل كروت الأطراف تماماً)
+// 1. مواقع استقرار الكروت أثناء الرمي (قريبة جداً من أصحابها وبحركة مهدأة)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 78, rotate: 0 },        // أنت (الأسفل) - زاوية 0 مستقيمة تماماً ومعتدلة للقراءة
-  1: { x: 96, y: 48, rotate: -8 },      // يمين أسفل (عبود) - مفصولة للأسفل
-  2: { x: 96, y: -48, rotate: -8 },     // يمين أعلى (مشاري) - مفصولة للأعلى لمنع التداخل
-  3: { x: 0, y: -74, rotate: 0 },       // أعلى وسط (طارق) - معتدلة غير مقلوبة
-  4: { x: -96, y: -48, rotate: 8 },     // يسار أعلى (بندر) - مفصولة للأعلى
-  5: { x: -96, y: 48, rotate: 8 },      // يسار أسفل (سعود) - مفصولة للأسفل لمنع التداخل
+  0: { x: 0, y: 78, rotate: 0 },       // أنت (الأسفل) - مستقيمة تماماً
+  1: { x: 92, y: 44, rotate: -8 },     // يمين أسفل (عبود)
+  2: { x: 92, y: -44, rotate: -8 },    // يمين أعلى (مشاري)
+  3: { x: 0, y: -74, rotate: 0 },      // أعلى وسط (طارق)
+  4: { x: -92, y: -44, rotate: 8 },    // يسار أعلى (بندر)
+  5: { x: -92, y: 44, rotate: 8 },     // يسار أسفل (سعود)
 };
 
-// 2. إحداثيات انزلاق الأوراق نحو مقعد الفائز
+// 2. إحداثيات انزلاق الأوراق الدقيقة لمراكز صور اللاعبين الفعلية دون أي انحراف
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 230, rotate: 0 },
-  1: { x: 195, y: 115, rotate: 12 },
-  2: { x: 195, y: -115, rotate: 15 },
-  3: { x: 0, y: -220, rotate: 0 },
-  4: { x: -195, y: -115, rotate: -15 },
-  5: { x: -195, y: 115, rotate: -12 },
+  0: { x: 0, y: 225, rotate: 0 },      // إلى مركز صورة اللاعب بالأسفل
+  1: { x: 165, y: 135, rotate: 10 },   // إلى مركز صورة المقعد 1 (عبود)
+  2: { x: 165, y: -135, rotate: 12 },  // إلى مركز صورة المقعد 2 (مشاري)
+  3: { x: 0, y: -215, rotate: 0 },     // إلى مركز صورة المقعد 3 (طارق)
+  4: { x: -165, y: -135, rotate: -12 },// إلى مركز صورة المقعد 4 (بندر)
+  5: { x: -165, y: 135, rotate: -10 }, // إلى مركز صورة المقعد 5 (سعود)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -156,7 +156,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* الأوراق المرمية في ساحة اللعب مع ضبط التباعد وزوايا الرؤية المعتدلة */}
+        {/* الأوراق المرمية في ساحة اللعب مع توجيه دقيق للأفاتر وسرعة رمي هادئة */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
@@ -167,23 +167,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
 
-            const stackOffsetX = (index - 2.5) * 2;
-            const stackOffsetY = (index - 2.5) * 1.5;
-            const stackRotate = (index - 2.5) * 2.5;
-
-            const targetX = isCollecting && winnerTarget ? winnerTarget.x + stackOffsetX : rest.x;
-            const targetY = isCollecting && winnerTarget ? winnerTarget.y + stackOffsetY : rest.y;
-            const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate + stackRotate : rest.rotate;
-            const targetScale = isCollecting ? 0.22 : 1;
+            const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
+            const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
+            const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate : rest.rotate;
+            const targetScale = isCollecting ? 0.15 : 1;
 
             const cardStyle: React.CSSProperties = {
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
+              // إبطاء الرمي إلى 650ms وإبطاء حركة اللمّ إلى 1200ms لتكون انسيابية وهادئة للعين
               transition: isCollecting
-                ? 'transform 1000ms cubic-bezier(0.22, 1, 0.36, 1), opacity 850ms ease-in'
-                : 'transform 450ms cubic-bezier(0.25, 1, 0.5, 1)',
+                ? 'transform 1200ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 1000ms ease-in'
+                : 'transform 650ms cubic-bezier(0.25, 1, 0.4, 1)',
               opacity: isCollecting ? 0 : 1,
               zIndex: isCollecting ? 40 + index : 20 + index,
               willChange: 'transform, opacity',
@@ -279,7 +276,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
           else if (relPos === 4) posClass = 'top-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           else if (relPos === 5) posClass = 'bottom-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
-          // تحديد موقع الشارة إلى جانب صورة اللاعب خارج الطاولة تماماً
           let targetBadgePosClass = '';
           if (relPos === 1 || relPos === 2) {
             targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
