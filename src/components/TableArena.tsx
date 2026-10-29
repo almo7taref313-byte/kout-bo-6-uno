@@ -1,6 +1,6 @@
 import React from 'react';
 import { BidRecord, CalloutMessage, Player, SuitColor, TrickPlay } from '../types';
-import { getEffectiveLeadColor, SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
+import { SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
 import { UnoCard } from './UnoCard';
 import { ComicBidBubble } from './ComicBidBubble';
@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// Resting slots of played cards on the table, relative to center (0, 0)
+// 1. مواقع استقرار الكروت أثناء الرمي (أقرب لمقعد صاحبها مع ميلان طبيعي أنيق)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 58, rotate: 0 },       // Bottom (Human)
-  1: { x: 64, y: 28, rotate: -6 },     // Bottom Right (Player 1)
-  2: { x: 64, y: -28, rotate: 6 },     // Top Right (Player 2)
-  3: { x: 0, y: -52, rotate: 0 },      // Top Center (Player 3)
-  4: { x: -64, y: -28, rotate: -6 },   // Top Left (Player 4)
-  5: { x: -64, y: 28, rotate: 6 },     // Bottom Left (Player 5)
+  0: { x: 0, y: 52, rotate: 0 },       // أنت (الأسفل) - مستقيمة تماماً
+  1: { x: 68, y: 25, rotate: -10 },    // يمين أسفل (أمام عبود)
+  2: { x: 68, y: -25, rotate: -16 },   // يمين أعلى (أمام مشاري)
+  3: { x: 0, y: -52, rotate: 4 },      // أعلى وسط (أمام طارق - ميلان خفيف دون انقلاب)
+  4: { x: -68, y: -25, rotate: 16 },   // يسار أعلى (أمام بندر)
+  5: { x: -68, y: 25, rotate: 10 },    // يسار أسفل (أمام سعود)
 };
 
-// Target coordinates of each player's avatar / seat relative to table center (0, 0)
+// 2. إحداثيات انزلاق الأوراق بانسيابية بطيئة وهادئة نحو مقعد الفائز
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 225, rotate: 0 },      // Glides directly down to human player HUD
-  1: { x: 180, y: 80, rotate: 14 },    // Glides to Player 1 avatar (bottom right rim)
-  2: { x: 180, y: -80, rotate: 14 },   // Glides to Player 2 avatar (top right rim)
-  3: { x: 0, y: -205, rotate: 0 },     // Glides to Player 3 avatar (top center rim)
-  4: { x: -180, y: -80, rotate: -14 }, // Glides to Player 4 avatar (top left rim)
-  5: { x: -180, y: 80, rotate: -14 },  // Glides to Player 5 avatar (bottom left rim)
+  0: { x: 0, y: 220, rotate: 0 },      // تنزلق مباشرة نحو HUD اللاعب بالأسفل
+  1: { x: 185, y: 95, rotate: 15 },    // تنزلق لمقعد اليمين أسفل
+  2: { x: 185, y: -95, rotate: 18 },   // تنزلق لمقعد اليمين أعلى
+  3: { x: 0, y: -210, rotate: 0 },     // تنزلق لمقعد اللاعب في الأعلى
+  4: { x: -185, y: -95, rotate: -18 }, // تنزلق لمقعد اليسار أعلى
+  5: { x: -185, y: 95, rotate: -15 },  // تنزلق لمقعد اليسار أسفل
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -68,30 +68,23 @@ export const TableArena: React.FC<TableArenaProps> = ({
   isBaoonPendingTrump,
   isTimerDisabled = false,
 }) => {
-  // Festive lights appear when Baoon is selected (highestBid === 9) and disappear once trumpColor is chosen!
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
-
-  // Other seat indices around the table perimeter relative to human player
   const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
   const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
 
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-1 xs:px-2 py-0.5 sm:py-2 relative overflow-hidden">
       
-      {/* Jawaker Vertical Stadium Table - Dynamically bounded for Fold, Flip, Landscape & Tablet */}
+      {/* Jawaker Vertical Stadium Table */}
       <div className={`jawaker-table-felt rounded-[36px] xs:rounded-[44px] sm:rounded-[56px] md:rounded-[64px] w-[80%] xs:w-[82%] sm:w-[85%] md:w-[88%] max-w-[420px] sm:max-w-[480px] md:max-w-[540px] h-[94%] max-h-[460px] sm:max-h-[520px] relative flex items-center justify-center p-1.5 xs:p-2 select-none shadow-2xl transition-all duration-300 ${
         isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
       }`}>
         
-        {/* Festive Baoon Running Lights Around Table - Disappears upon choosing trump color */}
+        {/* أضواء الباون الاحتفالية */}
         {isBaoonActive && (
           <>
-            {/* Revolving Rainbow Neon Frame */}
             <div className="baoon-lights-frame" />
-
-            {/* Perimeter Festive Colored Light Bulbs */}
             <div className="absolute inset-1 pointer-events-none z-30 rounded-[34px] xs:rounded-[42px] sm:rounded-[54px] md:rounded-[62px] overflow-hidden">
-              {/* Top row of colored bulbs */}
               <div className="absolute top-1.5 left-6 right-6 flex justify-around">
                 {['#ea1d2d', '#fed000', '#2eb844', '#0063b0', '#e11d48', '#a855f7', '#f97316', '#38bdf8'].map((col, i) => (
                   <div
@@ -101,8 +94,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   />
                 ))}
               </div>
-
-              {/* Bottom row of colored bulbs */}
               <div className="absolute bottom-1.5 left-6 right-6 flex justify-around">
                 {['#38bdf8', '#f97316', '#a855f7', '#e11d48', '#0063b0', '#2eb844', '#fed000', '#ea1d2d'].map((col, i) => (
                   <div
@@ -112,8 +103,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   />
                 ))}
               </div>
-
-              {/* Left side bulbs */}
               <div className="absolute top-10 bottom-10 left-1.5 flex flex-col justify-around">
                 {['#ea1d2d', '#2eb844', '#fed000', '#a855f7'].map((col, i) => (
                   <div
@@ -123,8 +112,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   />
                 ))}
               </div>
-
-              {/* Right side bulbs */}
               <div className="absolute top-10 bottom-10 right-1.5 flex flex-col justify-around">
                 {['#0063b0', '#e11d48', '#38bdf8', '#f97316'].map((col, i) => (
                   <div
@@ -134,8 +121,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   />
                 ))}
               </div>
-
-              {/* Festive Crown Banner in Baoon */}
               <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500 text-slate-950 font-black px-3.5 py-1 rounded-full text-[11px] sm:text-xs shadow-2xl border border-yellow-200 animate-bounce flex items-center gap-1.5 z-40">
                 <span>👑</span>
                 <span>باون كاسح! تحديد الحكم...</span>
@@ -145,14 +130,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </>
         )}
 
-        {/* Subtle Felt Watermark: كوت بو ٦ أونو (باهتة ومنسقة لا تشتت اللاعبين) */}
+        {/* علامة الطاولة المائية */}
         <div className="table-felt-watermark">
           <span className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest">
             كوت بو ٦ أونو
           </span>
         </div>
 
-        {/* تحذير جانبي عند خياس الجيكر أو الميكر: "الجيكر/الميكر خاس يالردي" (لا يظهر في الباون) */}
+        {/* تحذير الجيكر أو الميكر */}
         {currentTrick.length > 0 && highestBid !== 9 && (currentTrick[0].card.isJoker || currentTrick[0].card.isMaker) && (
           <div className="absolute top-1/2 -translate-y-1/2 left-2 xs:left-3 sm:left-4 z-40 pointer-events-none animate-pulse">
             <div className="bg-gradient-to-r from-red-950/95 via-rose-900/95 to-red-950/95 border-2 border-red-500/90 text-amber-200 px-2.5 xs:px-3 py-1.5 sm:py-2 rounded-xl xs:rounded-2xl shadow-2xl flex items-center gap-1.5 xs:gap-2 shadow-red-950/90 ring-2 ring-red-400/40 backdrop-blur-sm">
@@ -169,36 +154,41 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* Thrown Trick Cards in Center with Smooth Grouped Sweep to Winner */}
+        {/* الأوراق المرمية في ساحة اللعب مع الانتقال الانسيابي الهادئ */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.82] xs:scale-90 sm:scale-100">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
+            
+            // حساب الموضع النسبي للاعب الرامي ولمقعد الفائز بالنسبة للشاشة
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = TABLE_CARD_RESTING_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
+            
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
 
-            // When grouping towards the winner, stack cards with a neat slight stagger
-            const stackOffsetX = (index - 2.5) * 3;
-            const stackOffsetY = (index - 2.5) * 2;
-            const stackRotate = (index - 2.5) * 3.5;
+            // إزاحة ورصّ خفيف جداً للأوراق أثناء انجذابها نحو الفائز لتبدو كحزمة واقعية
+            const stackOffsetX = (index - 2.5) * 2;
+            const stackOffsetY = (index - 2.5) * 1.5;
+            const stackRotate = (index - 2.5) * 2.5;
 
             const targetX = isCollecting && winnerTarget ? winnerTarget.x + stackOffsetX : rest.x;
             const targetY = isCollecting && winnerTarget ? winnerTarget.y + stackOffsetY : rest.y;
             const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate + stackRotate : rest.rotate;
-            const targetScale = isCollecting ? 0.35 : 1;
+            const targetScale = isCollecting ? 0.22 : 1;
 
             const cardStyle: React.CSSProperties = {
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
+              // حركة انسيابية بطيئة 750ms منحنى ناعم وبدون توقف مفاجئ
               transition: isCollecting
-                ? 'transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease 0.65s'
-                : 'transform 0.18s ease-out',
+                ? 'transform 750ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 650ms ease-in'
+                : 'transform 260ms cubic-bezier(0.34, 1.3, 0.64, 1)',
               opacity: isCollecting ? 0 : 1,
               zIndex: isCollecting ? 40 + index : 20 + index,
               willChange: 'transform, opacity',
+              transformOrigin: 'center center',
             };
 
             return (
@@ -220,9 +210,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           })}
         </div>
 
-
-
-        {/* Human Player Comic Bid Bubble - Inside table felt near bottom player */}
+        {/* فقاعة مزاد اللاعب البشري */}
         {phase === 'BIDDING' && humanLatestBid && players[humanSeatIndex] && (
           <div className="absolute bottom-2 xs:bottom-3 left-1/2 -translate-x-1/2 z-35 pointer-events-none">
             <ComicBidBubble
@@ -233,7 +221,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* 5 Bot Seats Layout around Stadium Table Rim */}
+        {/* مقاعد اللاعبين الخمسة الأخرى حول حافة الطاولة */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
@@ -249,18 +237,15 @@ export const TableArena: React.FC<TableArenaProps> = ({
           const isPartner = player.team === 'A';
           const isTurn = currentTurn === idx && phase !== 'ROUND_END' && phase !== 'MATCH_OVER';
           const isBuyer = bidWinner === idx && highestBid > 4;
-
           const latestBid = biddingHistory.filter((b) => b.playerId === idx).pop();
 
-          // Positions around the stadium rim strictly following Counter-Clockwise (عكس عقارب الساعة)
-          // Offsets stay within screen margin to prevent clipping on Fold / narrow screens
           const relPos = (idx - humanSeatIndex + 6) % 6;
           let posClass = '';
-          if (relPos === 1) posClass = 'bottom-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]'; // 1: Bottom Right
-          else if (relPos === 2) posClass = 'top-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]'; // 2: Top Right
-          else if (relPos === 3) posClass = 'top-[-16px] xs:top-[-18px] left-1/2 -translate-x-1/2';      // 3: Top Center
-          else if (relPos === 4) posClass = 'top-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]';   // 4: Top Left
-          else if (relPos === 5) posClass = 'bottom-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]'; // 5: Bottom Left
+          if (relPos === 1) posClass = 'bottom-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]';
+          else if (relPos === 2) posClass = 'top-[22%] right-[-10px] xs:right-[-14px] sm:right-[-18px]';
+          else if (relPos === 3) posClass = 'top-[-16px] xs:top-[-18px] left-1/2 -translate-x-1/2';
+          else if (relPos === 4) posClass = 'top-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]';
+          else if (relPos === 5) posClass = 'bottom-[22%] left-[-10px] xs:left-[-14px] sm:left-[-18px]';
 
           const circumference = 125.6;
           const offset = isTurn ? circumference * (1 - timerRemaining / TURN_TIMER_DURATION) : 0;
@@ -271,7 +256,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             <div key={idx} className={`absolute ${posClass} z-30`}>
               <div className="relative flex flex-col items-center">
 
-                {/* Comic Bidding Speech Bubble - Displayed from inside table with team color */}
+                {/* فقاعة المزاد */}
                 {phase === 'BIDDING' && latestBid && (
                   <div
                     className={`absolute z-35 pointer-events-none ${
@@ -300,10 +285,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 )}
 
-                {/* Circular Avatar with Neon Turn Timer Ring */}
+                {/* الصورة الرمزية ومؤقت الدور */}
                 <div className="relative w-9 h-9 xs:w-10 xs:h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                   
-                  {/* علامة الأكلات عند صورة الحاكم: دائرة باللون الأبيض الثلجي ورقم الأكلة بالأسود الواضح محاطة بدائرة بلون الفريق */}
                   {isBuyer && (
                     <div
                       className={`absolute -top-2 -right-2 xs:-top-2.5 xs:-right-2.5 z-40 w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-xl ${
@@ -319,22 +303,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* كلمة "ملزوم" واضحة عند صورة الموزع الملزوم */}
                   {isBuyer && isForcedBid && (
                     <div
                       className="absolute -top-5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-[8px] xs:text-[9px] px-2 py-0.2 rounded-full border border-yellow-200 shadow-xl shadow-amber-500/50 select-none animate-pulse flex items-center gap-0.5"
-                      title="الموزع ملزوم (تحتسب 5 نقاط فقط عند الخسارة ولا تتضاعف)"
+                      title="الموزع ملزوم"
                     >
                       <span>ملزوم</span>
                       <span className="text-[7.5px]">⚡</span>
                     </div>
                   )}
 
-                  {/* Dealer Badge: علامة الموزع أكبر قليلاً وواضحة جداً (أول واحد يوزع الورق وآخر من يزايد) */}
                   {isDealer && (
                     <div
                       className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-7 xs:h-7 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
-                      title="الموزع (أول واحد يوزع الورق وآخر من يزايد - ملزوم بـ 5)"
+                      title="الموزع"
                     >
                       <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[9px] xs:text-[10px]">
                         <span className="font-extrabold tracking-tighter">D</span>
@@ -369,6 +351,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                       />
                     )}
                   </svg>
+
                   <div
                     className={`w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 ${
                       isPartner ? 'border-blue-400' : 'border-rose-400'
@@ -380,7 +363,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 </div>
 
-                {/* Jawaker Capsule Pill with Player Name */}
+                {/* كبسولة اسم اللاعب */}
                 <div className="jawaker-pill-badge px-1.5 xs:px-2 py-0.5 mt-0.5 max-w-[70px] xs:max-w-[80px] sm:max-w-[90px] truncate flex items-center justify-center">
                   <span className="text-[8px] xs:text-[9px] font-bold text-white truncate">
                     {player.name}
