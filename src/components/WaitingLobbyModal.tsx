@@ -73,7 +73,7 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
     return () => clearInterval(announceTimer);
   }, [handleSendJoinRequest]);
 
-  // فحص صارم بالـ clientId لمعرفة هل تم تسكين اللاعب
+  // فحص صارم بالـ clientId فقط لمعرفة هل تم تسكين اللاعب (تجاهل تطابق الأسماء لمنع تعارض أنت واللاعب)
   const assignedSeatIdx = seats.findIndex(
     (s) => !s.isVacant && s.clientId && (s.clientId === myClientId || s.clientId === roomSync.myClientId)
   );
@@ -324,7 +324,7 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
             </span>
             <div className="flex flex-wrap gap-1.5">
               {waitingPlayers.map((p) => {
-                const isCurrent = p.clientId === myClientId || p.name === myName;
+                const isCurrent = p.clientId === myClientId;
                 return (
                   <div
                     key={p.clientId}
