@@ -36,7 +36,6 @@ import { TableArena } from './components/TableArena';
 import { PlayerHand } from './components/PlayerHand';
 import { LobbyScreen } from './components/LobbyScreen';
 import { BiddingModal } from './components/BiddingModal';
-import { RoundResultModal } from './components/RoundResultModal';
 import { HostTableModal } from './components/HostTableModal';
 import { EditSeatModal } from './components/EditSeatModal';
 import { ProfileModal } from './components/ProfileModal';
@@ -229,14 +228,6 @@ export default function App() {
     setShowInstallModal(true);
   };
 
-  // Round Result Modal State
-  const [roundResult, setRoundResult] = useState<{
-    buyerWinner: boolean;
-    bidWinner: number | null;
-    highestBid: number;
-    isForcedBid: boolean;
-  } | null>(null);
-
   // Timer Ref
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -325,7 +316,6 @@ export default function App() {
       setCollectingWinnerId(null);
       setTricksTeamA(0);
       setTricksTeamB(0);
-      setRoundResult(null);
 
       const firstBidder = (activeDealer + 1) % 6;
       setCurrentTurn(firstBidder);
@@ -585,7 +575,99 @@ export default function App() {
     return () => clearTimeout(botTimer);
   }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, roundNumber, submitBid]);
 
-  // Round Completion logic
+  // Round Completion logic & Next Round Handler
+  const handleNextRoundOrMatch = useCallback((scoreA?: number, scoreB?: number) => {
+    const curScoreA = scoreA !== undefined ? scoreA : matchScoreTeamA;
+    const curScoreB = scoreB !== undefined ? scoreB : matchScoreTeamB;
+
+    const isBaoon = highestBid === 9;
+    const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
+    const buyerTricks = buyerPlayer ? (buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB) : 0;
+    const prevBothHadFiveOrMore = curScoreA >= 5 && curScoreB >= 5;
+    const isAsamFirstRound =
+      !prevBothHadFiveOrMore &&
+      isBaoon &&
+      buyerTricks >= 9 &&
+      roundNumber === 1 &&
+      (buyerPlayer ? (buyerPlayer.team === 'A' ? curScoreB === 0 : curScoreA === 0) : false);
+    const matchStatus = getMatchTargetAndStatus(curScoreA, curScoreB);
+    const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
+
+    if (isMultiplayerActive && !isRoomHost) {
+      showCallout('في انتظار المضيف لبدء الجولة القادمة ⏳', '⏳');
+      return;
+    }
+
+    if (isMatchOver) {
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        const randDealer = Math.floor(Math.random() * 6);
+        setMatchScoreTeamA(0);
+        setMatchScoreTeamB(0);
+        setRoundNumber(1);
+        setDealerIdx(randDealer);
+        const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+        setCurrentDealingTeam(initialDealingTeam);
+        if (randDealer % 2 === 0) {
+          setLastDealerTeamA(randDealer);
+          setLastDealerTeamB(5);
+        } else {
+          setLastDealerTeamB(randDealer);
+          setLastDealerTeamA(4);
+        }
+
+        roomSync.publish({
+          type: 'START_GAME',
+          roomCode,
+          senderId: deviceId,
+          seats,
+          deck: sharedDeck,
+          dealerIdx: randDealer,
+          roundNumber: 1,
+          scores: { a: 0, b: 0 },
+          timestamp: Date.now(),
+        });
+
+        startNewRound(sharedDeck, randDealer);
+      } else {
+        startNewMatch();
+      }
+    } else {
+      const nextR = roundNumber + 1;
+      const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
+      const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
+        curScoreA,
+        curScoreB,
+        curDealingTeam,
+        lastDealerTeamA,
+        lastDealerTeamB
+      );
+
+      setCurrentDealingTeam(nextDealingTeam);
+      setLastDealerTeamA(newLastDealerTeamA);
+      setLastDealerTeamB(newLastDealerTeamB);
+      setRoundNumber(nextR);
+      setDealerIdx(nextDealer);
+
+      if (isMultiplayerActive) {
+        const sharedDeck = buildDeck();
+        roomSync.publish({
+          type: 'NEW_ROUND',
+          roomCode,
+          senderId: deviceId,
+          roundNumber: nextR,
+          dealerIdx: nextDealer,
+          deck: sharedDeck,
+          scores: { a: curScoreA, b: curScoreB },
+          timestamp: Date.now(),
+        });
+        startNewRound(sharedDeck, nextDealer);
+      } else {
+        startNewRound(undefined, nextDealer);
+      }
+    }
+  }, [bidWinner, currentDealingTeam, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, lastDealerTeamA, lastDealerTeamB, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewMatch, startNewRound, tricksTeamA, tricksTeamB]);
+
   const handleRoundFinish = useCallback(
     (buyerIsWinner: boolean, curTricksA: number, curTricksB: number) => {
       stopTimer();
@@ -666,17 +748,13 @@ export default function App() {
         showCallout(isBaoon ? 'يالردي! 💔' : 'خسرت يا حلو! ❌', isBaoon ? '💔' : '❌');
       }
 
-     setRoundResult({
-        buyerWinner: buyerIsWinner,
-        bidWinner,
-        highestBid,
-        isForcedBid,
-      });
-
-      // انتقال تلقائي فوري وسلس للجولة القادمة دون إظهار الشاشة
+      // انتقال تلقائي فوري وسلس للجولة القادمة دون إظهار أي نوافذ منبثقة
       setTimeout(() => {
-        handleNextRoundOrMatch();
-      }, 2500); // مهلة 2.5 ثانية للاستمتاع بصوت الفوز/الهتاف ثم بدء الجولة التالية
+        handleNextRoundOrMatch(nextScoreA, nextScoreB);
+      }, 2500);
+    },
+    [bidWinner, currentHumanSeatIndex, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, roundNumber, showCallout, stopTimer]
+  );
 
   // Trick Resolution
   const resolveTrick = useCallback(
@@ -797,21 +875,21 @@ export default function App() {
         });
       }
 
-     // عند اكتمال الأوراق الست للأكلة
+      // عند اكتمال الأوراق الست للأكلة
       if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // مهلة 1600ms (ثانية ونصف كاملة) لتثبت كل الكروت الستة على الطاولة وتراها العين بوضوح
+        // مهلة 1600ms لتستقر كل الكروت الستة على الطاولة وتراها العين بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
-          setCollectingWinnerId(winnerId); // تبدأ الأوراق الآن بالانزلاق نحو الفائز
+          setCollectingWinnerId(winnerId);
 
-          // مهلة 1400ms لانزلاق الأوراق واختفائها عند صورة اللاعب
+          // مهلة 1400ms لتكتمل حركة الانزلاق بسلاسة واستقرار
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 1400);
-        }, 1600); // <-- تم تغييرها هنا من 600 إلى 1600
+        }, 1600);
       } else {
         const nextTurn = (playerId + 1) % 6;
         setCurrentTurn(nextTurn);
@@ -891,7 +969,7 @@ export default function App() {
     handlePlayCard(currentHumanSeatIndex, card);
   };
 
- // Bot card play automation
+  // Bot card play automation
   useEffect(() => {
     if (phase !== 'PLAYING') return;
     if (currentTrick.length === 6) return;
@@ -918,6 +996,7 @@ export default function App() {
 
     return () => clearTimeout(botTimer);
   }, [bidWinner, currentTrick, currentTurn, dealerIdx, handlePlayCard, highestBid, isMultiplayerActive, isRoomHost, phase, playedTricksInRound, players, roundNumber, trumpColor]);
+
   // Timeout handler for active turn
   useEffect(() => {
     if (timerRemaining > 0) return;
@@ -947,95 +1026,6 @@ export default function App() {
       }
     }
   }, [bidWinner, currentHumanSeatIndex, currentTrick, currentTurn, handlePlayCard, highestBid, isAllHumanGame, isMultiplayerActive, isRoomHost, phase, players, submitBid, timerRemaining, trumpColor]);
-
-  const handleNextRoundOrMatch = () => {
-    const isBaoon = highestBid === 9;
-    const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
-    const buyerTricks = buyerPlayer ? (buyerPlayer.team === 'A' ? tricksTeamA : tricksTeamB) : 0;
-    const prevBothHadFiveOrMore = matchScoreTeamA >= 5 && matchScoreTeamB >= 5;
-    const isAsamFirstRound =
-      !prevBothHadFiveOrMore &&
-      isBaoon &&
-      buyerTricks >= 9 &&
-      roundNumber === 1 &&
-      (buyerPlayer ? (buyerPlayer.team === 'A' ? matchScoreTeamB === 0 : matchScoreTeamA === 0) : false);
-    const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
-    const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
-
-    if (isMultiplayerActive && !isRoomHost) {
-      showCallout('في انتظار المضيف لبدء الجولة القادمة ⏳', '⏳');
-      return;
-    }
-
-    if (isMatchOver) {
-      if (isMultiplayerActive) {
-        const sharedDeck = buildDeck();
-        const randDealer = Math.floor(Math.random() * 6);
-        setMatchScoreTeamA(0);
-        setMatchScoreTeamB(0);
-        setRoundNumber(1);
-        setDealerIdx(randDealer);
-        const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
-        setCurrentDealingTeam(initialDealingTeam);
-        if (randDealer % 2 === 0) {
-          setLastDealerTeamA(randDealer);
-          setLastDealerTeamB(5);
-        } else {
-          setLastDealerTeamB(randDealer);
-          setLastDealerTeamA(4);
-        }
-
-        roomSync.publish({
-          type: 'START_GAME',
-          roomCode,
-          senderId: deviceId,
-          seats,
-          deck: sharedDeck,
-          dealerIdx: randDealer,
-          roundNumber: 1,
-          scores: { a: 0, b: 0 },
-          timestamp: Date.now(),
-        });
-
-        startNewRound(sharedDeck, randDealer);
-      } else {
-        startNewMatch();
-      }
-    } else {
-      const nextR = roundNumber + 1;
-      const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
-      const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
-        matchScoreTeamA,
-        matchScoreTeamB,
-        curDealingTeam,
-        lastDealerTeamA,
-        lastDealerTeamB
-      );
-
-      setCurrentDealingTeam(nextDealingTeam);
-      setLastDealerTeamA(newLastDealerTeamA);
-      setLastDealerTeamB(newLastDealerTeamB);
-      setRoundNumber(nextR);
-      setDealerIdx(nextDealer);
-
-      if (isMultiplayerActive) {
-        const sharedDeck = buildDeck();
-        roomSync.publish({
-          type: 'NEW_ROUND',
-          roomCode,
-          senderId: deviceId,
-          roundNumber: nextR,
-          dealerIdx: nextDealer,
-          deck: sharedDeck,
-          scores: { a: matchScoreTeamA, b: matchScoreTeamB },
-          timestamp: Date.now(),
-        });
-        startNewRound(sharedDeck, nextDealer);
-      } else {
-        startNewRound(undefined, nextDealer);
-      }
-    }
-  };
 
   // معالج رسائل المزامنة
   messageHandlerRef.current = (msg: RoomSyncMessage) => {
@@ -1873,13 +1863,6 @@ export default function App() {
           onPickTrump={(col) => chooseTrumpColor(col, currentHumanSeatIndex)}
         />
       )}
-
-     {/* تم إلغاء ظهور شاشة نتيجة الجولة تماماً */}
-      {/* {phase === 'ROUND_END' && roundResult && (
-        <RoundResultModal
-          ...
-        />
-      )} */}
 
       {/* Host Friends & Custom Table Modal */}
       {showHostModal && (
