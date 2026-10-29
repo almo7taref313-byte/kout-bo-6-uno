@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SeatConfig, WaitingPlayer } from '../types';
 import { AvatarView } from '../utils/avatars';
 import { roomSync } from '../utils/roomSync';
@@ -31,17 +31,19 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
     return roomSync.subscribeConnection((conn) => setIsConnected(conn));
   }, []);
 
-  // وظيفة إرسال إعلان الانضمام وطلب المزامنة
-  const sendJoinAnnouncement = () => {
+  // وظيفة صريحة لإرسال طلب الانضمام والتزامن بالرمز الظاهر على الشاشة
+  const handleSendJoinRequest = useCallback(() => {
+    if (!roomCode) return;
+    const cleanRoomCode = String(roomCode).trim();
     const activeClientId = myClientId || roomSync.myClientId;
-    
-    // 1. إرسال طلب الانضمام إلى قائمة الانتظار
+
+    // 1. إرسال طلب الانضمام
     roomSync.publish({
       type: 'JOIN_REQUEST',
-      roomCode,
+      roomCode: cleanRoomCode,
       senderId: activeClientId,
       player: {
-        name: myName,
+        name: myName || 'لاعب جديد',
         team: 'A',
         avatarId: myAvatarId,
         customPhoto: myCustomPhoto,
@@ -54,26 +56,24 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
     // 2. طلب آخر حالة للغرفة من المضيف فوراً
     roomSync.publish({
       type: 'SYNC_REQUEST',
-      roomCode,
+      roomCode: cleanRoomCode,
       senderId: activeClientId,
       timestamp: Date.now(),
     });
-  };
+  }, [roomCode, myClientId, myName, myAvatarId, myCustomPhoto]);
 
-  // إرسال طلب الانضمام تلقائياً فور فتح النافذة + تكراره دورياً للتأكد من وصوله
+  // إرسال طلب الانضمام تلقائياً فور فتح النافذة وتكراره كل ثانيتين للتأكيد
   useEffect(() => {
-    sendJoinAnnouncement();
+    handleSendJoinRequest();
 
-    // إرسال نبضة خفيفة كل 2.5 ثانية لطمأنة المضيف بوجود اللاعب حتى يتم تسكينه
     const announceTimer = setInterval(() => {
-      sendJoinAnnouncement();
-    }, 2500);
+      handleSendJoinRequest();
+    }, 2000);
 
     return () => clearInterval(announceTimer);
-  }, [roomCode, myClientId, myName]);
+  }, [handleSendJoinRequest]);
 
-  // التحقق هل قام المضيف بتسكين اللاعب في مقعد
-  // الاعتماد الصارم على clientId فقط حتى لا يحصل تشابه إذا تساوت الأسماء
+  // فحص صارم بالـ clientId لمعرفة هل تم تسكين اللاعب
   const assignedSeatIdx = seats.findIndex(
     (s) => !s.isVacant && s.clientId && (s.clientId === myClientId || s.clientId === roomSync.myClientId)
   );
@@ -161,45 +161,24 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
 
           <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80">
             <span className="text-[10px] text-slate-400">
-              // 1. وظيفة صريحة لإرسال طلب الانضمام بالرمز المكتوب على الشاشة
-  const handleSendJoinRequest = () => {
-    if (!roomCode) return;
-
-    roomSync.publish({
-      type: 'JOIN_REQUEST',
-      roomCode: String(roomCode).trim(), // الرمز الصريح المكتوب على الشاشة
-      senderId: myClientId || roomSync.myClientId,
-      player: {
-        name: myName || 'لاعب جديد',
-        team: 'A',
-        avatarId: _myAvatarId,
-        customPhoto: _myCustomPhoto,
-        isHuman: true,
-        clientId: myClientId || roomSync.myClientId,
-      },
-      timestamp: Date.now(),
-    });
-
-    roomSync.publish({
-      type: 'SYNC_REQUEST',
-      roomCode: String(roomCode).trim(),
-      senderId: myClientId || roomSync.myClientId,
-      timestamp: Date.now(),
-    });
-  };
-
-  // 2. مؤقت دوري يرسل النداء كل ثانية ونصف تلقائياً فور فتح الشاشة
-  useEffect(() => {
-    handleSendJoinRequest();
-
-    const interval = setInterval(() => {
-      if (roomSync.isConnected && roomCode) {
-        handleSendJoinRequest();
-      }
-    }, 1500);
-
-    return () => clearInterval(interval);
-  }, [roomCode, myClientId, myName]);
+              لم يظهر اسمك عند المضيف؟
+            </span>
+            <button
+              onClick={() => {
+                handleSendJoinRequest();
+                setPingSent(true);
+                setTimeout(() => setPingSent(false), 2000);
+              }}
+              className={`px-3 py-1 rounded-xl text-[10px] font-black transition active:scale-95 cursor-pointer flex items-center gap-1 ${
+                pingSent
+                  ? 'bg-emerald-600 text-white shadow-emerald-500/30'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30'
+              }`}
+            >
+              <span>{pingSent ? 'تم الإرسال بنجاح ✅' : '📢 إرسال نداء للمضيف'}</span>
+            </button>
+          </div>
+        </div>
 
         {/* Player Current Status Alert Banner */}
         {isAssigned ? (
