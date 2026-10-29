@@ -801,16 +801,17 @@ export default function App() {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // مهلة 500ms ليرى الجميع الكرت الأخير بوضوح
+        // مهلة 500ms لمشاهدة الورقة الأخيرة بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
-          setCollectingWinnerId(winnerId); // تبدأ حركة الانزلاق الهادئة
+          setCollectingWinnerId(winnerId); // تبدأ الحركة الهادئة نحو صورة الفائز مباشرة
 
-          // انتظار 1100ms كاملة لضمان وصول واستقرار الأوراق في مقعد الفائز قبل تفريغها
+          // مهلة 1300ms لتكتمل حركة الـ 1200ms بالكامل وتدخل الأوراق في يد الفائز
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
-          }, 1100);
+          }, 1300);
         }, 500);
+      }
       } else {
         const nextTurn = (playerId + 1) % 6;
         setCurrentTurn(nextTurn);
