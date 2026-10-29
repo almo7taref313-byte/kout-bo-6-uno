@@ -219,13 +219,10 @@ export default function App() {
 
   const handleOpenInstall = async () => {
     if (isInstallable) {
-      const accepted = await triggerPWAInstall();
-      if (accepted) {
-        showCallout('تم تثبيت اللعبة بنجاح! 🎉', '🎉');
-        return;
-      }
+      await triggerPWAInstall();
+    } else {
+      setShowInstallModal(true);
     }
-    setShowInstallModal(true);
   };
 
   // Timer Ref
@@ -236,18 +233,23 @@ export default function App() {
     ((seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
       (players.length === 6 && players.every((p) => p.isHuman)));
 
+  // دالة عرض الرسائل: محصورة فقط بالرسائل المحددة (كفو شباب / راحت عليكم)
   const showCallout = useCallback((text: string, emoji = '📢') => {
+    const isAllowedMessage = text.includes('كفو شباب') || text.includes('راحت عليكم');
+    if (!isAllowedMessage) {
+      return; // تجاهل وإيقاف كل الرسائل الأخرى تماماً
+    }
+
     setCallout({ text, emoji, timestamp: Date.now() });
     setTimeout(() => {
-      setCallout((prev) => (prev && Date.now() - prev.timestamp >= 1800 ? null : prev));
-    }, 1900);
+      setCallout((prev) => (prev && Date.now() - prev.timestamp >= 2400 ? null : prev));
+    }, 2500);
   }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
     setSoundEnabled(next);
     soundEngine.enabled = next;
-    if (next) showCallout('المؤثرات مفعّلة 🔊', '🔊');
   };
 
   const stopTimer = useCallback(() => {
@@ -320,14 +322,9 @@ export default function App() {
       const firstBidder = (activeDealer + 1) % 6;
       setCurrentTurn(firstBidder);
       setPhase('BIDDING');
-
-      const dealerPlayer = freshPlayers[activeDealer];
-      const dealerName = dealerPlayer ? dealerPlayer.name : `لاعب ${activeDealer + 1}`;
-      const dealerTeamName = activeDealer % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-      showCallout(`الموزع ${dealerName} (${dealerTeamName}) وزّع الورق! المزاد يبدأ 🃏`, '🃏');
       startTimer();
     },
-    [currentHumanSeatIndex, dealerIdx, seats, showCallout, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
+    [currentHumanSeatIndex, dealerIdx, seats, startTimer, stopTimer, userAvatar, userCustomPhoto, userName]
   );
 
   const startNewMatch = useCallback(() => {
@@ -387,9 +384,8 @@ export default function App() {
       });
 
       soundEngine.playCardSlide();
-      showCallout(`دخلت غرفة الطاولة #${code}! أنت في قائمة الانتظار ⏳`, '⏳');
     },
-    [showCallout, userAvatar, userCustomPhoto, userName]
+    [userAvatar, userCustomPhoto, userName]
   );
 
   const handleLeaveRoom = useCallback(() => {
@@ -403,8 +399,7 @@ export default function App() {
     setIsRoomHost(true);
     setWaitingPlayers([]);
     setCurrentHumanSeatIndex(0);
-    showCallout('غادرت الغرفة وعدت للرئيسية 🚪', '🚪');
-  }, [deviceId, roomCode, showCallout]);
+  }, [deviceId, roomCode]);
 
   // Choose Trump Color
   const chooseTrumpColor = useCallback(
@@ -418,7 +413,6 @@ export default function App() {
       setIsActionPending(false);
 
       soundEngine.playCardSlide();
-      showCallout(`الحكم ${SUIT_COLORS[color].name}! العب يا بطل`, '♠️');
 
       if (isMultiplayerActive && !isFromRemote) {
         roomSync.publish({
@@ -433,15 +427,13 @@ export default function App() {
 
       startTimer();
     },
-    [bidWinner, currentHumanSeatIndex, deviceId, isMultiplayerActive, roomCode, showCallout, startTimer, stopTimer]
+    [bidWinner, currentHumanSeatIndex, deviceId, isMultiplayerActive, roomCode, startTimer, stopTimer]
   );
 
   // Bidding resolution
   const submitBid = useCallback(
     (playerId: number, val: number, forced = false, isFromRemote = false) => {
       stopTimer();
-      const player = players[playerId];
-      const pName = player ? player.name : `لاعب ${playerId + 1}`;
 
       let effectiveVal = val;
       const isDealerForced = forced || (playerId === dealerIdx && highestBid <= 4 && val === 0);
@@ -454,16 +446,10 @@ export default function App() {
 
       if (effectiveVal === 0) {
         soundEngine.playPassTone();
-        showCallout(`${pName}: طـوف!`, '✋');
       } else if (effectiveVal === 9) {
         soundEngine.playBidTone(true);
-        showCallout(`بااااون من ${pName}! 👑`, '👑');
-      } else if (isDealerForced) {
-        soundEngine.playBidTone(false);
-        showCallout(`الموزع ${pName} ملزوم بـ 5! ⚡`, '⚡');
       } else {
         soundEngine.playBidTone(false);
-        showCallout(`${pName} شرا بـ ${effectiveVal}!`, '🔥');
       }
 
       const nextBids = [...biddingHistory, { playerId, val: effectiveVal }];
@@ -516,7 +502,6 @@ export default function App() {
             setHighestBid(5);
             setBidWinner(dealerIdx);
             const dealer = players[dealerIdx];
-            showCallout(`الموزع ${dealer?.name || ''} ملزوم بـ 5 وتحديد الحكم ⚡`, '⚡');
 
             setPhase('CHOOSE_TRUMP');
             if (dealer && !dealer.isHuman && (!isMultiplayerActive || isRoomHost)) {
@@ -526,7 +511,6 @@ export default function App() {
           } else {
             const buyer = players[newWinner];
             setPhase('CHOOSE_TRUMP');
-            showCallout(`رسا المزاد على ${buyer?.name || ''} بـ ${newHighest}! تحديد الحكم... 🎯`, '🎯');
             if (buyer && !buyer.isHuman && (!isMultiplayerActive || isRoomHost)) {
               const bestCol = selectBotBestTrump(buyer.hand);
               chooseTrumpColor(bestCol, newWinner);
@@ -539,7 +523,7 @@ export default function App() {
         startTimer();
       }
     },
-    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, showCallout, startTimer, stopTimer]
+    [biddingHistory, bidWinner, chooseTrumpColor, currentTurn, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, players, roomCode, startTimer, stopTimer]
   );
 
   // Bot bidding automation
@@ -594,7 +578,6 @@ export default function App() {
     const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
 
     if (isMultiplayerActive && !isRoomHost) {
-      showCallout('في انتظار المضيف لبدء الجولة القادمة ⏳', '⏳');
       return;
     }
 
@@ -666,7 +649,7 @@ export default function App() {
         startNewRound(undefined, nextDealer);
       }
     }
-  }, [bidWinner, currentDealingTeam, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, lastDealerTeamA, lastDealerTeamB, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, showCallout, startNewMatch, startNewRound, tricksTeamA, tricksTeamB]);
+  }, [bidWinner, currentDealingTeam, dealerIdx, deviceId, highestBid, isMultiplayerActive, isRoomHost, lastDealerTeamA, lastDealerTeamB, matchScoreTeamA, matchScoreTeamB, players, roomCode, roundNumber, seats, startNewMatch, startNewRound, tricksTeamA, tricksTeamB]);
 
   // Round Completion logic
   const handleRoundFinish = useCallback(
@@ -702,20 +685,18 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
-      // الأصوات والرسائل في وسط الطاولة حسب فوز أو خسارة الفريق الحاكم
+      // تشغيل الصوت والرسالة المحددة فقط حسب فوز أو خسارة الفريق الحاكم
       if (buyerIsWinner) {
-        // فوز الفريق الحاكم: تصفيق وتصفير تشويقي مع رسالة (كفو شباب)
         soundEngine.playCheeringAndWhistle();
         showCallout('كفو شباب! 👏🎉', '👑');
         nativeBridge.hapticVictory();
       } else {
-        // خسارة الفريق الحاكم: نغمة استهزائية حزينة مع رسالة (راحت عليكم)
         soundEngine.playSadTromboneMock();
         showCallout('راحت عليكم! 😅👎', '💔');
         nativeBridge.hapticTrickWin();
       }
 
-      // الانتقال التلقائي السلس للجولة القادمة بعد 2.5 ثانية دون أي شاشات منبثقة
+      // الانتقال التلقائي للجولة القادمة
       setTimeout(() => {
         handleNextRoundOrMatch(nextScoreA, nextScoreB);
       }, 2500);
@@ -792,22 +773,8 @@ export default function App() {
 
       if (card.isJoker) {
         soundEngine.playJokerSlam();
-        if (activeTrick.length === 0) {
-          if (highestBid !== 9) {
-            showCallout('الجيكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
-          }
-        } else {
-          showCallout('يا سلام على الجيكر!!', '🃏');
-        }
       } else if (card.isMaker) {
         soundEngine.playJokerSlam();
-        if (activeTrick.length === 0) {
-          if (highestBid !== 9) {
-            showCallout('الميكر خاس يالردي! ⚠️ الكرت التالي يحدد اللون المطلوب', '⚠️');
-          }
-        } else {
-          showCallout('الميكر نزل وقصها!', '🌈');
-        }
       } else {
         soundEngine.playCardSlide();
       }
@@ -847,12 +814,10 @@ export default function App() {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
 
-        // مهلة 1600ms لتستقر كل الكروت الستة على الطاولة وتراها العين بوضوح
         setTimeout(() => {
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId);
 
-          // مهلة 1400ms لتكتمل حركة الانزلاق بسلاسة واستقرار
           setTimeout(() => {
             resolveTrick(nextTrick, winnerId);
           }, 1400);
@@ -866,28 +831,14 @@ export default function App() {
         startTimer();
       }
     },
-    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, resolveTrick, roomCode, showCallout, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, resolveTrick, roomCode, startTimer, stopTimer, trumpColor]
   );
 
   // Human card click
   const handleHumanCardClick = (card: Card) => {
-    if (phase === 'BIDDING') {
-      showCallout(card.roleTitle || card.label, '👁️');
-      return;
-    }
-
     if (phase !== 'PLAYING') return;
-
-    if (currentTurn !== currentHumanSeatIndex) {
-      const cur = players[currentTurn];
-      showCallout(`اصبر يا معود! الدور عند ${cur ? cur.name : 'الخصم'} ⏳`, '✋');
-      return;
-    }
-
-    if (currentTrick.length >= 6) {
-      showCallout('لحظة، جاري لمّ الأكلة... 🧹', '⏳');
-      return;
-    }
+    if (currentTurn !== currentHumanSeatIndex) return;
+    if (currentTrick.length >= 6) return;
 
     const me = players[currentHumanSeatIndex];
     if (!me) return;
@@ -895,40 +846,23 @@ export default function App() {
     const isMeBuyer = bidWinner === currentHumanSeatIndex;
     if (currentTrick.length === 0 && (card.isJoker || card.isMaker)) {
       if (highestBid === 9) {
-        if (!isMeBuyer) {
-          showCallout('في الباون: افتتاح الأكلة بالجيكر أو الميكر للحاكم فقط! 👑', '⚠️');
-          return;
-        }
+        if (!isMeBuyer) return;
         const hasTrumpsInHand = Boolean(
           trumpColor && me.hand.some((c) => c.color === trumpColor)
         );
-        if (hasTrumpsInHand) {
-          showCallout('في الباون: العب جميع أوراق الحكم أولاً ثم الجيكر/الميكر! 👑', '⚠️');
-          return;
-        }
+        if (hasTrumpsInHand) return;
       } else {
         const hasOther = me.hand.some((c) => !c.isJoker && !c.isMaker);
-        if (hasOther) {
-          showCallout('الميكر والجيكر لا يبدأ اللعب بهما أبداً! 🚫', '⚠️');
-          return;
-        }
+        if (hasOther) return;
       }
     }
 
     const hasJokerInTrick = currentTrick.some((p, idx) => p.card.isJoker && (highestBid === 9 || idx > 0));
     if (hasJokerInTrick && card.isMaker && me.hand.some((c) => !c.isMaker)) {
-      showCallout('ما تنزل الميكر على الجيكر!', '🚫');
       return;
     }
 
     if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)) {
-      const leadColor = getEffectiveLeadColor(currentTrick, highestBid, trumpColor);
-      if (leadColor && me.hand.some((c) => c.color === leadColor)) {
-        const colName = SUIT_COLORS[leadColor]?.name || leadColor;
-        showCallout(`لازم تنزل نفس لون الأكلة (${colName})! ⚠️`, '⚠️');
-      } else {
-        showCallout('الكرت غير مسموح بهذه الأكلة! ⚠️', '⚠️');
-      }
       return;
     }
 
@@ -947,7 +881,6 @@ export default function App() {
     if (bot.isHuman) return;
     if (isMultiplayerActive && !isRoomHost) return;
 
-    // وقت تفكير البوت 1400ms لإعطاء ركادة واقعية بين كل لاعب وآخر
     const botTimer = setTimeout(() => {
       const context: BotStrategyContext = {
         buyerId: bidWinner,
@@ -1030,7 +963,6 @@ export default function App() {
                 nextList[idx] = newPlayer;
               } else {
                 nextList = [...prev, newPlayer];
-                showCallout(`انضم لاعب جديد: ${joinerName} ⏳`, '⏳');
                 soundEngine.playCardSlide();
               }
 
@@ -1068,8 +1000,6 @@ export default function App() {
             if (myAssignedIdx !== -1) {
               if (currentHumanSeatIndex !== myAssignedIdx) {
                 setCurrentHumanSeatIndex(myAssignedIdx);
-                const teamName = myAssignedIdx % 2 === 0 ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-                showCallout(`عيّنك المضيف في المقعد #${myAssignedIdx + 1} (${teamName}) 💺`, '💺');
                 soundEngine.playCardSlide();
               }
             } else {
@@ -1143,7 +1073,6 @@ export default function App() {
           }
           startNewRound(msg.deck, msg.dealerIdx, activeSeats, myAssignedIdx);
         }
-        showCallout('بدأ اللعب للجميع! 🃏', '🚀');
         break;
       }
 
@@ -1184,7 +1113,6 @@ export default function App() {
             setMatchScoreTeamB(msg.scores.b);
           }
           startNewRound(msg.deck, msg.dealerIdx, seats, currentHumanSeatIndex);
-          showCallout(`بدأت الجولة ${msg.roundNumber ?? ''}! 🃏`, '🔄');
         }
         break;
       }
@@ -1283,7 +1211,6 @@ export default function App() {
       }
       return copy;
     });
-    showCallout('تم اختيار الشخصية!', '👤');
   };
 
   const handleUploadPhoto = (dataUrl: string) => {
@@ -1299,7 +1226,6 @@ export default function App() {
       if (copy[currentHumanSeatIndex]) copy[currentHumanSeatIndex].customPhoto = dataUrl;
       return copy;
     });
-    showCallout('تم حفظ صورتك الشخصية!', '📷');
   };
 
   const handleOpenPrivateTable = () => {
@@ -1325,7 +1251,6 @@ export default function App() {
       timestamp: Date.now(),
     });
     setShowHostModal(true);
-    showCallout(`طاولتك الخاصة #${roomCode} (تحكم باللاعبين والمقاعد) 🚪`, '👥');
   };
 
   const handleAssignWaitingPlayerToSeat = (player: WaitingPlayer, seatIdx: number) => {
@@ -1371,16 +1296,11 @@ export default function App() {
     });
 
     soundEngine.playCardSlide();
-    const teamLabel = team === 'A' ? 'الفريق الأزرق 🔵' : 'الفريق الأحمر 🔴';
-    showCallout(`تم تسكين ${player.name} في المقعد #${seatIdx + 1} (${teamLabel}) ✅`, '💺');
   };
 
   const handleMovePlayerToWaiting = (seatIdx: number) => {
     if (!isRoomHost) return;
-    if (seatIdx === 0) {
-      showCallout('أنت المضيف ورئيس الطاولة، لا يمكن نقلك للانتظار!', '⚠️');
-      return;
-    }
+    if (seatIdx === 0) return;
     const occupant = seats[seatIdx];
     if (!occupant || occupant.isVacant) return;
 
@@ -1420,8 +1340,6 @@ export default function App() {
       vacantCount: vCount,
       timestamp: Date.now(),
     });
-
-    showCallout(`تم نقل ${occupant.name || `المقعد #${seatIdx + 1}`} إلى قائمة الانتظار ⏳`, '⏳');
   };
 
   const handleSwapSeats = (idxA: number, idxB: number) => {
@@ -1463,7 +1381,6 @@ export default function App() {
     });
 
     soundEngine.playCardSlide();
-    showCallout(`تم تبديل المقعدين #${idxA + 1} و #${idxB + 1} 🔄`, '🔄');
   };
 
   const handleSitInSeat = (targetIdx: number) => {
@@ -1514,10 +1431,7 @@ export default function App() {
   };
 
   const handleConvertToBot = (idx: number) => {
-    if (idx === currentHumanSeatIndex) {
-      showCallout('لا يمكنك تحويل مقعدك إلى بوت!', '⚠️');
-      return;
-    }
+    if (idx === currentHumanSeatIndex) return;
     setSeats((prev) => {
       const next = [...prev];
       next[idx] = {
@@ -1541,14 +1455,10 @@ export default function App() {
       return next;
     });
     soundEngine.playCardSlide();
-    showCallout(`تم تحويل المقعد #${idx} إلى بوت 🤖`, '🤖');
   };
 
   const handleVacateSeatDirect = (idx: number) => {
-    if (idx === currentHumanSeatIndex) {
-      showCallout('لا يمكنك تفريغ مقعدك الحالي!', '⚠️');
-      return;
-    }
+    if (idx === currentHumanSeatIndex) return;
     setSeats((prev) => {
       const next = [...prev];
       next[idx] = {
@@ -1570,7 +1480,6 @@ export default function App() {
       });
       return next;
     });
-    showCallout(`أصبح المقعد #${idx} شاغراً ⏳`, '⏳');
   };
 
   const handleFillAllWithBots = () => {
@@ -1601,7 +1510,6 @@ export default function App() {
       return next;
     });
     soundEngine.playCardSlide();
-    showCallout('تم ملء الشواغر ببوتات ذكية 🤖', '🤖');
   };
 
   const handleVacateAllSeats = () => {
@@ -1628,7 +1536,6 @@ export default function App() {
       });
       return next;
     });
-    showCallout('تم إفراغ جميع المقاعد ⏳', '⏳');
   };
 
   const handleSaveSeatDetails = (updated: Partial<SeatConfig>) => {
@@ -1642,15 +1549,11 @@ export default function App() {
       return next;
     });
     setEditingSeatIndex(null);
-    showCallout('تم حفظ بيانات المقعد!', '✅');
   };
 
   const handleVacateSeat = () => {
     if (editingSeatIndex === null) return;
-    if (editingSeatIndex === currentHumanSeatIndex) {
-      showCallout('لا يمكنك تفريغ مقعدك الحالي!', '⚠️');
-      return;
-    }
+    if (editingSeatIndex === currentHumanSeatIndex) return;
     setSeats((prev) => {
       const next = [...prev];
       next[editingSeatIndex] = {
@@ -1664,7 +1567,6 @@ export default function App() {
       return next;
     });
     setEditingSeatIndex(null);
-    showCallout('تم جعل المقعد شاغراً', '🔄');
   };
 
   const handleSetAutoScreen = () => {
@@ -1673,7 +1575,6 @@ export default function App() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
-    showCallout('وضع الشاشة: تلقائي 🔄', '🔄');
   };
 
   const handleSetLandscapeScreen = () => {
@@ -1684,19 +1585,14 @@ export default function App() {
     } else {
       document.body.classList.remove('forced-landscape-mode');
     }
-    showCallout('تم تحويل العرض إلى الوضع الأفقي 📱', '🖥️');
   };
 
   const handleToggleFullscreen = () => {
     setShowScreenModal(false);
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {
-        showCallout('تثبيت التطبيق مطلوب لملء الشاشة', '📲');
-      });
-      showCallout('ملء الشاشة ⛶', '⛶');
+      document.documentElement.requestFullscreen().catch(() => {});
     } else {
       document.exitFullscreen().catch(() => {});
-      showCallout('إلغاء ملء الشاشة 🔲', '🔲');
     }
   };
 
@@ -1865,7 +1761,6 @@ export default function App() {
               vacantCount: 5,
               timestamp: Date.now(),
             });
-            showCallout(`غرفة جديدة #${nextCode} (5 مقاعد شاغرة) 🔄`, '🔄');
           }}
           onSitInSeat={handleSitInSeat}
           onAssignWaitingPlayerToSeat={handleAssignWaitingPlayerToSeat}
@@ -1926,7 +1821,6 @@ export default function App() {
             });
 
             startNewRound(sharedDeck, randDealer, finalFilledSeats);
-            showCallout(`طاولتك برمز #${roomCode} - بدأ اللعب للجميع! 🚀`, '👥');
           }}
           onClose={() => setShowHostModal(false)}
         />
@@ -2021,7 +1915,6 @@ export default function App() {
             });
             setShowRoomsModal(false);
             setShowHostModal(true);
-            showCallout(`طاولتك برمز #${nextCode} (5 مقاعد شاغرة)`, '🚪');
           }}
           onJoinRoom={(code) => {
             setShowRoomsModal(false);
@@ -2038,7 +1931,6 @@ export default function App() {
             setShowExitConfirm(false);
             stopTimer();
             setPhase('LOBBY');
-            showCallout('القائمة الرئيسية', '👋');
           }}
           onCancel={() => setShowExitConfirm(false)}
         />
