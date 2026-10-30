@@ -81,13 +81,12 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
       } safe-bottom select-none flex-shrink-0 transition-all duration-200`}
     >
-     <div
-  className={`max-w-4xl mx-auto flex ${
-    isLandscape
-      ? 'flex-row items-center justify-center gap-3 px-2'
-      : 'flex-col items-center'
-  }`}
->
+      <div
+        className={`max-w-4xl mx-auto flex ${
+          isLandscape
+            ? 'flex-row items-center justify-center gap-3 px-2'
+            : 'flex-col items-center'
+        }`}
       >
         {/* تنبيه الأوراق أثناء المزاد */}
         {isBiddingPhase && !isLandscape && (
