@@ -40,14 +40,14 @@ const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   5: { x: -88, y: 42, rotate: 8 },
 };
 
-// إحداثيات الورق المتباعدة بدقة في الوضع الأفقي (Landscape) - تمنع تراكب بندر مع سعود وعبود مع مشاري
+// إحداثيات الورق في الوضع الأفقي (Landscape) - متباعدة تماماً بين طارق ومشاري وبندر
 const LANDSCAPE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 52, rotate: 0 },       // أنت
-  1: { x: 145, y: 30, rotate: -10 },    // عبود (يمين أسفل فسيح)
-  2: { x: 75, y: -45, rotate: -6 },     // مشاري (يمين أعلى)
-  3: { x: 0, y: -50, rotate: 0 },       // طارق (أعلى وسط)
-  4: { x: -75, y: -45, rotate: 6 },     // بندر (يسار أعلى)
-  5: { x: -145, y: 30, rotate: 10 },    // سعود (يسار أسفل فسيح)
+  0: { x: 0, y: 52, rotate: 0 },        // أنت
+  1: { x: 175, y: 35, rotate: -10 },     // عبود
+  2: { x: 125, y: -42, rotate: -6 },     // مشاري (متباعدة تماماً عن طارق بـ 125px)
+  3: { x: 0, y: -52, rotate: 0 },        // طارق
+  4: { x: -125, y: -42, rotate: 6 },     // بندر (متباعدة تماماً عن طارق بـ 125px)
+  5: { x: -175, y: 35, rotate: 10 },     // سعود
 };
 
 // إحداثيات وصول الأكلة إلى مقاعد اللاعبين في الوضع الرأسي
@@ -55,19 +55,19 @@ const PORTRAIT_WINNER_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 220, rotate: 0 },
   1: { x: 200, y: 130, rotate: 10 },
   2: { x: 200, y: -130, rotate: 10 },
-  3: { x: 0, y: -230, rotate: 0 },
+  3: { x: 0, y: -220, rotate: 0 },
   4: { x: -200, y: -130, rotate: -10 },
   5: { x: -200, y: 130, rotate: -10 },
 };
 
-// إحداثيات وصول الأكلة إلى صور اللاعبين بالضبط في الوضع الأفقي الممتد
+// إحداثيات وصول الأكلة مباشرة وبدقة إلى صور اللاعبين في الوضع الأفقي
 const LANDSCAPE_WINNER_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 240, rotate: 0 },       // إلى صورتك بالأسفل
-  1: { x: 490, y: 90, rotate: 15 },     // إلى صورة عبود مباشرة في الطرف الأيمن
-  2: { x: 380, y: -210, rotate: 12 },   // إلى صورة مشاري مباشرة في أعلى اليمين
-  3: { x: 0, y: -220, rotate: 0 },       // إلى صورة طارق في أعلى المنتصف
-  4: { x: -380, y: -210, rotate: -12 }, // إلى صورة بندر مباشرة في أعلى اليسار
-  5: { x: -490, y: 90, rotate: -15 },   // إلى صورة سعود مباشرة في الطرف الأيسر
+  0: { x: 0, y: 230, rotate: 0 },       // إلى صورتك بالأسفل
+  1: { x: 530, y: 64, rotate: 12 },     // إلى صورة عبود بالطرف الأيمن
+  2: { x: 414, y: -176, rotate: 10 },   // إلى صورة مشاري في أعلى اليمين
+  3: { x: 0, y: -176, rotate: 0 },      // إلى صورة طارق في أعلى المنتصف
+  4: { x: -414, y: -176, rotate: -10 }, // إلى صورة بندر في أعلى اليسار
+  5: { x: -530, y: 64, rotate: -12 },   // إلى صورة سعود بالطرف الأيسر
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -154,9 +154,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* ساحة الأوراق المرمية */}
+        {/* ساحة الأوراق المرمية - مكبرة وواضحة جداً */}
         <div className={`relative w-full h-full flex items-center justify-center pointer-events-none z-20 ${
-          isLandscape ? 'scale-[0.74]' : 'scale-[0.80] xs:scale-[0.88] sm:scale-100'
+          isLandscape ? 'scale-[0.85] xs:scale-[0.88] sm:scale-[0.92]' : 'scale-[0.88] xs:scale-[0.95] sm:scale-105'
         }`}>
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
@@ -179,7 +179,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   left: '50%',
                   transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
                   transition: isCollecting
-                    ? 'transform 1200ms cubic-bezier(0.25, 0.9, 0.3, 1), opacity 950ms ease-in'
+                    ? 'transform 1450ms cubic-bezier(0.22, 1, 0.36, 1), opacity 1150ms ease-in'
                     : 'transform 1100ms cubic-bezier(0.16, 1, 0.3, 1)',
                   opacity: isCollecting ? 0 : 1,
                   zIndex: isCollecting ? 40 + index : 20 + index,
@@ -239,17 +239,17 @@ export const TableArena: React.FC<TableArenaProps> = ({
             else if (relPos === 4) posClass = 'top-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
             else if (relPos === 5) posClass = 'bottom-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           } else {
-            // التوزيع الأفقي المنضبط (Landscape)
+            // التوزيع الأفقي المنضبط (Landscape) - صورة طارق نزلت قليلاً لتظهر شارة الشراء كاملة
             if (relPos === 1) {
-              posClass = 'top-[68%] -translate-y-1/2 right-[-26px]';
+              posClass = 'top-[66%] -translate-y-1/2 right-[-26px]';
             } else if (relPos === 2) {
-              posClass = 'top-[-18px] right-[10%]';
+              posClass = 'top-[4px] right-[10%]';
             } else if (relPos === 3) {
-              posClass = 'top-[-22px] left-1/2 -translate-x-1/2';
+              posClass = 'top-[6px] left-1/2 -translate-x-1/2';
             } else if (relPos === 4) {
-              posClass = 'top-[-18px] left-[10%]';
+              posClass = 'top-[4px] left-[10%]';
             } else if (relPos === 5) {
-              posClass = 'top-[68%] -translate-y-1/2 left-[-26px]';
+              posClass = 'top-[66%] -translate-y-1/2 left-[-26px]';
             }
           }
 
