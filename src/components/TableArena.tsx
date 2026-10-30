@@ -85,6 +85,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
       */}
       <div className={`jawaker-table-felt rounded-[42px] xs:rounded-[50px] sm:rounded-[64px]
         w-[88%] max-w-[420px] h-[92%] max-h-[460px]
+        landscape:w-[94vw] landscape:max-w-none landscape:h-[90%] landscape:max-h-[290px]
         relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
         isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
       }`}>
