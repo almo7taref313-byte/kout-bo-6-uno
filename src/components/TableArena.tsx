@@ -32,22 +32,22 @@ interface CardCoord {
 
 // أماكن استقرار الأوراق في وسط الطاولة (توزيع سداسي هندسي متزن يمنع تراكب أي ورقة)
 const TABLE_CARD_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 72, rotate: 0 },         // ورقة اللاعب (أنت)
-  1: { x: 88, y: 36, rotate: -8 },       // ورقة عبود (يمين أسفل)
-  2: { x: 88, y: -36, rotate: -8 },      // ورقة مشاري (يمين أعلى)
-  3: { x: 0, y: -70, rotate: 0 },        // ورقة طارق (أعلى وسط)
-  4: { x: -88, y: -36, rotate: 8 },      // ورقة بندر (يسار أعلى)
-  5: { x: -88, y: 36, rotate: 8 },       // ورقة سعود (يسار أسفل)
+  0: { x: 0, y: 68, rotate: 0 },         // ورقة اللاعب (أنت)
+  1: { x: 86, y: 34, rotate: -8 },       // ورقة عبود (يمين أسفل)
+  2: { x: 86, y: -34, rotate: -8 },      // ورقة مشاري (يمين أعلى)
+  3: { x: 0, y: -68, rotate: 0 },        // ورقة طارق (أعلى وسط)
+  4: { x: -86, y: -34, rotate: 8 },      // ورقة بندر (يسار أعلى)
+  5: { x: -86, y: 34, rotate: 8 },       // ورقة سعود (يسار أسفل)
 };
 
-// إحداثيات مركز صور اللاعبين لوصول حركة الأكلة بدقة متناهية
+// إحداثيات مركز صور اللاعبين بدقة هندسية متطابقة مع مواقع الأفاتار على محيط الطاولة
 const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 245, rotate: 0 },        // إلى مركز صورتك بالأسفل
-  1: { x: 175, y: 152, rotate: 8 },      // إلى مركز صورة عبود
-  2: { x: 175, y: -152, rotate: 8 },     // إلى مركز صورة مشاري
-  3: { x: 0, y: -230, rotate: 0 },       // إلى مركز صورة طارق
-  4: { x: -175, y: -152, rotate: -8 },   // إلى مركز صورة بندر
-  5: { x: -175, y: 152, rotate: -8 },    // إلى مركز صورة سعود
+  0: { x: 0, y: 250, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) في الشريط السفلي
+  1: { x: 172, y: 148, rotate: 12 },     // إلى مركز صورة عبود (يمين أسفل)
+  2: { x: 172, y: -148, rotate: 12 },    // إلى مركز صورة مشاري (يمين أعلى)
+  3: { x: 0, y: -228, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
+  4: { x: -172, y: -148, rotate: -12 },  // إلى مركز صورة بندر (يسار أعلى)
+  5: { x: -172, y: 148, rotate: -12 },   // إلى مركز صورة سعود (يسار أسفل)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -82,8 +82,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
       
       {/* 
         طاولة الكوت الموحدة:
-        - للهواتف: رأسية بيضاوية مريحة (w-[90%] max-w-[410px] h-[92%] max-h-[475px])
-        - للأجهزة اللوحية والكمبيوتر: تتسع بتناسق كامل (md:max-w-[620px] md:max-h-[500px])
+        - الهواتف (الوضع الرأسي): w-[90%] max-w-[410px] h-[92%] max-h-[475px]
+        - الأجهزة اللوحية والكمبيوتر: md:max-w-[620px] md:max-h-[500px]
       */}
       <div 
         className={`jawaker-table-felt rounded-[50px] sm:rounded-[64px] md:rounded-[80px]
@@ -132,7 +132,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
             const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
             const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate : rest.rotate;
-            const targetScale = isCollecting ? 0.35 : 1;
+            const targetScale = isCollecting ? 0.28 : 1;
 
             return (
               <div
@@ -142,9 +142,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   top: '50%',
                   left: '50%',
                   transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
-                  /* سرعة مدروسة تضمن وصول الكروت إلى منتصف دائرة الأفاتار تماماً قبل التلاشي */
+                  /* 
+                    حركة هادئة وانسيابية تماماً:
+                    - مدة الحركة: 850ms بمنحنى هدوء ناعم cubic-bezier(0.25, 1, 0.5, 1) يتباطأ تدريجياً
+                    - الكروت تسافر بكامل سطوعها ووضوحها (100% Opacity) حتى تلمس وجه اللاعب تماماً
+                    - تبدأ بالتلاشي اللطيف في آخر 180ms فقط (تأخير 670ms) لتبدو وكأن اللاعب ضمّ الأوراق لرصيده
+                  */
                   transition: isCollecting
-                    ? 'transform 550ms cubic-bezier(0.2, 0.85, 0.35, 1), opacity 80ms ease-out 520ms'
+                    ? 'transform 850ms cubic-bezier(0.25, 1, 0.5, 1), opacity 180ms ease-out 670ms'
                     : 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)',
                   opacity: isCollecting ? 0 : 1,
                   zIndex: isCollecting ? 40 + index : 20 + index,
@@ -175,7 +180,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* مقاعد اللاعبين الخمسة: توزيع محيطي متزن يمنع التداخل نهائياً */}
+        {/* مقاعد اللاعبين الخمسة: توزيع محيطي متزن بدقة هندسية */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
