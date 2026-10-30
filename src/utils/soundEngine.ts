@@ -3,6 +3,8 @@ class SoundEngineClass {
   public enabled: boolean = true;
   private lastSlideTime: number = 0;
   private applauseAudio: HTMLAudioElement | null = null;
+  private applauseTimer: ReturnType<typeof setTimeout> | null = null;
+  private applauseFadeInterval: ReturnType<typeof setInterval> | null = null;
 
   init() {
     if (!this.ctx && typeof window !== 'undefined') {
@@ -215,32 +217,53 @@ class SoundEngineClass {
     });
   }
 
-  // تشغيل فوري وبقاء كامل لصوت التصفيق
-playCheeringAndWhistle() {
-  if (!this.enabled) return;
-  try {
-    if (!this.applauseAudio) {
-      this.applauseAudio = new Audio('/applause.mp3');
+  // إيقاف صوت التصفيق فوراً وبشكل قاطع ومسح أي مؤقتات خفوت نشطة
+  stopApplause() {
+    if (this.applauseTimer) {
+      clearTimeout(this.applauseTimer);
+      this.applauseTimer = null;
     }
-    const audio = this.applauseAudio;
-    audio.currentTime = 0;
-    audio.volume = 0.95;
-    audio.play().catch(() => {});
+    if (this.applauseFadeInterval) {
+      clearInterval(this.applauseFadeInterval);
+      this.applauseFadeInterval = null;
+    }
+    if (this.applauseAudio) {
+      try {
+        this.applauseAudio.pause();
+        this.applauseAudio.currentTime = 0;
+        this.applauseAudio.volume = 0.95;
+      } catch {}
+    }
+  }
 
-    // يبدأ الخفوت عند ثانيتين ويتلاشى ويتوقف تماماً عند 2.5 ثانية
-    setTimeout(() => {
-      const fadeInterval = setInterval(() => {
-        if (audio.volume > 0.1) {
-          audio.volume = Math.max(0, audio.volume - 0.18);
-        } else {
-          clearInterval(fadeInterval);
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      }, 50);
-    }, 2000);
-  } catch {}
-}
+  // تشغيل فوري ومضبوط زمنياً لصوت التصفيق يبدأ لحظة الفوز ويتلاشى وينتهي تماماً قبل ظهور المزايدة
+  playCheeringAndWhistle(durationMs: number = 2400) {
+    if (!this.enabled) return;
+    try {
+      this.stopApplause();
+      if (!this.applauseAudio && typeof window !== 'undefined') {
+        this.applauseAudio = new Audio('/applause.mp3');
+      }
+      if (!this.applauseAudio) return;
+
+      const audio = this.applauseAudio;
+      audio.currentTime = 0;
+      audio.volume = 0.95;
+      audio.play().catch(() => {});
+
+      // يبدأ الخفوت التنازلي قبل نهاية المدة بـ 450ms ليتلاشى وينعدم تماماً عند انتهاء المدة
+      const fadeStartMs = Math.max(600, durationMs - 450);
+      this.applauseTimer = setTimeout(() => {
+        this.applauseFadeInterval = setInterval(() => {
+          if (audio.volume > 0.12) {
+            audio.volume = Math.max(0, audio.volume - 0.2);
+          } else {
+            this.stopApplause();
+          }
+        }, 40);
+      }, fadeStartMs);
+    } catch {}
+  }
 
   playSadTromboneMock() {
     if (!this.enabled) return;

@@ -283,6 +283,7 @@ export default function App() {
   const startNewRound = useCallback(
     (deckOverride?: Card[], forcedDealerIdx?: number, seatsOverride?: SeatConfig[], humanSeatOverride?: number) => {
       stopTimer();
+      soundEngine.stopApplause();
       setIsActionPending(false);
 
       const activeDealer = forcedDealerIdx !== undefined ? forcedDealerIdx : dealerIdx;
@@ -683,23 +684,28 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
-     // تشغيل الصوت والرسالة المحددة فقط حسب فوز أو خسارة الفريق الحاكم
-      if (buyerIsWinner) {
-        soundEngine.playCheeringAndWhistle();
-        showCallout('كفو شباب! 👏🎉', '👑');
+      // تحديد الفريق الفائز بالجولة بدقة
+      const winningTeam = buyerIsWinner ? buyerTeam : (buyerTeam === 'A' ? 'B' : 'A');
+      const humanTeam = (players[currentHumanSeatIndex] && players[currentHumanSeatIndex].team) || 'A';
+      const myTeamWon = winningTeam === humanTeam;
+
+      // تشغيل التصفيق لحظة فوز الفريق بالجولة مع مدة محددة بـ 2400ms تنتهي تماماً قبل ظهور المزايدة
+      if (myTeamWon) {
+        soundEngine.playCheeringAndWhistle(2400);
+        showCallout(buyerIsWinner ? 'كفو شباب! جبنا الطلب 👏🎉' : 'كفو شباب! كسرنا الحكم 👏🛡️', '👑');
         nativeBridge.hapticVictory();
       } else {
         soundEngine.playSadTromboneMock();
-        showCallout('راحت عليكم! 😅👎', '💔');
+        showCallout(buyerIsWinner ? 'راحت عليكم! جابوا الطلب 😅👎' : 'راحت علينا! خسرنا الطلب 💔', '💔');
         nativeBridge.hapticTrickWin();
       }
 
-      // الانتقال للجولة الجديدة بعد 2.7 ثانية (بعد اختفاء الصوت والرسالة بـ 200ms تماماً)
+      // الانتقال للجولة الجديدة بعد 2.9 ثانية (بعد توقف صوت التصفيق والرسالة بـ 500ms تماماً وقبل ظهور أوراق المزايدة)
       setTimeout(() => {
         handleNextRoundOrMatch(nextScoreA, nextScoreB);
-      }, 2700);
+      }, 2900);
     },
-    [bidWinner, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, showCallout, stopTimer]
+    [bidWinner, currentHumanSeatIndex, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, showCallout, stopTimer]
   );
 
   // Trick Resolution
