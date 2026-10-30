@@ -54,7 +54,7 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] flex items-start justify-center pt-4 xs:pt-6 sm:pt-8 p-3 pointer-events-auto">
+    <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-3 pointer-events-auto">
       <div className="bg-[#15181f]/95 border-2 border-emerald-500/50 rounded-3xl w-full max-w-[320px] xs:max-w-[340px] p-3 xs:p-4 text-center shadow-2xl backdrop-blur-md animate-in zoom-in-95">
         <div className="w-full flex flex-col gap-2.5">
           {/* Notice for Dealer if everyone passed */}

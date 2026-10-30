@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// أماكن استقرار الأوراق في وسط الطاولة (توزيع سداسي هندسي متزن يمنع تراكب أي ورقة)
+// أماكن استقرار الأوراق في وسط الطاولة: مدار سداسي فسيح ومتزن يمنع تراكب أي ورقة نهائياً
 const TABLE_CARD_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 68, rotate: 0 },         // ورقة اللاعب (أنت)
-  1: { x: 86, y: 34, rotate: -8 },       // ورقة عبود (يمين أسفل)
-  2: { x: 86, y: -34, rotate: -8 },      // ورقة مشاري (يمين أعلى)
-  3: { x: 0, y: -68, rotate: 0 },        // ورقة طارق (أعلى وسط)
-  4: { x: -86, y: -34, rotate: 8 },      // ورقة بندر (يسار أعلى)
-  5: { x: -86, y: 34, rotate: 8 },       // ورقة سعود (يسار أسفل)
+  0: { x: 0, y: 78, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
+  1: { x: 114, y: 40, rotate: -10 },     // ورقة عبود (يمين أسفل)
+  2: { x: 114, y: -40, rotate: -18 },    // ورقة مشاري (يمين أعلى)
+  3: { x: 0, y: -78, rotate: 0 },        // ورقة طارق (أعلى وسط)
+  4: { x: -114, y: -40, rotate: 18 },    // ورقة بندر (يسار أعلى)
+  5: { x: -114, y: 40, rotate: 10 },     // ورقة سعود (يسار أسفل)
 };
 
-// إحداثيات مركز صور اللاعبين بدقة هندسية متطابقة مع مواقع الأفاتار على محيط الطاولة
+// إحداثيات مركز صور اللاعبين كمرجع احتياطي
 const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 250, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) في الشريط السفلي
-  1: { x: 172, y: 148, rotate: 12 },     // إلى مركز صورة عبود (يمين أسفل)
-  2: { x: 172, y: -148, rotate: 12 },    // إلى مركز صورة مشاري (يمين أعلى)
-  3: { x: 0, y: -228, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
-  4: { x: -172, y: -148, rotate: -12 },  // إلى مركز صورة بندر (يسار أعلى)
-  5: { x: -172, y: 148, rotate: -12 },   // إلى مركز صورة سعود (يسار أسفل)
+  0: { x: 0, y: 260, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) في الشريط السفلي
+  1: { x: 185, y: 135, rotate: 12 },     // إلى مركز صورة عبود (يمين أسفل)
+  2: { x: 185, y: -135, rotate: 12 },    // إلى مركز صورة مشاري (يمين أعلى)
+  3: { x: 0, y: -210, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
+  4: { x: -185, y: -135, rotate: -12 },  // إلى مركز صورة بندر (يسار أعلى)
+  5: { x: -185, y: 135, rotate: -12 },   // إلى مركز صورة سعود (يسار أسفل)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -77,17 +77,51 @@ export const TableArena: React.FC<TableArenaProps> = ({
   const timerRatio = Math.max(0, Math.min(1, timerRemaining / TURN_TIMER_DURATION));
   const timerOffset = TIMER_CIRCUMFERENCE * (1 - timerRatio);
 
+  const tableFeltRef = React.useRef<HTMLDivElement>(null);
+  const [collectOffset, setCollectOffset] = React.useState<{ x: number; y: number } | null>(null);
+
+  React.useEffect(() => {
+    if (collectingWinnerId !== null) {
+      const measureTarget = () => {
+        const tableEl = tableFeltRef.current;
+        const avatarEl = document.getElementById(`avatar-player-${collectingWinnerId}`);
+        if (tableEl && avatarEl) {
+          const tableRect = tableEl.getBoundingClientRect();
+          const avatarRect = avatarEl.getBoundingClientRect();
+
+          const tableCenterX = tableRect.left + tableRect.width / 2;
+          const tableCenterY = tableRect.top + tableRect.height / 2;
+
+          const avatarCenterX = avatarRect.left + avatarRect.width / 2;
+          const avatarCenterY = avatarRect.top + avatarRect.height / 2;
+
+          setCollectOffset({
+            x: Math.round(avatarCenterX - tableCenterX),
+            y: Math.round(avatarCenterY - tableCenterY),
+          });
+        }
+      };
+
+      measureTarget();
+      const raf = requestAnimationFrame(measureTarget);
+      return () => cancelAnimationFrame(raf);
+    } else {
+      setCollectOffset(null);
+    }
+  }, [collectingWinnerId]);
+
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-hidden">
       
       {/* 
-        طاولة الكوت الموحدة:
-        - الهواتف (الوضع الرأسي): w-[90%] max-w-[410px] h-[92%] max-h-[475px]
-        - الأجهزة اللوحية والكمبيوتر: md:max-w-[620px] md:max-h-[500px]
+        طاولة الكوت الفسيحة والمطورة:
+        - الهواتف: w-[92%] max-w-[430px] h-[94%] max-h-[460px]
+        - الأجهزة اللوحية والكمبيوتر: md:max-w-[820px] lg:max-w-[890px] md:max-h-[500px]
       */}
       <div 
-        className={`jawaker-table-felt rounded-[50px] sm:rounded-[64px] md:rounded-[80px]
-          w-[90%] max-w-[410px] md:max-w-[620px] h-[92%] max-h-[475px] md:max-h-[500px]
+        ref={tableFeltRef}
+        className={`jawaker-table-felt rounded-[48px] sm:rounded-[60px] md:rounded-[76px]
+          w-[92%] max-w-[430px] md:max-w-[820px] lg:max-w-[890px] h-[94%] max-h-[460px] md:max-h-[500px]
           relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
           isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
         }`}
@@ -127,12 +161,12 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = TABLE_CARD_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
-            const winnerTarget = isCollecting ? WINNER_AVATAR_TARGETS[relWinnerSlot] : null;
+            const fallbackTarget = WINNER_AVATAR_TARGETS[relWinnerSlot] || { x: 0, y: 0, rotate: 0 };
 
-            const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
-            const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
-            const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate : rest.rotate;
-            const targetScale = isCollecting ? 0.28 : 1;
+            const targetX = isCollecting ? (collectOffset ? collectOffset.x : fallbackTarget.x) : rest.x;
+            const targetY = isCollecting ? (collectOffset ? collectOffset.y : fallbackTarget.y) : rest.y;
+            const targetRotate = isCollecting ? 0 : rest.rotate;
+            const targetScale = isCollecting ? 0.22 : 1;
 
             return (
               <div
@@ -203,19 +237,19 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           if (relPos === 1) {
             // اللاعب 1 (عبود): يمين أسفل
-            posClass = 'bottom-[16%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+            posClass = 'bottom-[18%] right-2 xs:right-3 sm:right-4';
           } else if (relPos === 2) {
             // اللاعب 2 (مشاري): يمين أعلى
-            posClass = 'top-[16%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+            posClass = 'top-[18%] right-2 xs:right-3 sm:right-4';
           } else if (relPos === 3) {
             // اللاعب 3 (طارق): أعلى المنتصف
-            posClass = 'top-[-22px] left-1/2 -translate-x-1/2';
+            posClass = 'top-1.5 xs:top-2 sm:top-2.5 left-1/2 -translate-x-1/2';
           } else if (relPos === 4) {
             // اللاعب 4 (بندر): يسار أعلى
-            posClass = 'top-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+            posClass = 'top-[18%] left-2 xs:left-3 sm:left-4';
           } else if (relPos === 5) {
             // اللاعب 5 (سعود): يسار أسفل
-            posClass = 'bottom-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+            posClass = 'bottom-[18%] left-2 xs:left-3 sm:left-4';
           }
 
           let targetBadgePosClass = '';
@@ -242,14 +276,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
             <div key={idx} className={`absolute ${posClass} z-30 transition-all duration-300`}>
               <div className="relative flex flex-col items-center">
 
-                {/* فقاعة المزاد للبوت */}
+                {/* فقاعة المزاد للبوت - موضوعة بجانب الأفاتار لمنع حجب وسط الطاولة */}
                 {phase === 'BIDDING' && latestBid && (
                   <div
                     className={`absolute z-35 pointer-events-none ${
                       relPos === 1 || relPos === 2
                         ? '-left-[64px] top-1/2 -translate-y-1/2'
                         : relPos === 3
-                        ? 'top-[44px] left-1/2 -translate-x-1/2'
+                        ? '-right-[68px] top-1/2 -translate-y-1/2'
                         : '-right-[64px] top-1/2 -translate-y-1/2'
                     }`}
                   >
@@ -263,8 +297,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 )}
 
-                {/* الحاوية الدائرية للأفاتار */}
-                <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
+                {/* الحاوية الدائرية للأفاتار مع المعرّف الخاص بحساب مسار الأكلة بدقة متناهية */}
+                <div 
+                  id={`avatar-player-${idx}`}
+                  className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center"
+                >
                   
                   {isBuyer && (
                     <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>

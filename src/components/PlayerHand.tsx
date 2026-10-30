@@ -101,7 +101,10 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         {/* صورة اللاعب وبياناته بالأسفل في المنتصف */}
         <div className="w-full flex items-center justify-center mt-0.5 sm:mt-1">
           <div className="relative flex flex-col items-center">
-            <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
+            <div 
+              id={`avatar-player-${activePlayer.id}`}
+              className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center"
+            >
               
               {isHumanBuyer && (
                 <div

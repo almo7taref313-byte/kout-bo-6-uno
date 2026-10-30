@@ -71,8 +71,8 @@
 }
 
 /* ==========================================================================
-   التحكم الحاسم في الوضع الأفقي (Landscape) عبر CSS مباشر
-   يمسح الفراغ الأسود ويمدد الطاولة أفقياً دون المساس بالوضع الرأسي
+   التحكم الحاسم في الوضع الأفقي (Landscape) والأجهزة المكتبية والشاشات العريضة
+   يمسح الفراغ الأسود ويمدد الطاولة لتصبح فسيحة وأنيقة وتتسع لكافة الكروت
    ========================================================================== */
 @media (orientation: landscape) {
   /* تمديد مسرح اللعب ليأخذ عرض الشاشة بالكامل */
@@ -84,17 +84,36 @@
 
   /* تحويل الطاولة إلى شكل بيضاوي فسيح جداً يملأ الشاشة ويمسح الفراغ الأسود */
   .jawaker-table-felt {
-    width: 86vw !important;
-    max-width: 840px !important;
+    width: 88vw !important;
+    max-width: 860px !important;
     height: 94% !important;
-    max-height: 290px !important;
+    max-height: 380px !important;
     border-radius: 64px !important;
   }
 
-  /* ضغط حجم شريط الأوراق السفلية ليعطي الطاولة ارتفاعاً وتهوية */
+  /* ضبط حجم شريط الأوراق السفلية ليعطي الطاولة ارتفاعاً وتهوية */
   footer.safe-bottom {
     padding-top: 2px !important;
     padding-bottom: 4px !important;
+  }
+}
+
+/* للشاشات الكبيرة والمكتبية (كمبيوتر، لابتوب، آيباد) بارتفاع مريح */
+@media (min-width: 768px) and (min-height: 520px) {
+  .jawaker-table-felt {
+    max-height: 480px !important;
+    max-width: 860px !important;
+    width: 75vw !important;
+    border-radius: 76px !important;
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 640px) {
+  .jawaker-table-felt {
+    max-height: 510px !important;
+    max-width: 900px !important;
+    width: 68vw !important;
+    border-radius: 80px !important;
   }
 }
 
