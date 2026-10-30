@@ -98,7 +98,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
       {/* Target Score (101 if both >= 5, or 51 Asam) */}
       <div className="flex flex-col items-center justify-center px-1.5 text-center leading-none border-x border-slate-700/80">
         <span className="text-[6.5px] xs:text-[7.5px] font-bold text-amber-300 whitespace-nowrap">
-          {bothHaveFiveOrMore ? 'الهدف' : 'عسم'}
+          الهدف
         </span>
         <span className="text-[11px] xs:text-xs sm:text-sm font-black text-amber-400 font-mono mt-0.5">
           {targetScore}
@@ -122,7 +122,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
     </div>
   );
 
-  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - يقتصر على عدد الأكلات فقط دون ذكر عدد المزايدة بخلفية بيضاء ثلجية ولون الفريق
+  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - يقتصر على عدد الأكلات فقط دون كلمة الأكلات
   const renderTricksPanel = () => (
     <div className="flex items-center bg-[#0d1017] border-2 border-slate-700/90 rounded-2xl p-1 xs:p-1.5 shadow-2xl gap-1.5 xs:gap-2 flex-shrink-0">
       {/* Blue Tricks 🔵 */}
@@ -136,12 +136,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         </div>
       </div>
 
-      {/* Middle Label: الأكلات (دون ذكر عدد المزايدة) */}
-      <div className="flex flex-col items-center justify-center px-0.5 xs:px-1 leading-none text-center">
-        <span className="text-[8px] xs:text-[9px] sm:text-[10px] font-black text-amber-300 whitespace-nowrap">
-          الأكلات
-        </span>
-      </div>
+      <span className="text-slate-500 font-black text-xs xs:text-sm px-0.5 select-none">:</span>
 
       {/* Red Tricks 🔴 */}
       <div className="flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-xl px-1.5 xs:px-2 py-0.5 xs:py-1">
@@ -191,22 +186,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
       {/* 1. Main Top Row (Contains Rooms, Score in Center, and Controls on Left) */}
       <div className="w-full px-1.5 xs:px-2.5 sm:px-4 py-1 flex items-center justify-between min-h-[44px] xs:min-h-[48px] sm:min-h-[52px] gap-1">
         
-        {/* Right Section (in RTL): Rooms button + Widescreen (Tricks & Trump) */}
+        {/* Right Section (in RTL): Widescreen (Tricks & Trump) */}
         <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 flex-shrink-0">
-          {/* Room / Room Number Button */}
-          <button
-            onClick={onOpenRooms}
-            className="h-7 xs:h-8 sm:h-9 px-1.5 xs:px-2 rounded-xl bg-[#252a36] hover:bg-[#343a49] flex items-center justify-center gap-1 text-amber-400 transition active:scale-95 cursor-pointer shadow border border-slate-700/80 flex-shrink-0"
-            title={`غرفة اللعب #${roomCode || ''}`}
-          >
-            <span className="text-sm xs:text-base leading-none">🏠</span>
-            {roomCode && (
-              <span className="font-mono text-[9px] xs:text-[10px] font-black text-amber-300 leading-none">
-                #{roomCode}
-              </span>
-            )}
-          </button>
-
           {/* On Widescreen / Landscape: Display Tricks & Trump right here on the right */}
           <div className="hud-widescreen-only items-center gap-2">
             {renderTricksPanel()}

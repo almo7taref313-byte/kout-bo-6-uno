@@ -356,7 +356,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
                   {isDealer && (
                     <span
-                      className="absolute -bottom-1 -left-1 z-40 text-white font-black text-xs xs:text-sm leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]"
+                      className="absolute -bottom-1.5 -left-1.5 z-40 text-amber-300 font-black text-sm xs:text-base sm:text-lg leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter drop-shadow-[0_0_2px_#000]"
                       title="الموزع (Dealer)"
                     >
                       D
@@ -426,13 +426,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 </div>
 
                 <div
-                  className={`px-1.5 xs:px-2 py-0.5 mt-0.5 rounded-full text-center flex items-center justify-center max-w-[65px] xs:max-w-[75px] shadow-md border ${
+                  className={`px-2 py-0.5 mt-0.5 rounded-full text-center flex items-center justify-center min-w-[58px] max-w-[85px] xs:max-w-[95px] shadow-lg border backdrop-blur-sm ${
                     isTeamA
-                      ? 'bg-blue-950/90 border-cyan-500/50 text-cyan-200'
-                      : 'bg-rose-950/90 border-rose-500/50 text-rose-200'
+                      ? 'bg-blue-950/95 border-cyan-400/60 text-cyan-100 shadow-blue-900/30'
+                      : 'bg-rose-950/95 border-rose-400/60 text-rose-100 shadow-rose-900/30'
                   }`}
                 >
-                  <span className="text-[7.5px] xs:text-[8px] font-black truncate leading-none">
+                  <span className="text-[9px] xs:text-[10px] sm:text-[11px] font-black font-sans tracking-wide truncate leading-tight drop-shadow-sm">
                     {player.name}
                   </span>
                 </div>

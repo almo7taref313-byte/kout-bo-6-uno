@@ -63,14 +63,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       }`}
     >
       <div className="max-w-4xl mx-auto flex flex-col items-center">
-        
-        {/* تنبيه الأوراق أثناء المزاد */}
-        {isBiddingPhase && (
-          <div className="text-[10px] xs:text-[11px] font-black text-amber-300 bg-black/80 border border-amber-400/60 px-3 py-0.5 rounded-full mb-1 flex items-center gap-1.5 shadow-lg animate-pulse">
-            <span>🃏 أوراقك (9 كروت): تفحص ألوانك وقوتك لتحديد طلبك</span>
-          </div>
-        )}
-
         {/* أوراق اليد: متراصة ومتباعدة بنعومة وبدون تموج */}
         <div className="w-full flex items-center justify-center min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar">
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
@@ -128,7 +120,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
               {dealerIdx === activePlayer.id && (
                 <span
-                  className="absolute -bottom-1 -left-1 z-40 text-white font-black text-xs xs:text-sm sm:text-base leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                  className="absolute -bottom-1 -left-1.5 z-40 text-amber-300 font-black text-sm xs:text-base sm:text-lg leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter drop-shadow-[0_0_2px_#000]"
                   title="أنت الموزع (Dealer)"
                 >
                   D
@@ -161,7 +153,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               </div>
             </div>
 
-            <div className="bg-blue-600 text-white font-black text-[8px] xs:text-[9px] px-2 py-0.5 rounded-full shadow-md -mt-1 z-20 border border-blue-300 max-w-[75px] truncate">
+            <div className="bg-blue-600 text-white font-black font-sans text-[9px] xs:text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full shadow-md -mt-1 z-20 border border-blue-300 max-w-[85px] truncate leading-tight drop-shadow-sm">
               {activePlayer.name}
             </div>
 
