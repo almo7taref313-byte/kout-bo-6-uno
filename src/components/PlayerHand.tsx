@@ -37,7 +37,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   dealerIdx = 0,
   isTimerDisabled = false,
 }) => {
-  // كاشف الوضع الأفقي برمجياً
   const [isLandscape, setIsLandscape] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth > window.innerHeight;
@@ -77,7 +76,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   return (
     <footer
       className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] ${
-        isLandscape ? 'py-0.5 px-3' : 'pt-1 pb-1.5 sm:pb-2.5 px-1.5 sm:px-3'
+        isLandscape ? 'py-0.5 px-2' : 'pt-1 pb-1.5 sm:pb-2.5 px-1.5 sm:px-3'
       } ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
       } safe-bottom select-none flex-shrink-0 transition-all duration-200`}
@@ -85,8 +84,8 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       <div
         className={`max-w-4xl mx-auto flex ${
           isLandscape
-            ? 'flex-row items-center justify-between gap-2 px-2' // في الأفقي: إزاحة الصورة للأطراف وجعل الأوراق بأسفل المنتصف
-            : 'flex-col items-center' // في الرأسي: نفس الترتيب العمودي المعتاد
+            ? 'flex-row items-center justify-between gap-1 px-1'
+            : 'flex-col items-center'
         }`}
       >
         
@@ -97,10 +96,16 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           </div>
         )}
 
-        {/* أوراق اليد: تنزل مباشرة للأسفل في العرضي لتكسب الطاولة مساحة رأسية */}
+        {/* 
+          أوراق يدك: 
+          تم تخفيف التداخل في الوضع الأفقي إلى -space-x-1.5 xs:-space-x-2 
+          لتتباعد الأوراق عن بعضها قليلاً وتظهر واضحة
+        */}
         <div
-          className={`flex items-center justify-center -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar ${
-            isLandscape ? 'flex-1 min-h-[58px]' : 'w-full min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px]'
+          className={`flex items-center justify-center overflow-x-auto py-0.5 no-scrollbar ${
+            isLandscape
+              ? 'flex-1 min-h-[62px] -space-x-1.5 xs:-space-x-2 px-1'
+              : 'w-full min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 px-1 sm:px-2'
           }`}
         >
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
@@ -129,17 +134,12 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           })}
         </div>
 
-        {/* 
-          صورتك الشخصية: 
-          - في العرضي (Landscape): تزاح إلى أقصى اليمين بشكل أنيق بجانب الأوراق
-          - في الطولي (Portrait): تظل في الأسفل تحت الأوراق تماماً
-        */}
-        <div className={`flex items-center justify-center flex-shrink-0 ${isLandscape ? 'order-first' : 'w-full mt-0.5 sm:mt-1'}`}>
+        {/* صورتك الشخصية: في الأفقي تزاح إلى الجانب الأيمن */}
+        <div className={`flex items-center justify-center flex-shrink-0 ${isLandscape ? 'order-first mr-1' : 'w-full mt-0.5 sm:mt-1'}`}>
           <div className="relative flex flex-col items-center">
 
             <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
 
-              {/* رقم الحكم فوق صورتك */}
               {isHumanBuyer && (
                 <div
                   className="absolute -top-1.5 -right-1.5 z-40 w-6 h-6 xs:w-7 xs:h-7 rounded-full bg-white flex items-center justify-center select-none shadow-2xl border-2 border-[#0063B0] ring-2 ring-blue-500/60"
@@ -151,7 +151,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 </div>
               )}
 
-              {/* ملزوم */}
               {isHumanBuyer && isForcedBid && (
                 <div
                   className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-45 whitespace-nowrap bg-amber-500 text-slate-950 font-black text-[8px] px-2 py-0.5 rounded-full border border-yellow-200 shadow-lg select-none"
@@ -161,7 +160,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 </div>
               )}
 
-              {/* حرف D أبيض عريض بدون دائرة */}
               {dealerIdx === activePlayer.id && (
                 <span
                   className="absolute -bottom-1 -left-1 z-40 text-white font-black text-xs xs:text-sm sm:text-base leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
@@ -171,7 +169,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 </span>
               )}
 
-              {/* مؤقت الدور باللون الأزرق */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 transform -rotate-90" viewBox="0 0 44 44">
                 <circle cx="22" cy="22" r="20" stroke="rgba(0,0,0,0.4)" strokeWidth="2.5" fill="none" />
                 {isMyTurn && !isTimerDisabled && (
@@ -189,7 +186,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 )}
               </svg>
 
-              {/* صورتك الشخصية */}
               <div
                 className={`w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 border-blue-500 ring-2 ring-blue-500/50 bg-slate-950 shadow-lg relative transition-all duration-300 ${
                   isMyTurn ? (isCritical ? 'shadow-red-500/50 ring-red-500/70' : 'shadow-cyan-400/50') : ''
@@ -199,12 +195,10 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               </div>
             </div>
 
-            {/* كبسولة الاسم */}
             <div className="bg-blue-600 text-white font-black text-[8px] xs:text-[9px] px-2 py-0.5 rounded-full shadow-md -mt-1 z-20 border border-blue-300 max-w-[75px] truncate">
               {activePlayer.name}
             </div>
 
-            {/* تنبيه الدور في الوضع الرأسي */}
             {isMyTurn && !isLandscape && (
               <span className="text-[8px] text-cyan-300 font-black mt-0.5 animate-pulse">
                 دورك الآن! اختر كرتك
