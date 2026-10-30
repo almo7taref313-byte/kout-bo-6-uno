@@ -1595,7 +1595,10 @@ export default function App() {
   };
 
   return (
-    <div id="gameMainWrapper" className="h-[100dvh] max-h-[100dvh] w-full max-w-full flex flex-col justify-between select-none overflow-hidden safe-top safe-bottom relative">
+    <div 
+      id="gameMainWrapper" 
+      className="h-[100dvh] max-h-[100dvh] w-screen max-w-none flex flex-col justify-between select-none overflow-hidden safe-top safe-bottom relative bg-slate-950"
+    >
       
       {/* 0. Main Lobby Screen */}
       {phase === 'LOBBY' && (
