@@ -110,7 +110,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
             {/* الحاوية الدائرية للأفاتار مع رقم الحكم والمؤقت الأزرق وحرف D */}
             <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
 
-              {/* رقم الحكم يظهر هنا بوضوح فوق صورتك عند شرائك للمزاد */}
+              {/* رقم الحكم يظهر فوق صورتك عند الشراء */}
               {isHumanBuyer && (
                 <div
                   className="absolute -top-2 -right-2 z-40 w-7 h-7 xs:w-8 xs:h-8 rounded-full bg-white flex items-center justify-center select-none shadow-2xl border-2 border-[#0063B0] ring-2 ring-blue-500/60"
@@ -142,7 +142,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 </span>
               )}
 
-              {/* مؤقت الدور باللون الأزرق */}
+              {/* مؤقت الدور باللون الأزرق النيون الفاقع المتناسق */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 transform -rotate-90" viewBox="0 0 44 44">
                 <circle cx="22" cy="22" r="20" stroke="rgba(0,0,0,0.4)" strokeWidth="2.5" fill="none" />
                 {isMyTurn && !isTimerDisabled && (
@@ -160,7 +160,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 )}
               </svg>
 
-              {/* دائرة صورتك الشخصية بإطار أزرق ناصع */}
+              {/* دائرة صورتك الشخصية بإطار أزرق متناسق مع الفريق */}
               <div
                 className={`w-9.5 h-9.5 xs:w-10.5 xs:h-10.5 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-blue-500 ring-2 ring-blue-500/50 bg-slate-950 shadow-lg relative transition-all duration-300 ${
                   isMyTurn ? (isCritical ? 'shadow-red-500/50 ring-red-500/70' : 'shadow-cyan-400/50') : ''
