@@ -70,8 +70,8 @@ const FALLBACK_BROKER = 'wss://broker.emqx.io:8084/mqtt';
 
 // 2. بيانات الدخول لخادمك (إذا فعلت خيار المصادقة في EMQX ضع البيانات هنا)
 const BROKER_AUTH = {
-  username: '', // اكتب اسم المستخدم هنا إذا تم إنشاؤه في EMQX Access Control
-  password: '', // اكتب كلمة المرور هنا
+  username: 'kout',
+  password: 'Mousawi@313',
 };
 
 class RoomSyncManager {
