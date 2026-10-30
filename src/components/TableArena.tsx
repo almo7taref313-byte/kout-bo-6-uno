@@ -30,23 +30,22 @@ interface CardCoord {
   rotate: number;
 }
 
-// إحداثيات استقرار الكروت في المنتصف (مضغوطة عمودياً لتناسب العرضي والطولي معاً)
 const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 40, rotate: 0 },
-  1: { x: 65, y: 20, rotate: -8 },
-  2: { x: 65, y: -20, rotate: -8 },
-  3: { x: 0, y: -40, rotate: 0 },
-  4: { x: -65, y: -20, rotate: 8 },
-  5: { x: -65, y: 20, rotate: 8 },
+  0: { x: 0, y: 38, rotate: 0 },
+  1: { x: 62, y: 18, rotate: -8 },
+  2: { x: 62, y: -18, rotate: -8 },
+  3: { x: 0, y: -38, rotate: 0 },
+  4: { x: -62, y: -18, rotate: 8 },
+  5: { x: -62, y: 18, rotate: 8 },
 };
 
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 140, rotate: 0 },
-  1: { x: 140, y: 40, rotate: 10 },
-  2: { x: 140, y: -40, rotate: 10 },
+  1: { x: 180, y: 40, rotate: 10 },
+  2: { x: 180, y: -40, rotate: 10 },
   3: { x: 0, y: -130, rotate: 0 },
-  4: { x: -140, y: -40, rotate: -10 },
-  5: { x: -140, y: 40, rotate: -10 },
+  4: { x: -180, y: -40, rotate: -10 },
+  5: { x: -180, y: 40, rotate: -10 },
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -80,13 +79,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-0.5 relative overflow-hidden">
       
       {/* 
-        طاولة اللعب البيضاوية الفخمة:
-        - في الوضع العمودي: عرض 88% وارتفاع 92%
-        - في الوضع الأفقي: عرض فسيح (w-[82vw] بحد أقصى 620px) وارتفاع مدروس (h-[90%])
+        طاولة الكوت:
+        - بالطول (portrait): حجمها المعتاد البيضاوي الأنيق w-[88%] max-w-[420px]
+        - بالعرض (landscape): تتمدد بعرض الشاشة بالكامل w-[88vw] max-w-[780px] وتمسح أي سواد
       */}
       <div className={`jawaker-table-felt rounded-[42px] xs:rounded-[50px] sm:rounded-[64px]
         w-[88%] max-w-[420px] h-[92%] max-h-[460px]
-        landscape:w-[82vw] landscape:max-w-[620px] landscape:h-[90%] landscape:max-h-[280px]
+        landscape:w-[86vw] landscape:max-w-[760px] landscape:h-[88%] landscape:max-h-[270px]
         relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
         isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
       }`}>
@@ -119,7 +118,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
         )}
 
         {/* الأوراق المرمية في ساحة اللعب */}
-        <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.72] xs:scale-[0.82] sm:scale-95 landscape:scale-[0.58] sm:landscape:scale-[0.68]">
+        <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.72] xs:scale-[0.82] sm:scale-95 landscape:scale-[0.55]">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
@@ -174,19 +173,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
         {/* 
           توزيع مقاعد اللاعبين الخمسة:
-          ----------------------------------------------------
-          في الوضع العمودي (Portrait):
-          - 3 في الأعلى وسط، 2 يمين أعلى، 1 يمين أسفل، 4 يسار أعلى، 5 يسار أسفل.
-          
-          في الوضع الأفقي (Landscape):
-          - عرض الشاشة كبير جداً وارتفاعها صغير!
-          - يتم توزيع اللاعبين هندسياً ليأخذ كل لاعب مكاناً مريحاً مستقلاً:
-            * 3: أعلى وسط (طارق)
-            * 2: أعلى يمين (مشاري)
-            * 1: منتصف اليمين بالكامل (عبود)
-            * 4: أعلى يسار (بندر)
-            * 5: منتصف اليسار بالكامل (سعود)
-          بهذا التوزيع المستقل، يستحيل أن يغطي أي لاعب على الآخر نهائياً!
+          يستغل الأطراف الواسعة جداً للطاولة في الوضع الأفقي فلا يتداخل أي لاعب مع الآخر
         */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
@@ -209,25 +196,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
           let posClass = '';
 
           if (relPos === 1) {
-            // اللاعب 1: عبود
-            // في العمودي: يمين أسفل | في الأفقي: منتصف الطرف الأيمن بالكامل
-            posClass = 'bottom-[6%] right-[-24px] xs:right-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:right-[-26px]';
+            // اللاعب 1 (عبود): في أقصى يمين الطاولة
+            posClass = 'bottom-[6%] right-[-24px] xs:right-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:right-[-32px]';
           } else if (relPos === 2) {
-            // اللاعب 2: مشاري
-            // في العمودي: يمين أعلى | في الأفقي: يمين أعلى الحافة الفسيحة
-            posClass = 'top-[6%] right-[-24px] xs:right-[-28px] landscape:top-[-16px] landscape:right-[14%] sm:landscape:right-[18%]';
+            // اللاعب 2 (مشاري): أعلى اليمين
+            posClass = 'top-[6%] right-[-24px] xs:right-[-28px] landscape:top-[-18px] landscape:right-[18%] sm:landscape:right-[22%]';
           } else if (relPos === 3) {
-            // اللاعب 3: طارق
-            // في العمودي والأفقي: أعلى وسط الطاولة
+            // اللاعب 3 (طارق): أعلى المنتصف
             posClass = 'top-[-24px] left-1/2 -translate-x-1/2 landscape:top-[-22px]';
           } else if (relPos === 4) {
-            // اللاعب 4: بندر
-            // في العمودي: يسار أعلى | في الأفقي: يسار أعلى الحافة الفسيحة
-            posClass = 'top-[6%] left-[-24px] xs:left-[-28px] landscape:top-[-16px] landscape:left-[14%] sm:landscape:left-[18%]';
+            // اللاعب 4 (بندر): أعلى اليسار
+            posClass = 'top-[6%] left-[-24px] xs:left-[-28px] landscape:top-[-18px] landscape:left-[18%] sm:landscape:left-[22%]';
           } else if (relPos === 5) {
-            // اللاعب 5: سعود
-            // في العمودي: يسار أسفل | في الأفقي: منتصف الطرف الأيسر بالكامل
-            posClass = 'bottom-[6%] left-[-24px] xs:left-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:left-[-26px]';
+            // اللاعب 5 (سعود): في أقصى يسار الطاولة
+            posClass = 'bottom-[6%] left-[-24px] xs:left-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:left-[-32px]';
           }
 
           let targetBadgePosClass = '';
@@ -280,7 +262,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 )}
 
                 {/* الحاوية الدائرية للأفاتار */}
-                <div className="relative w-10 h-10 xs:w-11 xs:h-11 landscape:w-8.5 landscape:h-8.5 sm:landscape:w-9.5 sm:landscape:h-9.5 flex items-center justify-center">
+                <div className="relative w-10 h-10 xs:w-11 xs:h-11 landscape:w-8.5 landscape:h-8.5 flex items-center justify-center">
                   
                   {/* شارة المشتري / الملزوم */}
                   {isBuyer && (
@@ -313,7 +295,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* حرف D أبيض عريض بدون دائرة وبلا أي لون تحته */}
+                  {/* حرف D أبيض عريض بدون دائرة */}
                   {isDealer && (
                     <span
                       className="absolute -bottom-1 -left-1 z-40 text-white font-black text-xs xs:text-sm leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]"
@@ -379,7 +361,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
                   {/* صورة الأفاتار */}
                   <div
-                    className={`w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 landscape:w-7.5 landscape:h-7.5 sm:landscape:w-8.5 sm:landscape:h-8.5 rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 ${
+                    className={`w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 landscape:w-7.5 landscape:h-7.5 rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 ${
                       isTurn && isCritical ? 'animate-pulse' : ''
                     }`}
                   >
