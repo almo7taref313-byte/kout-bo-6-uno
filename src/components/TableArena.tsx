@@ -30,14 +30,14 @@ interface CardCoord {
   rotate: number;
 }
 
-// أماكن استقرار الأوراق في وسط الطاولة: مدار سداسي فسيح ومتزن يمنع تراكب أي ورقة نهائياً
+// أماكن استقرار الأوراق في وسط الطاولة: مدار متزن داخل حدود اللباد يمنع نزول الكروت تحت صور اللاعبين نهائياً
 const TABLE_CARD_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 78, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
-  1: { x: 114, y: 40, rotate: -10 },     // ورقة عبود (يمين أسفل)
-  2: { x: 114, y: -40, rotate: -18 },    // ورقة مشاري (يمين أعلى)
-  3: { x: 0, y: -78, rotate: 0 },        // ورقة طارق (أعلى وسط)
-  4: { x: -114, y: -40, rotate: 18 },    // ورقة بندر (يسار أعلى)
-  5: { x: -114, y: 40, rotate: 10 },     // ورقة سعود (يسار أسفل)
+  0: { x: 0, y: 64, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
+  1: { x: 68, y: 32, rotate: -8 },       // ورقة عبود (يمين أسفل - بعيداً عن الأفاتار)
+  2: { x: 68, y: -32, rotate: -8 },      // ورقة مشاري (يمين أعلى - بعيداً عن الأفاتار)
+  3: { x: 0, y: -64, rotate: 0 },        // ورقة طارق (أعلى وسط)
+  4: { x: -68, y: -32, rotate: 8 },      // ورقة بندر (يسار أعلى - بعيداً عن الأفاتار)
+  5: { x: -68, y: 32, rotate: 8 },       // ورقة سعود (يسار أسفل - بعيداً عن الأفاتار)
 };
 
 // إحداثيات مركز صور اللاعبين كمرجع احتياطي
@@ -111,7 +111,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   }, [collectingWinnerId]);
 
   return (
-    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-hidden">
+    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-visible">
       
       {/* 
         طاولة الكوت الفسيحة والمطورة:
@@ -204,10 +204,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     - تبدأ بالتلاشي اللطيف في آخر 180ms فقط (تأخير 670ms) لتبدو وكأن اللاعب ضمّ الأوراق لرصيده
                   */
                   transition: isCollecting
-                    ? 'transform 850ms cubic-bezier(0.25, 1, 0.5, 1), opacity 180ms ease-out 670ms'
+                    ? 'transform 900ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease-out 750ms'
                     : 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)',
                   opacity: isCollecting ? 0 : 1,
-                  zIndex: isCollecting ? 40 + index : 20 + index,
+                  zIndex: isCollecting ? 85 + index : 20 + index,
                   willChange: 'transform, opacity',
                   transformOrigin: 'center center',
                 }}

@@ -684,19 +684,14 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
-      // تحديد الفريق الفائز بالجولة بدقة
-      const winningTeam = buyerIsWinner ? buyerTeam : (buyerTeam === 'A' ? 'B' : 'A');
-      const humanTeam = (players[currentHumanSeatIndex] && players[currentHumanSeatIndex].team) || 'A';
-      const myTeamWon = winningTeam === humanTeam;
-
-      // تشغيل التصفيق لحظة فوز الفريق بالجولة مع مدة محددة بـ 2400ms تنتهي تماماً قبل ظهور المزايدة
-      if (myTeamWon) {
+      // تشغيل رسالة التشويق وصوت التصفيق حين يفوز الفريق الحاكم بالجولة، وحين يخسر تظهر الرسالة الأخرى
+      if (buyerIsWinner) {
         soundEngine.playCheeringAndWhistle(2400);
-        showCallout(buyerIsWinner ? 'كفو شباب! جبنا الطلب 👏🎉' : 'كفو شباب! كسرنا الحكم 👏🛡️', '👑');
+        showCallout('كفو شباب! 👏🎉', '👑');
         nativeBridge.hapticVictory();
       } else {
         soundEngine.playSadTromboneMock();
-        showCallout(buyerIsWinner ? 'راحت عليكم! جابوا الطلب 😅👎' : 'راحت علينا! خسرنا الطلب 💔', '💔');
+        showCallout('راحت عليكم! 😅👎', '💔');
         nativeBridge.hapticTrickWin();
       }
 
