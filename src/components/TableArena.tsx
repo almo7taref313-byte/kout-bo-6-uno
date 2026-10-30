@@ -163,10 +163,31 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const fallbackTarget = WINNER_AVATAR_TARGETS[relWinnerSlot] || { x: 0, y: 0, rotate: 0 };
 
-            const targetX = isCollecting ? (collectOffset ? collectOffset.x : fallbackTarget.x) : rest.x;
-            const targetY = isCollecting ? (collectOffset ? collectOffset.y : fallbackTarget.y) : rest.y;
-            const targetRotate = isCollecting ? 0 : rest.rotate;
-            const targetScale = isCollecting ? 0.22 : 1;
+            let targetX = rest.x;
+            let targetY = rest.y;
+            let targetRotate = rest.rotate;
+            let targetScale = 1;
+
+            if (isCollecting) {
+              let measuredX = collectOffset?.x;
+              let measuredY = collectOffset?.y;
+
+              if (measuredX === undefined || measuredY === undefined) {
+                const tableEl = tableFeltRef.current;
+                const avatarEl = typeof document !== 'undefined' ? document.getElementById(`avatar-player-${collectingWinnerId}`) : null;
+                if (tableEl && avatarEl) {
+                  const tableRect = tableEl.getBoundingClientRect();
+                  const avatarRect = avatarEl.getBoundingClientRect();
+                  measuredX = Math.round((avatarRect.left + avatarRect.width / 2) - (tableRect.left + tableRect.width / 2));
+                  measuredY = Math.round((avatarRect.top + avatarRect.height / 2) - (tableRect.top + tableRect.height / 2));
+                }
+              }
+
+              targetX = measuredX !== undefined ? measuredX : fallbackTarget.x;
+              targetY = measuredY !== undefined ? measuredY : fallbackTarget.y;
+              targetRotate = 0;
+              targetScale = 0.22;
+            }
 
             return (
               <div
