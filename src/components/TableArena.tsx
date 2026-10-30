@@ -80,12 +80,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
       
       {/* 
         طاولة الكوت:
-        - بالطول (portrait): حجمها المعتاد البيضاوي الأنيق w-[88%] max-w-[420px]
-        - بالعرض (landscape): تتمدد بعرض الشاشة بالكامل w-[88vw] max-w-[780px] وتمسح أي سواد
+        في الوضع العمودي: w-[88%] max-w-[420px] h-[92%]
+        في الوضع الأفقي: تتمدد أوتوماتيكياً بواسطة كود index.css إلى 86vw و max-w-[840px]
       */}
       <div className={`jawaker-table-felt rounded-[42px] xs:rounded-[50px] sm:rounded-[64px]
         w-[88%] max-w-[420px] h-[92%] max-h-[460px]
-        landscape:w-[86vw] landscape:max-w-[760px] landscape:h-[88%] landscape:max-h-[270px]
         relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
         isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
       }`}>
@@ -171,10 +170,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* 
-          توزيع مقاعد اللاعبين الخمسة:
-          يستغل الأطراف الواسعة جداً للطاولة في الوضع الأفقي فلا يتداخل أي لاعب مع الآخر
-        */}
+        {/* مقاعد اللاعبين الخمسة: توزيع محيطي كامل يمنع التداخل أو الاختفاء */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
@@ -197,19 +193,19 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           if (relPos === 1) {
             // اللاعب 1 (عبود): في أقصى يمين الطاولة
-            posClass = 'bottom-[6%] right-[-24px] xs:right-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:right-[-32px]';
+            posClass = 'bottom-[6%] right-[-24px] xs:right-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:right-[-30px]';
           } else if (relPos === 2) {
-            // اللاعب 2 (مشاري): أعلى اليمين
-            posClass = 'top-[6%] right-[-24px] xs:right-[-28px] landscape:top-[-18px] landscape:right-[18%] sm:landscape:right-[22%]';
+            // اللاعب 2 (مشاري): أعلى اليمين نحو الحافة الفسيحة
+            posClass = 'top-[6%] right-[-24px] xs:right-[-28px] landscape:top-[-18px] landscape:right-[20%] sm:landscape:right-[24%]';
           } else if (relPos === 3) {
             // اللاعب 3 (طارق): أعلى المنتصف
             posClass = 'top-[-24px] left-1/2 -translate-x-1/2 landscape:top-[-22px]';
           } else if (relPos === 4) {
-            // اللاعب 4 (بندر): أعلى اليسار
-            posClass = 'top-[6%] left-[-24px] xs:left-[-28px] landscape:top-[-18px] landscape:left-[18%] sm:landscape:left-[22%]';
+            // اللاعب 4 (بندر): أعلى اليسار نحو الحافة الفسيحة
+            posClass = 'top-[6%] left-[-24px] xs:left-[-28px] landscape:top-[-18px] landscape:left-[20%] sm:landscape:left-[24%]';
           } else if (relPos === 5) {
             // اللاعب 5 (سعود): في أقصى يسار الطاولة
-            posClass = 'bottom-[6%] left-[-24px] xs:left-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:left-[-32px]';
+            posClass = 'bottom-[6%] left-[-24px] xs:left-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:left-[-30px]';
           }
 
           let targetBadgePosClass = '';
@@ -295,7 +291,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* حرف D أبيض عريض بدون دائرة */}
+                  {/* حرف D أبيض عريض بدون دائرة وبلا أي لون تحته */}
                   {isDealer && (
                     <span
                       className="absolute -bottom-1 -left-1 z-40 text-white font-black text-xs xs:text-sm leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]"
