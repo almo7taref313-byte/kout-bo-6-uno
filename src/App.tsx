@@ -235,16 +235,14 @@ export default function App() {
 
   // دالة عرض الرسائل: محصورة فقط بالرسائل المحددة (كفو شباب / راحت عليكم)
   const showCallout = useCallback((text: string, emoji = '📢') => {
-    const isAllowedMessage = text.includes('كفو شباب') || text.includes('راحت عليكم');
-    if (!isAllowedMessage) {
-      return; // تجاهل وإيقاف كل الرسائل الأخرى تماماً
-    }
+  const isAllowedMessage = text.includes('كفو شباب') || text.includes('راحت عليكم');
+  if (!isAllowedMessage) return;
 
-    setCallout({ text, emoji, timestamp: Date.now() });
-    setTimeout(() => {
-      setCallout((prev) => (prev && Date.now() - prev.timestamp >= 2400 ? null : prev));
-    }, 2500);
-  }, []);
+  setCallout({ text, emoji, timestamp: Date.now() });
+  setTimeout(() => {
+    setCallout((prev) => (prev && Date.now() - prev.timestamp >= 2400 ? null : prev));
+  }, 2500); // تختفي تماماً عند 2.5 ثانية
+}, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
