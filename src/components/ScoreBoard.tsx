@@ -1,6 +1,7 @@
 import React from 'react';
 import { Player, SuitColor } from '../types';
 import { SUIT_COLORS, getMatchTargetAndStatus } from '../utils/gameLogic';
+import { YellowDoorIcon } from './YellowDoorIcon';
 
 interface ScoreBoardProps {
   scoreTeamA: number;
@@ -136,8 +137,6 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         </div>
       </div>
 
-      <span className="text-slate-500 font-black text-xs xs:text-sm px-0.5 select-none">:</span>
-
       {/* Red Tricks 🔴 */}
       <div className="flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-xl px-1.5 xs:px-2 py-0.5 xs:py-1">
         {/* Snow-white background badge for trick count */}
@@ -246,25 +245,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-400/70 hover:border-amber-300 flex items-center justify-center transition active:scale-90 shadow-md cursor-pointer group"
             title="خروج من اللعبة"
           >
-            {/* Open Yellow Door Icon: إطار الباب، والدرفة المفتوحة باللون الأصفر وسهم الخروج */}
-            <svg
-              className="w-4 h-4 xs:w-4.5 xs:h-4.5 text-yellow-400 group-hover:text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.6)] transition"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {/* Door Frame (Yellow) */}
-              <path d="M4 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17" />
-              {/* Swung Open Door leaf in Perspective (Vibrant Yellow fill + outline) */}
-              <path d="M15 4l5 2.5v12.5l-5 2V4z" fill="#facc15" fillOpacity="0.85" stroke="#eab308" />
-              {/* Door Handle / Knob */}
-              <circle cx="17.5" cy="12.5" r="1" fill="#78350f" stroke="none" />
-              {/* Exit Directional Arrow heading outside through the open door */}
-              <path d="M2 12h7m-4-3.5L2 12l3 3.5" stroke="#fde047" strokeWidth="2.4" />
-            </svg>
+            <YellowDoorIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5 group-hover:scale-105 transition" />
           </button>
         </div>
       </div>

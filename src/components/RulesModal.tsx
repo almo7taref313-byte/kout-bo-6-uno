@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { YellowDoorIcon } from './YellowDoorIcon';
 
 interface RulesModalProps {
   onClose: () => void;
@@ -64,9 +65,10 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
               {/* 1. علامة الموزع */}
               <div className="bg-slate-950 p-2.5 rounded-xl border border-amber-500/40 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/30 flex-shrink-0">
-                    <span className="font-extrabold text-xs">D</span>
-                    <span className="text-[10px] -mr-0.5">🃏</span>
+                  <div className="w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-700 relative flex items-center justify-center flex-shrink-0 shadow-md">
+                    <span className="text-amber-300 font-black text-lg leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter drop-shadow-[0_0_2px_#000]">
+                      D
+                    </span>
                   </div>
                   <div>
                     <h4 className="font-black text-amber-300 text-xs sm:text-sm">
@@ -197,20 +199,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
               <div className="bg-slate-950 p-2.5 rounded-xl border border-amber-400/40 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/80 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      className="w-5 h-5 text-yellow-400 drop-shadow-[0_0_6px_rgba(250,204,21,0.6)]"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 21V4a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v17" />
-                      <path d="M15 4l5 2.5v12.5l-5 2V4z" fill="#facc15" fillOpacity="0.85" stroke="#eab308" />
-                      <circle cx="17.5" cy="12.5" r="1" fill="#78350f" stroke="none" />
-                      <path d="M2 12h7m-4-3.5L2 12l3 3.5" stroke="#fde047" strokeWidth="2.4" />
-                    </svg>
+                    <YellowDoorIcon className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="font-black text-yellow-300 text-xs sm:text-sm">

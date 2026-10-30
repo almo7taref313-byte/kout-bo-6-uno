@@ -97,7 +97,7 @@ export const RoomsModal: React.FC<RoomsModalProps> = ({
               type="submit"
               className="bg-indigo-500 hover:bg-indigo-400 text-white font-black px-3 py-1.5 rounded-xl text-xs transition active:scale-95 shadow cursor-pointer"
             >
-              دخول 🚪
+              دخول
             </button>
           </form>
         </div>

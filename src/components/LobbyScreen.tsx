@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '../types';
 import { AvatarView } from '../utils/avatars';
 import { UnoCard } from './UnoCard';
+import { YellowDoorIcon } from './YellowDoorIcon';
 
 interface LobbyScreenProps {
   userName: string;
@@ -112,18 +113,16 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
         {/* زر العب (الأخضر المتوهج الأساسي) */}
         <button
           onClick={onFastPlay}
-          className="w-full py-3 sm:py-3.5 px-4 rounded-2xl btn-glow-green text-white font-black text-base sm:text-lg shadow-xl transition active:scale-95 hover:brightness-110 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 sm:py-3.5 px-4 rounded-2xl btn-glow-green text-white font-black text-base sm:text-lg shadow-xl transition active:scale-95 hover:brightness-110 flex items-center justify-center cursor-pointer"
         >
-          <span className="text-lg sm:text-xl">⚡</span>
           <span>العب</span>
         </button>
 
         {/* زر طاولة خاصة */}
         <button
           onClick={onOpenHostTable}
-          className="w-full py-2.5 sm:py-3 px-4 rounded-2xl btn-glow-blue text-white font-extrabold text-xs sm:text-sm shadow-md transition active:scale-95 hover:brightness-110 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-2.5 sm:py-3 px-4 rounded-2xl btn-glow-blue text-white font-extrabold text-xs sm:text-sm shadow-md transition active:scale-95 hover:brightness-110 flex items-center justify-center cursor-pointer"
         >
-          <span className="text-sm sm:text-base">👥</span>
           <span>طاولة خاصة</span>
         </button>
 
@@ -141,7 +140,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             type="submit"
             className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs transition active:scale-95 shadow cursor-pointer whitespace-nowrap"
           >
-            دخول 🚪
+            دخول
           </button>
         </form>
 
@@ -158,9 +157,10 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
         <div className="pt-1.5 flex items-center justify-center">
           <button
             onClick={onExitApp}
-            className="text-rose-400/90 hover:text-rose-300 font-bold text-xs px-3 py-1 rounded-lg hover:bg-rose-950/20 active:scale-95 transition cursor-pointer"
+            className="text-amber-400/90 hover:text-amber-300 font-bold text-xs px-3 py-1 rounded-lg hover:bg-amber-950/20 active:scale-95 transition cursor-pointer flex items-center gap-1.5"
           >
-            خروج 🚪
+            <YellowDoorIcon className="w-3.5 h-3.5" />
+            <span>خروج</span>
           </button>
         </div>
       </footer>

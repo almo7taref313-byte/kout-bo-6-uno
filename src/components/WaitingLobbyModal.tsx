@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { SeatConfig, WaitingPlayer } from '../types';
 import { AvatarView } from '../utils/avatars';
 import { roomSync } from '../utils/roomSync';
+import { YellowDoorIcon } from './YellowDoorIcon';
 
 interface WaitingLobbyModalProps {
   roomCode: string;
@@ -105,7 +106,7 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
         {/* Top Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🚪</span>
+            <YellowDoorIcon className="w-5 h-5" />
             <div className="text-right">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-sm xs:text-base font-black text-white">
@@ -122,9 +123,10 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
           </div>
           <button
             onClick={onLeaveRoom}
-            className="text-slate-400 hover:text-rose-400 text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700/80 rounded-xl transition cursor-pointer font-bold"
+            className="text-amber-400 hover:text-amber-300 text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700/80 rounded-xl transition cursor-pointer font-bold flex items-center gap-1.5"
           >
-            مغادرة 🚪
+            <YellowDoorIcon className="w-3.5 h-3.5" />
+            <span>مغادرة</span>
           </button>
         </div>
 
@@ -350,9 +352,10 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
         <div className="pt-1 flex items-center justify-between">
           <button
             onClick={onLeaveRoom}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black transition active:scale-95 cursor-pointer border border-slate-700"
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black transition active:scale-95 cursor-pointer border border-slate-700 flex items-center justify-center gap-2"
           >
-            مغادرة الغرفة والعودة للرئيسية 🚪
+            <YellowDoorIcon className="w-4 h-4" />
+            <span>مغادرة الغرفة والعودة للرئيسية</span>
           </button>
         </div>
 
