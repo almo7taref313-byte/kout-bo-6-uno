@@ -108,17 +108,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               : 'w-full min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 px-1 sm:px-2'
           }`}
         >
-          {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
-            const isLegal = isMyTurn
-              ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
-              : true;
-            return (
-              <div
-                key={card.id}
-                style={{
-                  zIndex: 10 + idx,
-                  transform: isBiddingPhase ? 'translateY(-4px)' : undefined,
-                }}
+          style={{
+  zIndex: 10 + idx,
+}}
                 className="transition-transform duration-200 hover:-translate-y-2"
               >
                 <UnoCard
