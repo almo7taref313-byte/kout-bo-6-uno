@@ -685,7 +685,7 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
-      // تشغيل الصوت والرسالة المحددة فقط حسب فوز أو خسارة الفريق الحاكم
+     // تشغيل الصوت والرسالة المحددة فقط حسب فوز أو خسارة الفريق الحاكم
       if (buyerIsWinner) {
         soundEngine.playCheeringAndWhistle();
         showCallout('كفو شباب! 👏🎉', '👑');
@@ -696,10 +696,10 @@ export default function App() {
         nativeBridge.hapticTrickWin();
       }
 
-      // الانتقال التلقائي للجولة القادمة
+      // الانتقال للجولة القادمة بعد 3.2 ثانية (بعد أن ينتهي صوت التصفيق بـ 400ms تماماً)
       setTimeout(() => {
         handleNextRoundOrMatch(nextScoreA, nextScoreB);
-      }, 2500);
+      }, 3200);
     },
     [bidWinner, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, showCallout, stopTimer]
   );
