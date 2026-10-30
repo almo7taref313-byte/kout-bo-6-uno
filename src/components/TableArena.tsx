@@ -30,7 +30,7 @@ interface CardCoord {
   rotate: number;
 }
 
-// إحداثيات الورق الواسعة في الوضع الرأسي
+// إحداثيات الورق الواسعة في الوضع الرأسي (Portrait)
 const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   0: { x: 0, y: 76, rotate: 0 },
   1: { x: 88, y: 42, rotate: -8 },
@@ -40,23 +40,34 @@ const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   5: { x: -88, y: 42, rotate: 8 },
 };
 
-// إحداثيات الورق في الوضع العرضي
+// إحداثيات الورق المتباعدة بدقة في الوضع الأفقي (Landscape) - تمنع تراكب بندر مع سعود وعبود مع مشاري
 const LANDSCAPE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 40, rotate: 0 },
-  1: { x: 110, y: 20, rotate: -8 },
-  2: { x: 110, y: -20, rotate: -8 },
-  3: { x: 0, y: -42, rotate: 0 },
-  4: { x: -110, y: -20, rotate: 8 },
-  5: { x: -110, y: 20, rotate: 8 },
+  0: { x: 0, y: 52, rotate: 0 },       // أنت
+  1: { x: 145, y: 30, rotate: -10 },    // عبود (يمين أسفل فسيح)
+  2: { x: 75, y: -45, rotate: -6 },     // مشاري (يمين أعلى)
+  3: { x: 0, y: -50, rotate: 0 },       // طارق (أعلى وسط)
+  4: { x: -75, y: -45, rotate: 6 },     // بندر (يسار أعلى)
+  5: { x: -145, y: 30, rotate: 10 },    // سعود (يسار أسفل فسيح)
 };
 
-const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 180, rotate: 0 },
-  1: { x: 180, y: 60, rotate: 10 },
-  2: { x: 180, y: -60, rotate: 10 },
-  3: { x: 0, y: -160, rotate: 0 },
-  4: { x: -180, y: -60, rotate: -10 },
-  5: { x: -180, y: 60, rotate: -10 },
+// إحداثيات وصول الأكلة إلى مقاعد اللاعبين في الوضع الرأسي
+const PORTRAIT_WINNER_TARGETS: Record<number, CardCoord> = {
+  0: { x: 0, y: 220, rotate: 0 },
+  1: { x: 200, y: 130, rotate: 10 },
+  2: { x: 200, y: -130, rotate: 10 },
+  3: { x: 0, y: -230, rotate: 0 },
+  4: { x: -200, y: -130, rotate: -10 },
+  5: { x: -200, y: 130, rotate: -10 },
+};
+
+// إحداثيات وصول الأكلة إلى صور اللاعبين بالضبط في الوضع الأفقي الممتد
+const LANDSCAPE_WINNER_TARGETS: Record<number, CardCoord> = {
+  0: { x: 0, y: 240, rotate: 0 },       // إلى صورتك بالأسفل
+  1: { x: 490, y: 90, rotate: 15 },     // إلى صورة عبود مباشرة في الطرف الأيمن
+  2: { x: 380, y: -210, rotate: 12 },   // إلى صورة مشاري مباشرة في أعلى اليمين
+  3: { x: 0, y: -220, rotate: 0 },       // إلى صورة طارق في أعلى المنتصف
+  4: { x: -380, y: -210, rotate: -12 }, // إلى صورة بندر مباشرة في أعلى اليسار
+  5: { x: -490, y: 90, rotate: -15 },   // إلى صورة سعود مباشرة في الطرف الأيسر
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -104,6 +115,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   const timerOffset = TIMER_CIRCUMFERENCE * (1 - timerRatio);
 
   const activeCardSlots = isLandscape ? LANDSCAPE_CARD_RESTING_SLOTS : PORTRAIT_CARD_RESTING_SLOTS;
+  const activeWinnerTargets = isLandscape ? LANDSCAPE_WINNER_TARGETS : PORTRAIT_WINNER_TARGETS;
 
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-0.5 relative overflow-hidden">
@@ -142,7 +154,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* ساحة الأوراق المرمية - تم تكبير حجمها قليلاً في الأفقي من 0.62 إلى 0.74 */}
+        {/* ساحة الأوراق المرمية */}
         <div className={`relative w-full h-full flex items-center justify-center pointer-events-none z-20 ${
           isLandscape ? 'scale-[0.74]' : 'scale-[0.80] xs:scale-[0.88] sm:scale-100'
         }`}>
@@ -151,7 +163,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = activeCardSlots[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
-            const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
+            const winnerTarget = isCollecting ? activeWinnerTargets[relWinnerSlot] : null;
 
             const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
             const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
@@ -167,7 +179,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   left: '50%',
                   transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
                   transition: isCollecting
-                    ? 'transform 1300ms cubic-bezier(0.25, 0.9, 0.3, 1), opacity 1050ms ease-in'
+                    ? 'transform 1200ms cubic-bezier(0.25, 0.9, 0.3, 1), opacity 950ms ease-in'
                     : 'transform 1100ms cubic-bezier(0.16, 1, 0.3, 1)',
                   opacity: isCollecting ? 0 : 1,
                   zIndex: isCollecting ? 40 + index : 20 + index,
@@ -198,7 +210,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* توزيع مقاعد اللاعبين - مع إزاحة مشاري وبندر للأطراف ونزول عبود وسعود للأسفل */}
+        {/* مقاعد اللاعبين الخمسة */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
@@ -227,21 +239,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
             else if (relPos === 4) posClass = 'top-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
             else if (relPos === 5) posClass = 'bottom-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           } else {
-            // التوزيع الأفقي المعدّل بدقة (Landscape)
+            // التوزيع الأفقي المنضبط (Landscape)
             if (relPos === 1) {
-              // عبود: نزل للأسفل قليلاً
               posClass = 'top-[68%] -translate-y-1/2 right-[-26px]';
             } else if (relPos === 2) {
-              // مشاري: ذهب لليمين أكثر
               posClass = 'top-[-18px] right-[10%]';
             } else if (relPos === 3) {
-              // طارق: أعلى المنتصف
               posClass = 'top-[-22px] left-1/2 -translate-x-1/2';
             } else if (relPos === 4) {
-              // بندر: ذهب لليسار أكثر
               posClass = 'top-[-18px] left-[10%]';
             } else if (relPos === 5) {
-              // سعود: نزل للأسفل قليلاً
               posClass = 'top-[68%] -translate-y-1/2 left-[-26px]';
             }
           }
@@ -291,7 +298,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </div>
                 )}
 
-                {/* الأفاتار */}
+                {/* الحاوية الدائرية للأفاتار */}
                 <div className={`relative flex items-center justify-center ${
                   isLandscape ? 'w-9 h-9' : 'w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13'
                 }`}>
