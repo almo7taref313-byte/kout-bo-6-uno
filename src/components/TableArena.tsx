@@ -30,9 +30,9 @@ interface CardCoord {
   rotate: number;
 }
 
-// إحداثيات الورق الواسعة في الوضع الرأسي (Portrait)
+// إحداثيات استقرار الورق في الوضع الرأسي (Portrait)
 const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 70, rotate: 0 },
+  0: { x: 0, y: 72, rotate: 0 },
   1: { x: 86, y: 38, rotate: -8 },
   2: { x: 86, y: -38, rotate: -8 },
   3: { x: 0, y: -68, rotate: 0 },
@@ -40,35 +40,35 @@ const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   5: { x: -86, y: 38, rotate: 8 },
 };
 
-// إحداثيات الورق في الوضع الأفقي (Landscape)
-// تم خفض كرت طارق ليكون في قلب الطاولة بعيداً عن صورته واسمه وباقي الكروت متناسقة حوله
+// إحداثيات استقرار الورق في الوضع الأفقي (Landscape)
+// تم إنزال كرت طارق إلى y: 10 في قلب المساحة الخضراء ليكون مكشوفاً وبعيداً تماماً عن صورته واسمه
 const LANDSCAPE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 46, rotate: 0 },         // أنت (أسفل المنتصف)
-  1: { x: 110, y: 30, rotate: -8 },      // عبود (يمين أسفل)
-  2: { x: 95, y: -20, rotate: -5 },      // مشاري (يمين أعلى)
-  3: { x: 0, y: -15, rotate: 0 },        // طارق (في قلب الطاولة بعيداً تماماً عن صورته واسمه)
-  4: { x: -95, y: -20, rotate: 5 },      // بندر (يسار أعلى)
-  5: { x: -110, y: 30, rotate: 8 },      // سعود (يسار أسفل)
+  0: { x: 0, y: 55, rotate: 0 },         // أنت
+  1: { x: 120, y: 32, rotate: -8 },      // عبود (يمين أسفل)
+  2: { x: 100, y: -15, rotate: -6 },     // مشاري (يمين أعلى)
+  3: { x: 0, y: 10, rotate: 0 },         // طارق (مكشوف بالكامل في المنتصف)
+  4: { x: -100, y: -15, rotate: 6 },     // بندر (يسار أعلى)
+  5: { x: -120, y: 32, rotate: 8 },      // سعود (يسار أسفل)
 };
 
-// إحداثيات وصول الأكلة مباشرة إلى منتصف الأفاتار بالمليمتر في الوضع الرأسي
+// إحداثيات وصول الأكلة إلى مركز صور اللاعبين بالمليمتر في الوضع الرأسي
 const PORTRAIT_WINNER_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 260, rotate: 0 },        // إلى منتصف أفاتار اللاعب بالأسفل
-  1: { x: 195, y: 156, rotate: 8 },      // إلى منتصف أفاتار عبود (يمين أسفل)
-  2: { x: 195, y: -156, rotate: 8 },     // إلى منتصف أفاتار مشاري (يمين أعلى)
-  3: { x: 0, y: -235, rotate: 0 },       // إلى منتصف أفاتار طارق (أعلى وسط)
-  4: { x: -195, y: -156, rotate: -8 },   // إلى منتصف أفاتار بندر (يسار أعلى)
-  5: { x: -195, y: 156, rotate: -8 },    // إلى منتصف أفاتار سعود (يسار أسفل)
+  0: { x: 0, y: 265, rotate: 0 },        // مركز أفاتار أنت بالأسفل
+  1: { x: 205, y: 156, rotate: 8 },      // مركز أفاتار عبود (يمين أسفل)
+  2: { x: 205, y: -156, rotate: 8 },     // مركز أفاتار مشاري (يمين أعلى)
+  3: { x: 0, y: -235, rotate: 0 },       // مركز أفاتار طارق (أعلى وسط)
+  4: { x: -205, y: -156, rotate: -8 },   // مركز أفاتار بندر (يسار أعلى)
+  5: { x: -205, y: 156, rotate: -8 },    // مركز أفاتار سعود (يسار أسفل)
 };
 
-// إحداثيات وصول الأكلة مباشرة إلى منتصف الأفاتار بالمليمتر في الوضع الأفقي
+// إحداثيات وصول الأكلة إلى مركز صور اللاعبين بالمليمتر في الوضع الأفقي (تصل تماماً لمنتصف الدائرة)
 const LANDSCAPE_WINNER_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 200, rotate: 0 },        // إلى منتصف أفاتار اللاعب بالأسفل
-  1: { x: 405, y: 52, rotate: 10 },      // إلى منتصف أفاتار عبود بالطرف الأيمن
-  2: { x: 315, y: -126, rotate: 8 },     // إلى منتصف أفاتار مشاري بأعلى اليمين
-  3: { x: 0, y: -124, rotate: 0 },       // إلى منتصف أفاتار طارق بأعلى المنتصف
-  4: { x: -315, y: -126, rotate: -8 },   // إلى منتصف أفاتار بندر بأعلى اليسار
-  5: { x: -405, y: 52, rotate: -10 },    // إلى منتصف أفاتار سعود بالطرف الأيسر
+  0: { x: 0, y: 210, rotate: 0 },        // مركز أفاتار أنت بالأسفل
+  1: { x: 445, y: 48, rotate: 10 },      // مركز أفاتار عبود (في أقصى اليمين)
+  2: { x: 330, y: -130, rotate: 8 },     // مركز أفاتار مشاري (أعلى اليمين)
+  3: { x: 0, y: -130, rotate: 0 },       // مركز أفاتار طارق (أعلى المنتصف)
+  4: { x: -330, y: -130, rotate: -8 },   // مركز أفاتار بندر (أعلى اليسار)
+  5: { x: -445, y: 48, rotate: -10 },    // مركز أفاتار سعود (في أقصى اليسار)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -136,8 +136,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* علامة الطاولة المائية - منخفضة قليلاً لتفادي التداخل مع اسم طارق */}
-        <div className="table-felt-watermark" style={{ top: '56%', opacity: 0.18 }}>
+        {/* علامة الطاولة المائية */}
+        <div className="table-felt-watermark" style={{ top: '56%', opacity: 0.16 }}>
           <span className="text-base sm:text-2xl font-black tracking-widest">
             كوت بو ٦ أونو
           </span>
@@ -155,10 +155,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* ساحة الأوراق المرمية */}
-        <div className={`relative w-full h-full flex items-center justify-center pointer-events-none z-20 ${
-          isLandscape ? 'scale-[0.92] xs:scale-[0.96] sm:scale-[1.0]' : 'scale-[0.95] xs:scale-[1.0] sm:scale-105'
-        }`}>
+        {/* ساحة الأوراق المرمية - بمقياس حقيقي 1:1 لضمان تطابق إحداثيات الطيران مع مركز صور اللاعبين */}
+        <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20">
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
@@ -169,7 +167,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const targetX = isCollecting && winnerTarget ? winnerTarget.x : rest.x;
             const targetY = isCollecting && winnerTarget ? winnerTarget.y : rest.y;
             const targetRotate = isCollecting && winnerTarget ? winnerTarget.rotate : rest.rotate;
-            const targetScale = isCollecting ? 0.35 : 1;
+            const targetScale = isCollecting ? 0.30 : 1;
 
             return (
               <div
@@ -180,12 +178,12 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   left: '50%',
                   transform: `translate3d(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px), 0) rotate(${targetRotate}deg) scale(${targetScale})`,
                   /* 
-                    حركة لم الأكلة الدقيقة:
-                    تسافر الأوراق بكامل وضوحها (100% opacity) حتى تصل إلى منتصف الأفاتار تماماً،
-                    وفور ملامسة المركز تذوب وتختفي في 180ms فقط
+                    حركة الأكلة الانسيابية المتزنة:
+                    تتحرك الكروت بهدوء وبطء مريح (1350ms) وتبقى واضحة 100% طوال الطريق،
+                    ولا تتلاشى إلا بعد ملامسة مركز الأفاتار مباشرة (تأخير 1100ms مع تلاشي ناعم بـ 250ms)
                   */
                   transition: isCollecting
-                    ? 'transform 1150ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 180ms ease-out 1020ms'
+                    ? 'transform 1350ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease-out 1100ms'
                     : 'transform 1100ms cubic-bezier(0.16, 1, 0.3, 1)',
                   opacity: isCollecting ? 0 : 1,
                   zIndex: isCollecting ? 40 + index : 20 + index,
@@ -247,7 +245,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           } else {
             // التوزيع الأفقي المتناسق (Landscape)
             if (relPos === 1) {
-              posClass = 'top-[62%] -translate-y-1/2 right-[-26px]';
+              posClass = 'top-[60%] -translate-y-1/2 right-[-26px]';
             } else if (relPos === 2) {
               posClass = 'top-[18px] right-[10%]';
             } else if (relPos === 3) {
@@ -255,7 +253,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             } else if (relPos === 4) {
               posClass = 'top-[18px] left-[10%]';
             } else if (relPos === 5) {
-              posClass = 'top-[62%] -translate-y-1/2 left-[-26px]';
+              posClass = 'top-[60%] -translate-y-1/2 left-[-26px]';
             }
           }
 
