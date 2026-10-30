@@ -228,16 +228,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             {soundEnabled ? '🔊' : '🔇'}
           </button>
 
-          {/* Settings button (opens rules, sound, screen, profile) */}
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className="w-7 h-7 xs:w-8 xs:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-amber-400 text-xs xs:text-sm transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
-              title="الإعدادات"
-            >
-              ⚙️
-            </button>
-          )}
+
 
           {/* Exit game button: أيقونة باب أصفر مفتوح دالة وواضحة جداً على الخروج */}
           <button

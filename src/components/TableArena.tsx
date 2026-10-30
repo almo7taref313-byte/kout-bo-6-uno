@@ -302,10 +302,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   <div
                     className={`absolute z-35 pointer-events-none ${
                       relPos === 1 || relPos === 2
-                        ? '-left-[64px] top-1/2 -translate-y-1/2'
+                        ? '-left-[46px] xs:-left-[50px] top-1/2 -translate-y-1/2'
                         : relPos === 3
-                        ? '-right-[68px] top-1/2 -translate-y-1/2'
-                        : '-right-[64px] top-1/2 -translate-y-1/2'
+                        ? '-right-[48px] xs:-right-[52px] top-1/2 -translate-y-1/2'
+                        : '-right-[46px] xs:-right-[50px] top-1/2 -translate-y-1/2'
                     }`}
                   >
                     <ComicBidBubble

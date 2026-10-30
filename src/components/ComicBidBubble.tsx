@@ -8,121 +8,75 @@ interface ComicBidBubbleProps {
   className?: string;
 }
 
+/**
+ * فقاعة المزاد المصغرة - المقترح (ب) المعتمد
+ * فقاعة محادثة كلاسيكية بيضاء عاجية مصغرة وأنيقة تتناسب تماماً مع مقاسات الطاولة
+ */
 export const ComicBidBubble: React.FC<ComicBidBubbleProps> = ({
   val,
-  team,
+  team: _team,
   seatPosition,
   className = '',
 }) => {
-  const isTeamA = team === 'A';
-
-  // Tail points towards the player's avatar from inside the table
-  let graphicTransform = '';
-  let contentOffset = { x: 0, y: -3 };
-
-  switch (seatPosition) {
-    case 'bottom-right':
-      // Avatar is on right rim; bubble is to its left inside table. Tail points down-right.
-      graphicTransform = '';
-      contentOffset = { x: -2, y: -4 };
-      break;
-    case 'top-right':
-      // Avatar is on top-right rim; bubble is to its left inside table. Tail points up-right.
-      graphicTransform = 'scaleY(-1)';
-      contentOffset = { x: -2, y: 4 };
-      break;
-    case 'top-center':
-      // Avatar is on top rim; bubble is below avatar inside table. Tail points up.
-      graphicTransform = 'scaleY(-1) rotate(-15deg)';
-      contentOffset = { x: 0, y: 5 };
-      break;
-    case 'top-left':
-      // Avatar is on top-left rim; bubble is to its right inside table. Tail points up-left.
-      graphicTransform = 'scaleX(-1) scaleY(-1)';
-      contentOffset = { x: 2, y: 4 };
-      break;
-    case 'bottom-left':
-      // Avatar is on bottom-left rim; bubble is to its right inside table. Tail points down-left.
-      graphicTransform = 'scaleX(-1)';
-      contentOffset = { x: 2, y: -4 };
-      break;
-    case 'bottom-center':
-      // Human avatar is at bottom; bubble is above inside table. Tail points down.
-      graphicTransform = 'rotate(10deg)';
-      contentOffset = { x: 0, y: -4 };
-      break;
-  }
+  // Tail points towards the player avatar:
+  // If player is on the right rim, bubble sits to the left -> tail points right.
+  // Otherwise bubble sits to the right -> tail points left.
+  const pointsRight = seatPosition === 'bottom-right' || seatPosition === 'top-right';
 
   const isPass = val === 0;
   const isBaoon = val === 9;
 
   return (
     <div
-      className={`relative flex items-center justify-center select-none pointer-events-none drop-shadow-2xl animate-in zoom-in-75 duration-200 w-[68px] h-[54px] xs:w-[78px] xs:h-[62px] sm:w-[88px] sm:h-[70px] ${className}`}
+      className={`relative flex items-center justify-center select-none pointer-events-none drop-shadow-md animate-in zoom-in-75 duration-150 w-[44px] h-[28px] xs:w-[48px] xs:h-[30px] sm:w-[52px] sm:h-[32px] ${className}`}
     >
-      {/* Background comic shape matching the comic speech bubble interior + comic outline */}
-      <div
-        className="absolute inset-0 w-full h-full"
-        style={{ transform: graphicTransform }}
+      <svg
+        viewBox="0 0 62 36"
+        className="absolute inset-0 w-full h-full overflow-visible"
       >
-        <svg
-          viewBox="0 0 100 82"
-          className="w-full h-full overflow-visible"
-        >
-          <defs>
-            <linearGradient id={`comic-grad-${team}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={isTeamA ? '#3b82f6' : '#ef4444'} />
-              <stop offset="100%" stopColor={isTeamA ? '#1d4ed8' : '#b91c1c'} />
-            </linearGradient>
-            <filter id={`comic-shadow-${team}`} x="-15%" y="-15%" width="130%" height="130%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.45" />
-            </filter>
-          </defs>
+        <filter id="bubble-subtle-shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#000" floodOpacity="0.35" />
+        </filter>
 
-          {/* Filled comic bubble body & pointer tail */}
+        {pointsRight ? (
+          // ذيل موجه لليمين نحو اللاعب
           <path
-            d="M 12,38 C 12,18 28,8 50,8 C 72,8 88,18 88,38 C 88,54 75,65 57,67 L 70,80 L 46,68 C 26,67 12,55 12,38 Z"
-            fill={`url(#comic-grad-${team})`}
-            stroke="#000000"
-            strokeWidth="3.5"
+            d="M 6,2 H 48 C 51.5,2 54,4.5 54,8 V 13 L 60,18 L 54,23 V 28 C 54,31.5 51.5,34 48,34 H 6 C 2.5,34 0,31.5 0,28 V 8 C 0,4.5 2.5,2 6,2 Z"
+            fill="#ffffff"
+            stroke="#1e293b"
+            strokeWidth="2.2"
             strokeLinejoin="round"
-            filter={`url(#comic-shadow-${team})`}
+            filter="url(#bubble-subtle-shadow)"
           />
-          {/* Subtle inner gloss highlight */}
-          <ellipse
-            cx="48"
-            cy="20"
-            rx="28"
-            ry="6"
-            fill="rgba(255,255,255,0.22)"
+        ) : (
+          // ذيل موجه لليسار نحو اللاعب
+          <path
+            d="M 14,2 H 56 C 59.5,2 62,4.5 62,8 V 28 C 62,31.5 59.5,34 56,34 H 14 C 10.5,34 8,31.5 8,28 V 23 L 2,18 L 8,13 V 8 C 8,4.5 10.5,2 14,2 Z"
+            fill="#ffffff"
+            stroke="#1e293b"
+            strokeWidth="2.2"
+            strokeLinejoin="round"
+            filter="url(#bubble-subtle-shadow)"
           />
-        </svg>
+        )}
+      </svg>
 
-        {/* User-provided comic speech bubble asset texture */}
-        <img
-          src="/assets/aistudio/_Pngtree_blank_comic_speech_bubble_message_9024960_69b699d1.png"
-          alt=""
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-85 mix-blend-multiply"
-        />
-      </div>
-
-      {/* Bubble Content: Large, bold and clear inside the bubble */}
+      {/* Bubble Content: كلمة طاف أو رقم المزايدة أو باون */}
       <div
-        className="relative z-10 flex flex-col items-center justify-center text-center pointer-events-none"
-        style={{
-          transform: `translate(${contentOffset.x}px, ${contentOffset.y}px)`,
-        }}
+        className={`relative z-10 flex flex-col items-center justify-center text-center pointer-events-none leading-none ${
+          pointsRight ? '-translate-x-0.5' : 'translate-x-0.5'
+        }`}
       >
         {isPass ? (
-          <span className="text-lg xs:text-xl sm:text-2xl font-black text-white tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-tight">
+          <span className="text-[11px] xs:text-xs sm:text-[13px] font-black text-slate-900 font-sans tracking-tight">
             طاف
           </span>
         ) : isBaoon ? (
-          <span className="text-xs xs:text-sm sm:text-base font-black text-amber-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-tight">
+          <span className="text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-black text-amber-700 font-sans whitespace-nowrap">
             باون 👑
           </span>
         ) : (
-          <span className="text-2xl xs:text-3xl sm:text-4xl font-black text-white font-mono leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+          <span className="text-xs xs:text-sm sm:text-base font-black text-slate-950 font-mono">
             {val}
           </span>
         )}
