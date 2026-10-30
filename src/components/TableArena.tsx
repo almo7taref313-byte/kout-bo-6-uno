@@ -71,8 +71,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
   const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
   const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
-  const isHumanBuyer = bidWinner === humanSeatIndex && highestBid > 4;
-  const humanPlayer = players[humanSeatIndex];
 
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-1 xs:px-2 py-0.5 sm:py-2 relative overflow-hidden">
@@ -139,7 +137,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </span>
         </div>
 
-        {/* بطاقة الرسائل في وسط الطاولة (كفو شباب / راحت عليكم / وغيرها) */}
+        {/* بطاقة الرسائل في وسط الطاولة (كفو شباب / راحت عليكم) */}
         {callout && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none select-none animate-bounce">
             <div className="bg-gradient-to-r from-slate-950/95 via-slate-900/95 to-slate-950/95 border-2 border-amber-400 text-amber-200 px-4 xs:px-6 py-2 xs:py-2.5 rounded-2xl shadow-2xl shadow-amber-950/80 flex items-center gap-2.5 backdrop-blur-md ring-4 ring-yellow-400/30">
@@ -147,23 +145,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
               <span className="text-sm xs:text-base font-black text-white whitespace-nowrap drop-shadow tracking-wide">
                 {callout.text}
               </span>
-            </div>
-          </div>
-        )}
-
-        {/* تحذير الجيكر أو الميكر */}
-        {currentTrick.length > 0 && highestBid !== 9 && (currentTrick[0].card.isJoker || currentTrick[0].card.isMaker) && (
-          <div className="absolute top-1/2 -translate-y-1/2 left-2 xs:left-3 sm:left-4 z-40 pointer-events-none animate-pulse">
-            <div className="bg-gradient-to-r from-red-950/95 via-rose-900/95 to-red-950/95 border-2 border-red-500/90 text-amber-200 px-2.5 xs:px-3 py-1.5 sm:py-2 rounded-xl xs:rounded-2xl shadow-2xl flex items-center gap-1.5 xs:gap-2 shadow-red-950/90 ring-2 ring-red-400/40 backdrop-blur-sm">
-              <span className="text-base xs:text-lg sm:text-xl animate-bounce">⚠️</span>
-              <div className="text-right">
-                <div className="text-[10px] xs:text-[11.5px] sm:text-xs font-black text-yellow-300 whitespace-nowrap drop-shadow">
-                  {currentTrick[0].card.isJoker ? 'الجيكر خاس يالردي!' : 'الميكر خاس يالردي!'}
-                </div>
-                <div className="text-[7.5px] xs:text-[8.5px] sm:text-[9.5px] text-slate-200 font-bold whitespace-nowrap">
-                  الكرت التالي يحدد لون اللعب المطلوب
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -228,39 +209,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* شارة اللاعب البشري (أنت) بالأسفل خارج الطاولة */}
-        {isHumanBuyer && humanPlayer && (
-          <div className="absolute bottom-1 right-3 xs:right-5 z-40 pointer-events-none select-none animate-bounce">
-            {isForcedBid ? (
-              <div
-                className={`px-3 py-1 rounded-full bg-white flex items-center justify-center select-none shadow-2xl transition-all ${
-                  humanPlayer.team === 'A'
-                    ? 'border-[2.5px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/40'
-                    : 'border-[2.5px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/40'
-                }`}
-                title="أنت ملزوم بـ 5"
-              >
-                <span className="font-black text-black text-xs xs:text-sm leading-none whitespace-nowrap">
-                  ملزوم ⚡
-                </span>
-              </div>
-            ) : (
-              <div
-                className={`w-8 h-8 xs:w-9 xs:h-9 rounded-full bg-white flex items-center justify-center select-none shadow-2xl ${
-                  humanPlayer.team === 'A'
-                    ? 'border-[3px] border-[#0063B0] ring-2 ring-blue-500/40 shadow-blue-600/50'
-                    : 'border-[3px] border-[#EA1D2D] ring-2 ring-red-500/40 shadow-red-600/50'
-                }`}
-                title={`أنت المشتري بـ ${highestBid}`}
-              >
-                <span className="font-mono font-black text-black text-sm xs:text-base leading-none">
-                  {highestBid === 9 ? '👑' : highestBid}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* مقاعد اللاعبين الخمسة الأخرى حول حافة الطاولة */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
@@ -288,12 +236,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
           else if (relPos === 5) posClass = 'bottom-[20%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
 
           let targetBadgePosClass = '';
-          if (relPos === 1 || relPos === 2) {
+          if (relPos === 1 || relPos === 2 || relPos === 3) {
             targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
-          } else if (relPos === 4 || relPos === 5) {
+          } else {
             targetBadgePosClass = '-left-8 xs:-left-9 top-1/2 -translate-y-1/2';
-          } else if (relPos === 3) {
-            targetBadgePosClass = '-right-8 xs:-right-9 top-1/2 -translate-y-1/2';
           }
 
           const circumference = 150.8;
@@ -337,7 +283,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 {/* الحاوية المكبرة للأفاتار */}
                 <div className="relative w-11 h-11 xs:w-12 xs:h-12 sm:w-14 sm:h-14 flex items-center justify-center">
                   
-                  {/* شارة المشتري / الملزوم */}
+                  {/* شارة المشتري / الملزوم للبوت */}
                   {isBuyer && (
                     <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
                       {isForcedBid ? (
@@ -370,20 +316,17 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* علامة الموزع */}
+                  {/* أيقونة الديلر: حرف D أبيض ناصع بخلفية داكنة محايدة وإطار أبيض */}
                   {isDealer && (
                     <div
-                      className="absolute -bottom-2 -left-2 z-35 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-slate-950 text-slate-950 rounded-full w-6 h-6 xs:w-6.5 xs:h-6.5 flex items-center justify-center font-black shadow-lg shadow-amber-500/50 ring-1 ring-amber-300 select-none animate-pulse"
-                      title="الموزع"
+                      className="absolute -bottom-1.5 -left-1.5 z-40 bg-slate-900 border-2 border-white text-white rounded-full w-6 h-6 flex items-center justify-center font-black shadow-lg shadow-black/80 select-none ring-1 ring-slate-950"
+                      title="الموزع (Dealer)"
                     >
-                      <div className="flex items-center justify-center leading-none text-slate-950 font-black text-[9px] xs:text-[10px]">
-                        <span className="font-extrabold tracking-tighter">D</span>
-                        <span className="text-[8px] -mr-0.5">🃏</span>
-                      </div>
+                      <span className="font-black text-white text-[11px] leading-none tracking-tight">D</span>
                     </div>
                   )}
 
-                  {/* حلقة مؤقت النيون */}
+                  {/* حلقة مؤقت النيون: زرقاء للفريق الأزرق */}
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 52 52">
                     <circle cx="26" cy="26" r="24" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" fill="none" />
                     {isTurn && !isTimerDisabled && (
@@ -392,21 +335,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         cx="26"
                         cy="26"
                         r="24"
-                        stroke={isCritical ? '#ef4444' : '#f59e0b'}
+                        stroke={isCritical ? '#ef4444' : isPartner ? '#3b82f6' : '#f59e0b'}
                         strokeWidth="3.5"
                         fill="none"
                         style={{ strokeDashoffset: offset }}
-                      />
-                    )}
-                    {isTurn && isTimerDisabled && (
-                      <circle
-                        cx="26"
-                        cy="26"
-                        r="24"
-                        stroke="#f59e0b"
-                        strokeWidth="3.5"
-                        fill="none"
-                        className="animate-pulse"
                       />
                     )}
                   </svg>
@@ -414,10 +346,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   {/* دائرة الأفاتار */}
                   <div
                     className={`w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-full overflow-hidden border-2 ${
-                      isPartner ? 'border-blue-400' : 'border-rose-400'
-                    } bg-slate-950 shadow-md relative transition-all duration-300 ${
-                      isTurn ? (isCritical ? 'glow-turn-critical-red' : 'glow-turn-phosphor') : ''
-                    }`}
+                      isPartner ? 'border-blue-500 ring-2 ring-blue-500/40' : 'border-rose-500 ring-2 ring-rose-500/40'
+                    } bg-slate-950 shadow-md relative transition-all duration-300`}
                   >
                     <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
                   </div>
