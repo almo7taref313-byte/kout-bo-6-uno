@@ -40,34 +40,34 @@ const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
   5: { x: -88, y: 42, rotate: 8 },
 };
 
-// إحداثيات الورق في الوضع الأفقي (Landscape) - متباعدة تماماً بين طارق ومشاري وبندر
+// إحداثيات الورق في الوضع الأفقي (Landscape) - متباعدة جداً بين طارق ومشاري وبندر
 const LANDSCAPE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 52, rotate: 0 },        // أنت
-  1: { x: 175, y: 35, rotate: -10 },     // عبود
-  2: { x: 125, y: -42, rotate: -6 },     // مشاري (متباعدة تماماً عن طارق بـ 125px)
-  3: { x: 0, y: -52, rotate: 0 },        // طارق
-  4: { x: -125, y: -42, rotate: 6 },     // بندر (متباعدة تماماً عن طارق بـ 125px)
-  5: { x: -175, y: 35, rotate: 10 },     // سعود
+  0: { x: 0, y: 55, rotate: 0 },        // أنت
+  1: { x: 195, y: 35, rotate: -10 },    // عبود
+  2: { x: 155, y: -42, rotate: -6 },    // مشاري (متباعد تماماً عن طارق بـ 155px)
+  3: { x: 0, y: -50, rotate: 0 },       // طارق
+  4: { x: -155, y: -42, rotate: 6 },    // بندر (متباعد تماماً عن طارق بـ 155px)
+  5: { x: -195, y: 35, rotate: 10 },    // سعود
 };
 
-// إحداثيات وصول الأكلة إلى مقاعد اللاعبين في الوضع الرأسي
+// إحداثيات وصول الأكلة إلى مقاعد اللاعبين في الوضع الرأسي بالضبط
 const PORTRAIT_WINNER_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 220, rotate: 0 },
-  1: { x: 200, y: 130, rotate: 10 },
-  2: { x: 200, y: -130, rotate: 10 },
+  1: { x: 190, y: 130, rotate: 10 },
+  2: { x: 190, y: -130, rotate: 10 },
   3: { x: 0, y: -220, rotate: 0 },
-  4: { x: -200, y: -130, rotate: -10 },
-  5: { x: -200, y: 130, rotate: -10 },
+  4: { x: -190, y: -130, rotate: -10 },
+  5: { x: -190, y: 130, rotate: -10 },
 };
 
-// إحداثيات وصول الأكلة مباشرة وبدقة إلى صور اللاعبين في الوضع الأفقي
+// إحداثيات وصول الأكلة مباشرة إلى صور اللاعبين في الوضع الأفقي
 const LANDSCAPE_WINNER_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 230, rotate: 0 },       // إلى صورتك بالأسفل
-  1: { x: 530, y: 64, rotate: 12 },     // إلى صورة عبود بالطرف الأيمن
-  2: { x: 414, y: -176, rotate: 10 },   // إلى صورة مشاري في أعلى اليمين
-  3: { x: 0, y: -176, rotate: 0 },      // إلى صورة طارق في أعلى المنتصف
-  4: { x: -414, y: -176, rotate: -10 }, // إلى صورة بندر في أعلى اليسار
-  5: { x: -530, y: 64, rotate: -12 },   // إلى صورة سعود بالطرف الأيسر
+  1: { x: 440, y: 55, rotate: 12 },     // إلى صورة عبود بالطرف الأيمن
+  2: { x: 330, y: -140, rotate: 10 },   // إلى صورة مشاري في أعلى اليمين
+  3: { x: 0, y: -145, rotate: 0 },      // إلى صورة طارق في أعلى المنتصف
+  4: { x: -330, y: -140, rotate: -10 }, // إلى صورة بندر في أعلى اليسار
+  5: { x: -440, y: 55, rotate: -12 },   // إلى صورة سعود بالطرف الأيسر
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -154,9 +154,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* ساحة الأوراق المرمية - مكبرة وواضحة جداً */}
+        {/* ساحة الأوراق المرمية - مكبرة وواضحة (scale-0.96 في الأفقي و scale-1.05 في الرأسي) */}
         <div className={`relative w-full h-full flex items-center justify-center pointer-events-none z-20 ${
-          isLandscape ? 'scale-[0.85] xs:scale-[0.88] sm:scale-[0.92]' : 'scale-[0.88] xs:scale-[0.95] sm:scale-105'
+          isLandscape ? 'scale-[0.96] xs:scale-[1.0]' : 'scale-[0.95] xs:scale-[1.0] sm:scale-105'
         }`}>
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
@@ -239,15 +239,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
             else if (relPos === 4) posClass = 'top-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
             else if (relPos === 5) posClass = 'bottom-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
           } else {
-            // التوزيع الأفقي المنضبط (Landscape) - صورة طارق نزلت قليلاً لتظهر شارة الشراء كاملة
+            // التوزيع الأفقي المنضبط (Landscape)
+            // تم إنزال طارق إلى top-[22px] ليظهر رقم الشارة كاملاً برؤية مريحة
             if (relPos === 1) {
               posClass = 'top-[66%] -translate-y-1/2 right-[-26px]';
             } else if (relPos === 2) {
-              posClass = 'top-[4px] right-[10%]';
+              posClass = 'top-[18px] right-[10%]';
             } else if (relPos === 3) {
-              posClass = 'top-[6px] left-1/2 -translate-x-1/2';
+              posClass = 'top-[22px] left-1/2 -translate-x-1/2';
             } else if (relPos === 4) {
-              posClass = 'top-[4px] left-[10%]';
+              posClass = 'top-[18px] left-[10%]';
             } else if (relPos === 5) {
               posClass = 'top-[66%] -translate-y-1/2 left-[-26px]';
             }
