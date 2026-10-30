@@ -216,31 +216,31 @@ class SoundEngineClass {
   }
 
   // تشغيل فوري وبقاء كامل لصوت التصفيق
-  playCheeringAndWhistle() {
-    if (!this.enabled) return;
-    try {
-      if (!this.applauseAudio) {
-        this.applauseAudio = new Audio('/applause.mp3');
-      }
-      const audio = this.applauseAudio;
-      audio.currentTime = 0;
-      audio.volume = 0.95;
-      audio.play().catch(() => {});
+playCheeringAndWhistle() {
+  if (!this.enabled) return;
+  try {
+    if (!this.applauseAudio) {
+      this.applauseAudio = new Audio('/applause.mp3');
+    }
+    const audio = this.applauseAudio;
+    audio.currentTime = 0;
+    audio.volume = 0.95;
+    audio.play().catch(() => {});
 
-      // يبدأ خفوت الصوت عند 2.2 ثانية وينتهي بالكامل عند 2.8 ثانية
-      setTimeout(() => {
-        const fadeInterval = setInterval(() => {
-          if (audio.volume > 0.08) {
-            audio.volume = Math.max(0, audio.volume - 0.12);
-          } else {
-            clearInterval(fadeInterval);
-            audio.pause();
-            audio.currentTime = 0;
-          }
-        }, 50);
-      }, 2200);
-    } catch {}
-  }
+    // يبدأ الخفوت عند ثانيتين ويتلاشى ويتوقف تماماً عند 2.5 ثانية
+    setTimeout(() => {
+      const fadeInterval = setInterval(() => {
+        if (audio.volume > 0.1) {
+          audio.volume = Math.max(0, audio.volume - 0.18);
+        } else {
+          clearInterval(fadeInterval);
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      }, 50);
+    }, 2000);
+  } catch {}
+}
 
   playSadTromboneMock() {
     if (!this.enabled) return;
