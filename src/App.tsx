@@ -699,7 +699,7 @@ export default function App() {
       // الانتقال للجولة القادمة بعد 3.2 ثانية (بعد أن ينتهي صوت التصفيق بـ 400ms تماماً)
       setTimeout(() => {
         handleNextRoundOrMatch(nextScoreA, nextScoreB);
-      }, 3200);
+      }, 3300);
     },
     [bidWinner, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, showCallout, stopTimer]
   );
