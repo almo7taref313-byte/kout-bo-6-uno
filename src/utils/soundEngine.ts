@@ -205,61 +205,51 @@ class SoundEngineClass {
     });
   }
 
-  // صوت التصفيق والتصفير التشويقي عند فوز الحاكم
+  // صوت تصفيق جماعي حماسي فقط (بدون أي صفير)
   playCheeringAndWhistle() {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
 
-    // 1. تصفير تشويقي صاعد ونازل
-    const osc = this.ctx.createOscillator();
-    const oscGain = this.ctx.createGain();
-    osc.type = 'sine';
-
-    osc.frequency.setValueAtTime(950, now);
-    osc.frequency.exponentialRampToValueAtTime(2100, now + 0.25);
-    osc.frequency.exponentialRampToValueAtTime(1450, now + 0.45);
-    osc.frequency.exponentialRampToValueAtTime(2350, now + 0.8);
-
-    oscGain.gain.setValueAtTime(0.001, now);
-    oscGain.gain.linearRampToValueAtTime(0.2, now + 0.08);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-
-    osc.connect(oscGain);
-    oscGain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 1.1);
-
-    // 2. تصفيق جماعي حماسي متكرر
-    for (let i = 0; i < 18; i++) {
+    // محاكاة تصفيق جماعي حماسي متكرر ومكثف (Crowd Applause)
+    const totalClaps = 26;
+    for (let i = 0; i < totalClaps; i++) {
       if (!this.ctx) return;
-      const clapTime = now + 0.05 + i * 0.07 + Math.random() * 0.03;
-      const bufferSize = Math.floor(this.ctx.sampleRate * 0.045);
+      // توقيت متدرج وموزع عشوائياً كأن مجموعة من الناس تصفق معاً
+      const clapTime = now + 0.04 + i * 0.055 + Math.random() * 0.025;
+      const duration = 0.05;
+      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
+
       for (let j = 0; j < bufferSize; j++) {
-        data[j] = Math.random() * 2 - 1;
+        const progress = j / bufferSize;
+        // موجة صوتية تحاكي ضربة الكف الحقيقية
+        data[j] = (Math.random() * 2 - 1) * Math.exp(-progress * 7.0);
       }
 
       const noise = this.ctx.createBufferSource();
       noise.buffer = buffer;
 
+      // فلتر لتجسيد صوت صدمة اليدين الطبيعي
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.value = 1150 + Math.random() * 500;
-      filter.Q.value = 1.2;
+      filter.frequency.value = 950 + Math.random() * 650;
+      filter.Q.value = 1.4;
 
       const clapGain = this.ctx.createGain();
-      clapGain.gain.setValueAtTime(0.18, clapTime);
-      clapGain.gain.exponentialRampToValueAtTime(0.001, clapTime + 0.045);
+      // توزيع قوة التصفيق لتبدأ قوية وتستمر بحماس
+      const volume = 0.18 + Math.random() * 0.08;
+      clapGain.gain.setValueAtTime(volume, clapTime);
+      clapGain.gain.exponentialRampToValueAtTime(0.001, clapTime + duration);
 
       noise.connect(filter);
       filter.connect(clapGain);
       clapGain.connect(this.ctx.destination);
 
       noise.start(clapTime);
-      noise.stop(clapTime + 0.045);
+      noise.stop(clapTime + duration);
     }
   }
 
