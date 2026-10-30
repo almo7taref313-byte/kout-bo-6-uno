@@ -316,10 +316,10 @@
   transform: translateY(-8px);
 }
 .player-card.card-unplayable-dimmed {
-  opacity: 0.38 !important;
-  filter: grayscale(0.5) brightness(0.65) !important;
+  opacity: 0.65 !important;
+  filter: brightness(0.75) !important;
   cursor: not-allowed !important;
-  transform: translateY(4px) scale(0.96) !important;
+  transform: translateY(2px) scale(0.98) !important;
   pointer-events: auto;
 }
 .player-card.card-unplayable-dimmed:hover {
