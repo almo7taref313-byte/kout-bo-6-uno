@@ -311,7 +311,7 @@
   z-index: 70 !important;
 }
 .player-card.active-playable {
-  animation: bounceCard 2.1s infinite ease-in-out;
+  animation: none !important;
   box-shadow: 0 0 14px rgba(245, 158, 11, 0.85), 0 8px 18px rgba(0, 0, 0, 0.5) !important;
   transform: translateY(-8px);
 }
