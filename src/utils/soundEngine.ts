@@ -2,6 +2,7 @@ class SoundEngineClass {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
   private lastSlideTime: number = 0;
+  private applauseAudio: HTMLAudioElement | null = null;
 
   init() {
     if (!this.ctx && typeof window !== 'undefined') {
@@ -12,6 +13,15 @@ class SoundEngineClass {
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
+    }
+
+    // تحميل ملف التصفيق مسبقاً في ذاكرة المتصفح ليعمل فوراً دون أي تأخير
+    if (!this.applauseAudio && typeof window !== 'undefined') {
+      try {
+        this.applauseAudio = new Audio('/applause.mp3');
+        this.applauseAudio.preload = 'auto';
+        this.applauseAudio.load();
+      } catch {}
     }
   }
 
@@ -205,31 +215,32 @@ class SoundEngineClass {
     });
   }
 
-  // تشغيل ملف التصفيق الحقيقي المرفوع
+  // تشغيل فوري وبقاء كامل لصوت التصفيق
   playCheeringAndWhistle() {
     if (!this.enabled) return;
     try {
-      const audio = new Audio('/applause.mp3');
-      audio.volume = 0.85;
+      if (!this.applauseAudio) {
+        this.applauseAudio = new Audio('/applause.mp3');
+      }
+      const audio = this.applauseAudio;
+      audio.currentTime = 0; // إعادة البدء فوراً من الصفر
+      audio.volume = 0.95;
       audio.play().catch(() => {});
 
-      // خفض تدريجي للصوت بهدوء بعد 2.4 ثانية ليتزامن مع بدء الجولة التالية
+      // يستمر التصفيق بكامل حماسه لـ 4.2 ثوانٍ ثم ينخفض بنعومة
       setTimeout(() => {
         const fadeInterval = setInterval(() => {
           if (audio.volume > 0.1) {
-            audio.volume -= 0.1;
+            audio.volume = Math.max(0, audio.volume - 0.08);
           } else {
             clearInterval(fadeInterval);
             audio.pause();
           }
-        }, 60);
-      }, 2300);
-    } catch {
-      // احتياطي
-    }
+        }, 50);
+      }, 4200);
+    } catch {}
   }
 
-  // نغمة حزينة استهزائية ساخرة عند خسارة الحاكم (Sad Trombone)
   playSadTromboneMock() {
     if (!this.enabled) return;
     this.init();
