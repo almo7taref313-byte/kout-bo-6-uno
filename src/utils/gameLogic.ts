@@ -568,6 +568,33 @@ export function selectBotMove(
     );
 
     // User Rule:
+    // "اذ كان اللون الذي لعب ليس حكما ولديه الخال فليلعبه لا يؤجل الا اذا كان الباش قد لعب من فريق البوت"
+    if (leadSuit && leadSuit !== 'special' && leadSuit !== trumpColor) {
+      const khaleCard = legalMoves.find((c) => c.color === leadSuit && c.rank === '1');
+      if (khaleCard) {
+        const teammatePlayedBasha = trick.some((p) => {
+          const isTeammate = p.playerId !== bot.id && (
+            (context?.players && context.players[p.playerId]?.team === bot.team) ||
+            (bot.team ? (context?.players?.[p.playerId]?.team === bot.team) : (p.playerId % 2 === bot.id % 2))
+          );
+          return isTeammate && p.card.color === leadSuit && p.card.rank === 'draw2';
+        });
+
+        if (!teammatePlayedBasha) {
+          // الخال يلعب فوراً دون تأجيل
+          return khaleCard;
+        } else {
+          // الباش قد لعب من فريق البوت: يوفر الخال ولا يرميه فوق باش زميله
+          const otherLeadCards = legalMoves.filter((c) => c.color === leadSuit && c.rank !== '1');
+          if (otherLeadCards.length > 0) {
+            otherLeadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+            return otherLeadCards[0];
+          }
+        }
+      }
+    }
+
+    // User Rule:
     // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
     const teammateCutWithTrump = isLeadOtherColor && trick.some((p) => {
       const isTeammate = p.playerId !== bot.id && (

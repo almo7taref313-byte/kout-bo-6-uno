@@ -705,24 +705,15 @@ export default function App() {
 
   // Trick Resolution
   const resolveTrick = useCallback(
-    (trick: TrickPlay[], precomputedWinnerId?: number) => {
+    (trick: TrickPlay[], precomputedWinnerId?: number, finalTricksA?: number, finalTricksB?: number) => {
       const winnerId = precomputedWinnerId !== undefined ? precomputedWinnerId : evaluateTrickWinner(trick, trumpColor, highestBid);
       const winnerPlayer = players[winnerId];
 
-      let nextA = tricksTeamA;
-      let nextB = tricksTeamB;
+      const nextA = finalTricksA !== undefined ? finalTricksA : (winnerPlayer && winnerPlayer.team === 'A' ? tricksTeamA + 1 : tricksTeamA);
+      const nextB = finalTricksB !== undefined ? finalTricksB : (winnerPlayer && winnerPlayer.team === 'B' ? tricksTeamB + 1 : tricksTeamB);
 
-      if (winnerPlayer && winnerPlayer.team === 'A') {
-        nextA++;
-        setTricksTeamA(nextA);
-      } else {
-        nextB++;
-        setTricksTeamB(nextB);
-      }
-
-      if (winnerPlayer && winnerPlayer.team === (players[currentHumanSeatIndex]?.team || 'A')) {
-        nativeBridge.hapticTrickWin();
-      }
+      setTricksTeamA(nextA);
+      setTricksTeamB(nextB);
 
       setCurrentTrick([]);
       setPlayedTricksInRound((prev) => [...prev, trick]);
@@ -812,13 +803,29 @@ export default function App() {
       if (nextTrick.length === 6) {
         setIsActionPending(true);
         const winnerId = evaluateTrickWinner(nextTrick, trumpColor, highestBid);
+        const winnerPlayer = players[winnerId];
 
         setTimeout(() => {
           soundEngine.playTrickSweep();
           setCollectingWinnerId(winnerId);
 
+          // مع بدء تحرك الأكلة: يتغير عداد الأكلات مباشرة بالتزامن لحظة انطلاق حركة الكروت
+          let updatedTricksA = tricksTeamA;
+          let updatedTricksB = tricksTeamB;
+          if (winnerPlayer && winnerPlayer.team === 'A') {
+            updatedTricksA = tricksTeamA + 1;
+            setTricksTeamA(updatedTricksA);
+          } else {
+            updatedTricksB = tricksTeamB + 1;
+            setTricksTeamB(updatedTricksB);
+          }
+
+          if (winnerPlayer && winnerPlayer.team === (players[currentHumanSeatIndex]?.team || 'A')) {
+            nativeBridge.hapticTrickWin();
+          }
+
           setTimeout(() => {
-            resolveTrick(nextTrick, winnerId);
+            resolveTrick(nextTrick, winnerId, updatedTricksA, updatedTricksB);
           }, 1400);
         }, 1600);
       } else {
@@ -830,7 +837,7 @@ export default function App() {
         startTimer();
       }
     },
-    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, resolveTrick, roomCode, startTimer, stopTimer, trumpColor]
+    [currentHumanSeatIndex, currentTrick, deviceId, highestBid, isMultiplayerActive, players, resolveTrick, roomCode, startTimer, stopTimer, tricksTeamA, tricksTeamB, trumpColor]
   );
 
   // Human card click
