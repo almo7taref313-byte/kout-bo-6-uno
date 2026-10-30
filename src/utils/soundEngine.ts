@@ -223,21 +223,22 @@ class SoundEngineClass {
         this.applauseAudio = new Audio('/applause.mp3');
       }
       const audio = this.applauseAudio;
-      audio.currentTime = 0; // إعادة البدء فوراً من الصفر
+      audio.currentTime = 0;
       audio.volume = 0.95;
       audio.play().catch(() => {});
 
-      // يستمر التصفيق بكامل حماسه لـ 4.2 ثوانٍ ثم ينخفض بنعومة
+      // يبدأ خفوت الصوت عند 2.2 ثانية وينتهي بالكامل عند 2.8 ثانية
       setTimeout(() => {
         const fadeInterval = setInterval(() => {
-          if (audio.volume > 0.1) {
-            audio.volume = Math.max(0, audio.volume - 0.08);
+          if (audio.volume > 0.08) {
+            audio.volume = Math.max(0, audio.volume - 0.12);
           } else {
             clearInterval(fadeInterval);
             audio.pause();
+            audio.currentTime = 0;
           }
         }, 50);
-      }, 4200);
+      }, 2200);
     } catch {}
   }
 
