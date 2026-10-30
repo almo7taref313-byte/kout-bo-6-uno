@@ -205,51 +205,27 @@ class SoundEngineClass {
     });
   }
 
-  // صوت تصفيق جماعي حماسي فقط (بدون أي صفير)
+  // تشغيل ملف التصفيق الحقيقي المرفوع
   playCheeringAndWhistle() {
     if (!this.enabled) return;
-    this.init();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    try {
+      const audio = new Audio('/applause.mp3');
+      audio.volume = 0.85;
+      audio.play().catch(() => {});
 
-    // محاكاة تصفيق جماعي حماسي متكرر ومكثف (Crowd Applause)
-    const totalClaps = 26;
-    for (let i = 0; i < totalClaps; i++) {
-      if (!this.ctx) return;
-      // توقيت متدرج وموزع عشوائياً كأن مجموعة من الناس تصفق معاً
-      const clapTime = now + 0.04 + i * 0.055 + Math.random() * 0.025;
-      const duration = 0.05;
-      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-
-      for (let j = 0; j < bufferSize; j++) {
-        const progress = j / bufferSize;
-        // موجة صوتية تحاكي ضربة الكف الحقيقية
-        data[j] = (Math.random() * 2 - 1) * Math.exp(-progress * 7.0);
-      }
-
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-
-      // فلتر لتجسيد صوت صدمة اليدين الطبيعي
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = 950 + Math.random() * 650;
-      filter.Q.value = 1.4;
-
-      const clapGain = this.ctx.createGain();
-      // توزيع قوة التصفيق لتبدأ قوية وتستمر بحماس
-      const volume = 0.18 + Math.random() * 0.08;
-      clapGain.gain.setValueAtTime(volume, clapTime);
-      clapGain.gain.exponentialRampToValueAtTime(0.001, clapTime + duration);
-
-      noise.connect(filter);
-      filter.connect(clapGain);
-      clapGain.connect(this.ctx.destination);
-
-      noise.start(clapTime);
-      noise.stop(clapTime + duration);
+      // خفض تدريجي للصوت بهدوء بعد 2.4 ثانية ليتزامن مع بدء الجولة التالية
+      setTimeout(() => {
+        const fadeInterval = setInterval(() => {
+          if (audio.volume > 0.1) {
+            audio.volume -= 0.1;
+          } else {
+            clearInterval(fadeInterval);
+            audio.pause();
+          }
+        }, 60);
+      }, 2300);
+    } catch {
+      // احتياطي
     }
   }
 
