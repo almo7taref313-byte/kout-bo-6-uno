@@ -282,15 +282,15 @@ export const TableArena: React.FC<TableArenaProps> = ({
                     </div>
                   )}
 
-                  {/* أيقونة الديلر البيضاء */}
-                  {isDealer && (
-                    <div
-                      className="absolute -bottom-1.5 -left-1.5 z-40 bg-slate-900 border-2 border-white text-white rounded-full w-6 h-6 flex items-center justify-center font-black shadow-lg shadow-black/80 select-none ring-1 ring-slate-950"
-                      title="الموزع (Dealer)"
-                    >
-                      <span className="font-black text-white text-[11px] leading-none tracking-tight">D</span>
-                    </div>
-                  )}
+                 {/* أيقونة الديلر: حرف D أبيض عريض بدون دائرة وبلا أي لون تحته أو حوله */}
+{isDealer && (
+  <span 
+    className="absolute -bottom-1 -left-1 z-40 text-white font-black text-sm xs:text-base leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+    title="الموزع (Dealer)"
+  >
+    D
+  </span>
+)}
 
                   {/* نظام مؤقت الـ SVG الاحترافي المنضبط هندسياً */}
                   <svg
