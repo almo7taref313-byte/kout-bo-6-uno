@@ -696,10 +696,10 @@ export default function App() {
         nativeBridge.hapticTrickWin();
       }
 
-      // الانتقال للجولة القادمة بعد 3.2 ثانية (بعد أن ينتهي صوت التصفيق بـ 400ms تماماً)
+      // الانتقال للجولة الجديدة بعد 2.7 ثانية (بعد اختفاء الصوت والرسالة بـ 200ms تماماً)
       setTimeout(() => {
         handleNextRoundOrMatch(nextScoreA, nextScoreB);
-      }, 3300);
+      }, 2700);
     },
     [bidWinner, handleNextRoundOrMatch, highestBid, isForcedBid, matchScoreTeamA, matchScoreTeamB, players, showCallout, stopTimer]
   );
