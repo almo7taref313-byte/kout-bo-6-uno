@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, Player, SuitColor, TrickPlay } from '../types';
 import { isLegalMove, sortHandCards, TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
@@ -37,23 +37,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   dealerIdx = 0,
   isTimerDisabled = false,
 }) => {
-  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth > window.innerHeight;
-  });
-
-  useEffect(() => {
-    const checkOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
-    return () => {
-      window.removeEventListener('resize', checkOrientation);
-      window.removeEventListener('orientationchange', checkOrientation);
-    };
-  }, []);
-
   const activePlayer: Player = player || {
     id: 0,
     name: 'أنت',
@@ -75,34 +58,21 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
-      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] ${
-        isLandscape ? 'py-0.5 px-2' : 'pt-1 pb-1.5 sm:pb-2.5 px-1.5 sm:px-3'
-      } ${
+      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1 pb-1.5 sm:pb-2.5 px-2 safe-bottom select-none flex-shrink-0 transition-all duration-200 ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
-      } safe-bottom select-none flex-shrink-0 transition-all duration-200`}
+      }`}
     >
-      <div
-        className={`max-w-4xl mx-auto flex ${
-          isLandscape
-            ? 'flex-row items-center justify-center gap-3 px-2'
-            : 'flex-col items-center'
-        }`}
-      >
+      <div className="max-w-4xl mx-auto flex flex-col items-center">
+        
         {/* تنبيه الأوراق أثناء المزاد */}
-        {isBiddingPhase && !isLandscape && (
+        {isBiddingPhase && (
           <div className="text-[10px] xs:text-[11px] font-black text-amber-300 bg-black/80 border border-amber-400/60 px-3 py-0.5 rounded-full mb-1 flex items-center gap-1.5 shadow-lg animate-pulse">
             <span>🃏 أوراقك (9 كروت): تفحص ألوانك وقوتك لتحديد طلبك</span>
           </div>
         )}
 
-        {/* أوراق اليد الثابتة بدون تموج والمتباعدة في الأفقي */}
-        <div
-          className={`flex items-center justify-center overflow-x-auto py-0.5 no-scrollbar ${
-            isLandscape
-              ? 'flex-1 min-h-[62px] -space-x-1.5 xs:-space-x-2 px-1'
-              : 'w-full min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 px-1 sm:px-2'
-          }`}
-        >
+        {/* أوراق اليد: متراصة ومتباعدة بنعومة وبدون تموج */}
+        <div className="w-full flex items-center justify-center min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar">
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
             const isLegal = isMyTurn
               ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
@@ -128,10 +98,11 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           })}
         </div>
 
-        {/* معلومات اللاعب وصورته */}
-        <div className={`flex items-center justify-center flex-shrink-0 ${isLandscape ? 'order-first mr-1' : 'w-full mt-0.5 sm:mt-1'}`}>
+        {/* صورة اللاعب وبياناته بالأسفل في المنتصف */}
+        <div className="w-full flex items-center justify-center mt-0.5 sm:mt-1">
           <div className="relative flex flex-col items-center">
             <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
+              
               {isHumanBuyer && (
                 <div
                   className="absolute -top-1.5 -right-1.5 z-40 w-6 h-6 xs:w-7 xs:h-7 rounded-full bg-white flex items-center justify-center select-none shadow-2xl border-2 border-[#0063B0] ring-2 ring-blue-500/60"
@@ -191,7 +162,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               {activePlayer.name}
             </div>
 
-            {isMyTurn && !isLandscape && (
+            {isMyTurn && (
               <span className="text-[8px] text-cyan-300 font-black mt-0.5 animate-pulse">
                 دورك الآن! اختر كرتك
               </span>
