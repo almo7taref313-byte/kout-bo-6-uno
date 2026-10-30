@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BidRecord, CalloutMessage, Player, SuitColor, TrickPlay } from '../types';
 import { TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
@@ -30,22 +30,33 @@ interface CardCoord {
   rotate: number;
 }
 
-const TABLE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 38, rotate: 0 },
-  1: { x: 62, y: 18, rotate: -8 },
-  2: { x: 62, y: -18, rotate: -8 },
+// إحداثيات الورق الواسعة والمريحة جداً في الوضع الرأسي (تمنع حجب الكروت نهائياً)
+const PORTRAIT_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
+  0: { x: 0, y: 76, rotate: 0 },
+  1: { x: 88, y: 42, rotate: -8 },
+  2: { x: 88, y: -42, rotate: -8 },
+  3: { x: 0, y: -72, rotate: 0 },
+  4: { x: -88, y: -42, rotate: 8 },
+  5: { x: -88, y: 42, rotate: 8 },
+};
+
+// إحداثيات الورق الممتدة أفقياً في الوضع العرضي
+const LANDSCAPE_CARD_RESTING_SLOTS: Record<number, CardCoord> = {
+  0: { x: 0, y: 36, rotate: 0 },
+  1: { x: 105, y: 18, rotate: -8 },
+  2: { x: 105, y: -20, rotate: -8 },
   3: { x: 0, y: -38, rotate: 0 },
-  4: { x: -62, y: -18, rotate: 8 },
-  5: { x: -62, y: 18, rotate: 8 },
+  4: { x: -105, y: -20, rotate: 8 },
+  5: { x: -105, y: 18, rotate: 8 },
 };
 
 const WINNER_SEAT_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 140, rotate: 0 },
-  1: { x: 180, y: 40, rotate: 10 },
-  2: { x: 180, y: -40, rotate: 10 },
-  3: { x: 0, y: -130, rotate: 0 },
-  4: { x: -180, y: -40, rotate: -10 },
-  5: { x: -180, y: 40, rotate: -10 },
+  0: { x: 0, y: 180, rotate: 0 },
+  1: { x: 180, y: 60, rotate: 10 },
+  2: { x: 180, y: -60, rotate: 10 },
+  3: { x: 0, y: -160, rotate: 0 },
+  4: { x: -180, y: -60, rotate: -10 },
+  5: { x: -180, y: 60, rotate: -10 },
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -66,6 +77,24 @@ export const TableArena: React.FC<TableArenaProps> = ({
   isBaoonPendingTrump,
   isTimerDisabled = false,
 }) => {
+  // كاشف الوضع الرأسي / الأفقي لضمان الفصل التام بين الوضعين
+  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth > window.innerHeight;
+  });
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
+
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
   const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
   const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
@@ -75,20 +104,22 @@ export const TableArena: React.FC<TableArenaProps> = ({
   const timerRatio = Math.max(0, Math.min(1, timerRemaining / TURN_TIMER_DURATION));
   const timerOffset = TIMER_CIRCUMFERENCE * (1 - timerRatio);
 
+  const activeCardSlots = isLandscape ? LANDSCAPE_CARD_RESTING_SLOTS : PORTRAIT_CARD_RESTING_SLOTS;
+
   return (
     <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-0.5 relative overflow-hidden">
       
       {/* 
         طاولة الكوت:
-        في الوضع العمودي: w-[88%] max-w-[420px] h-[92%]
-        في الوضع الأفقي: تتمدد أوتوماتيكياً بواسطة كود index.css إلى 86vw و max-w-[840px]
+        - في الوضع الرأسي: حجمها الأصلي المريح (w-[88%] max-w-[420px] h-[92%])
+        - في الوضع الأفقي: تتمدد بعرض 92vw لتمسح السواد الجانبي بالكامل
       */}
-      <div className={`jawaker-table-felt rounded-[42px] xs:rounded-[50px] sm:rounded-[64px]
-        w-[88%] max-w-[420px] h-[92%] max-h-[460px]
-        landscape:w-[94vw] landscape:max-w-none landscape:h-[90%] landscape:max-h-[290px]
-        relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
-        isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
-      }`}>
+      <div 
+        style={isLandscape ? { width: '92vw', maxWidth: '860px', height: '88%', maxHeight: '290px' } : { width: '88%', maxWidth: '420px', height: '92%', maxHeight: '480px' }}
+        className={`jawaker-table-felt rounded-[42px] xs:rounded-[50px] sm:rounded-[64px] relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
+          isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
+        }`}
+      >
 
         {/* أضواء الباون */}
         {isBaoonActive && (
@@ -117,12 +148,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* الأوراق المرمية في ساحة اللعب */}
-        <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20 scale-[0.72] xs:scale-[0.82] sm:scale-95 landscape:scale-[0.55]">
+        {/* ساحة الأوراق المرمية */}
+        <div className={`relative w-full h-full flex items-center justify-center pointer-events-none z-20 ${
+          isLandscape ? 'scale-[0.62]' : 'scale-[0.80] xs:scale-[0.88] sm:scale-100'
+        }`}>
           {currentTrick.map((play, index) => {
             const isCollecting = collectingWinnerId !== null && currentTrick.length === 6;
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
-            const rest = TABLE_CARD_RESTING_SLOTS[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
+            const rest = activeCardSlots[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
             const winnerTarget = isCollecting ? WINNER_SEAT_TARGETS[relWinnerSlot] : null;
 
@@ -171,7 +204,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </div>
         )}
 
-        {/* مقاعد اللاعبين الخمسة: توزيع محيطي كامل يمنع التداخل أو الاختفاء */}
+        {/* مقاعد اللاعبين الخمسة: توزيع مستقل تماماً لكل وضعية */}
         {botSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
@@ -192,21 +225,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
           const relPos = (idx - humanSeatIndex + 6) % 6;
           let posClass = '';
 
-          if (relPos === 1) {
-            // اللاعب 1 (عبود): في أقصى يمين الطاولة
-            posClass = 'bottom-[6%] right-[-24px] xs:right-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:right-[-30px]';
-          } else if (relPos === 2) {
-            // اللاعب 2 (مشاري): أعلى اليمين نحو الحافة الفسيحة
-            posClass = 'top-[6%] right-[-24px] xs:right-[-28px] landscape:top-[-18px] landscape:right-[20%] sm:landscape:right-[24%]';
-          } else if (relPos === 3) {
-            // اللاعب 3 (طارق): أعلى المنتصف
-            posClass = 'top-[-24px] left-1/2 -translate-x-1/2 landscape:top-[-22px]';
-          } else if (relPos === 4) {
-            // اللاعب 4 (بندر): أعلى اليسار نحو الحافة الفسيحة
-            posClass = 'top-[6%] left-[-24px] xs:left-[-28px] landscape:top-[-18px] landscape:left-[20%] sm:landscape:left-[24%]';
-          } else if (relPos === 5) {
-            // اللاعب 5 (سعود): في أقصى يسار الطاولة
-            posClass = 'bottom-[6%] left-[-24px] xs:left-[-28px] landscape:bottom-auto landscape:top-1/2 landscape:-translate-y-1/2 landscape:left-[-30px]';
+          if (!isLandscape) {
+            // ================= التوزيع الرأسي الأصلي (Portrait) =================
+            if (relPos === 1) posClass = 'bottom-[16%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+            else if (relPos === 2) posClass = 'top-[16%] right-[-14px] xs:right-[-18px] sm:right-[-22px]';
+            else if (relPos === 3) posClass = 'top-[-20px] left-1/2 -translate-x-1/2';
+            else if (relPos === 4) posClass = 'top-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+            else if (relPos === 5) posClass = 'bottom-[16%] left-[-14px] xs:left-[-18px] sm:left-[-22px]';
+          } else {
+            // ================= التوزيع الأفقي الواسع (Landscape) =================
+            if (relPos === 1) posClass = 'top-1/2 -translate-y-1/2 right-[-28px]';
+            else if (relPos === 2) posClass = 'top-[-18px] right-[20%]';
+            else if (relPos === 3) posClass = 'top-[-22px] left-1/2 -translate-x-1/2';
+            else if (relPos === 4) posClass = 'top-[-18px] left-[20%]';
+            else if (relPos === 5) posClass = 'top-1/2 -translate-y-1/2 left-[-28px]';
           }
 
           let targetBadgePosClass = '';
@@ -230,20 +262,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
             : {};
 
           return (
-            <div key={idx} className={`absolute ${posClass} z-30`}>
+            <div key={idx} className={`absolute ${posClass} z-30 transition-all duration-300`}>
               <div className="relative flex flex-col items-center">
 
                 {/* فقاعة المزاد للبوت */}
                 {phase === 'BIDDING' && latestBid && (
                   <div
                     className={`absolute z-35 pointer-events-none ${
-                      relPos === 1
+                      relPos === 1 || relPos === 2
                         ? '-left-[64px] top-1/2 -translate-y-1/2'
-                        : relPos === 2
-                        ? 'top-[44px] left-1/2 -translate-x-1/2'
                         : relPos === 3
-                        ? 'top-[44px] left-1/2 -translate-x-1/2'
-                        : relPos === 4
                         ? 'top-[44px] left-1/2 -translate-x-1/2'
                         : '-right-[64px] top-1/2 -translate-y-1/2'
                     }`}
@@ -259,7 +287,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 )}
 
                 {/* الحاوية الدائرية للأفاتار */}
-                <div className="relative w-10 h-10 xs:w-11 xs:h-11 landscape:w-8.5 landscape:h-8.5 flex items-center justify-center">
+                <div className={`relative flex items-center justify-center ${
+                  isLandscape ? 'w-9 h-9' : 'w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13'
+                }`}>
                   
                   {/* شارة المشتري / الملزوم */}
                   {isBuyer && (
@@ -358,9 +388,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
                   {/* صورة الأفاتار */}
                   <div
-                    className={`w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 landscape:w-7.5 landscape:h-7.5 rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 ${
-                      isTurn && isCritical ? 'animate-pulse' : ''
-                    }`}
+                    className={`rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 ${
+                      isLandscape ? 'w-8 h-8' : 'w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11'
+                    } ${isTurn && isCritical ? 'animate-pulse' : ''}`}
                   >
                     <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
                   </div>
