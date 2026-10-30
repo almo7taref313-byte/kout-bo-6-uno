@@ -88,7 +88,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
             : 'flex-col items-center'
         }`}
       >
-        
         {/* تنبيه الأوراق أثناء المزاد */}
         {isBiddingPhase && !isLandscape && (
           <div className="text-[10px] xs:text-[11px] font-black text-amber-300 bg-black/80 border border-amber-400/60 px-3 py-0.5 rounded-full mb-1 flex items-center gap-1.5 shadow-lg animate-pulse">
@@ -96,11 +95,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           </div>
         )}
 
-        {/* 
-          أوراق يدك: 
-          تم تخفيف التداخل في الوضع الأفقي إلى -space-x-1.5 xs:-space-x-2 
-          لتتباعد الأوراق عن بعضها قليلاً وتظهر واضحة
-        */}
+        {/* أوراق اليد الثابتة بدون تموج والمتباعدة في الأفقي */}
         <div
           className={`flex items-center justify-center overflow-x-auto py-0.5 no-scrollbar ${
             isLandscape
@@ -108,9 +103,16 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               : 'w-full min-h-[72px] xs:min-h-[82px] sm:min-h-[105px] md:min-h-[120px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 px-1 sm:px-2'
           }`}
         >
-          style={{
-  zIndex: 10 + idx,
-}}
+          {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
+            const isLegal = isMyTurn
+              ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
+              : true;
+            return (
+              <div
+                key={card.id}
+                style={{
+                  zIndex: 10 + idx,
+                }}
                 className="transition-transform duration-200 hover:-translate-y-2"
               >
                 <UnoCard
@@ -126,12 +128,10 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           })}
         </div>
 
-        {/* صورتك الشخصية: في الأفقي تزاح إلى الجانب الأيمن */}
+        {/* معلومات اللاعب وصورته */}
         <div className={`flex items-center justify-center flex-shrink-0 ${isLandscape ? 'order-first mr-1' : 'w-full mt-0.5 sm:mt-1'}`}>
           <div className="relative flex flex-col items-center">
-
             <div className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center">
-
               {isHumanBuyer && (
                 <div
                   className="absolute -top-1.5 -right-1.5 z-40 w-6 h-6 xs:w-7 xs:h-7 rounded-full bg-white flex items-center justify-center select-none shadow-2xl border-2 border-[#0063B0] ring-2 ring-blue-500/60"
