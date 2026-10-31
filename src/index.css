@@ -227,57 +227,44 @@
 .uno-card-inner {
   width: 100%;
   height: 100%;
-  border-radius: 6px;
+  border-radius: 5px;
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), inset 0 -2px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Rich Saturated Colors with 3D Radial Sheen */
-.uno-bg-red {
-  background: radial-gradient(circle at 35% 28%, #ff3344 0%, #ea1d2d 55%, #b80f1d 100%);
-}
-.uno-bg-yellow {
-  background: radial-gradient(circle at 35% 28%, #ffe326 0%, #ffd000 55%, #e0a800 100%);
-}
-.uno-bg-green {
-  background: radial-gradient(circle at 35% 28%, #10b95a 0%, #009e49 55%, #007334 100%);
-}
-.uno-bg-blue {
-  background: radial-gradient(circle at 35% 28%, #1499e3 0%, #0082c8 55%, #005b94 100%);
-}
-.uno-bg-black {
-  background: radial-gradient(circle at 35% 28%, #2a2f3a 0%, #14171d 60%, #08090c 100%);
-}
+/* Colors matching UNO Reference */
+.uno-bg-red { background: #ea1d2d; }
+.uno-bg-yellow { background: #ffd000; }
+.uno-bg-green { background: #009e49; }
+.uno-bg-blue { background: #0082c8; }
+.uno-bg-black { background: #111111; }
 
-/* The Iconic Tilted White Oval - Enhanced Contrast & Depth */
+/* The Iconic Tilted White Oval */
 .uno-center-oval {
   position: absolute;
-  width: 85%;
-  height: 75%;
-  background: radial-gradient(circle at 45% 40%, #ffffff 0%, #f8fafc 80%, #eef2f6 100%);
+  width: 84%;
+  height: 74%;
+  background: #ffffff;
   border-radius: 50%;
   transform: rotate(26deg);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid rgba(0, 0, 0, 0.14);
-  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.9), 0 2px 5px rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-/* Crisp UNO Numerals with subtle dark outline & soft 3D shadow */
+/* Clean UNO Numerals */
 .uno-number-text {
   font-family: 'Fredoka', 'Changa', 'Tajawal', sans-serif;
   font-style: normal;
   font-weight: 900;
   line-height: 1;
   letter-spacing: -0.02em;
-  -webkit-text-stroke: 1.2px rgba(0, 0, 0, 0.78);
-  paint-order: stroke fill;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.22));
+  filter: none;
+  text-shadow: none;
 }
 
 .uno-corner-text {
@@ -285,20 +272,45 @@
   font-style: normal;
   font-weight: 900;
   line-height: 1;
-  -webkit-text-stroke: 0.9px rgba(0, 0, 0, 0.85);
-  paint-order: stroke fill;
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.45));
+  filter: none;
+  text-shadow: none;
 }
 
-/* Special Card Glows */
+/* Holographic / Special Glows */
+.holo-card {
+  position: relative;
+  overflow: hidden;
+}
+.holo-card::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(115deg, 
+    transparent 20%, 
+    rgba(255, 215, 0, 0.45) 35%, 
+    rgba(255, 0, 128, 0.45) 50%, 
+    rgba(0, 255, 240, 0.5) 65%, 
+    transparent 80%);
+  transform: rotate(25deg);
+  animation: holoShine 3.2s infinite linear;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+  z-index: 20;
+}
+
+@keyframes holoShine {
+  0% { transform: translateY(-80%) rotate(25deg); }
+  100% { transform: translateY(80%) rotate(25deg); }
+}
+
 .card-joker-glow {
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.85), 0 6px 14px rgba(0, 0, 0, 0.75) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.8), 0 6px 14px rgba(0, 0, 0, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.95);
 }
 
-.card-trump1-glow {
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.85), 0 6px 14px rgba(0, 0, 0, 0.65) !important;
-  border: 1.5px solid #fde047;
+.card-maker-glow {
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.9), 0 6px 14px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(186, 230, 253, 0.9);
 }
 
 /* Interactive Player Hand Cards */
