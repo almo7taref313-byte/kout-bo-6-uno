@@ -78,52 +78,52 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
     }
   }
 
-  // Helper Renderer: Match Total Score (إجمالي النتيجة) - مدمجة وعالية التباين
+  // Helper Renderer: Match Total Score (إجمالي النتيجة) - أرقام بيضاء واضحة بدون هالة
   const renderScorePanel = () => (
-    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-1.5 xs:px-2 py-0.5 shadow-lg gap-1 xs:gap-1.5 flex-shrink-0">
+    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-2 xs:px-2.5 py-0.5 shadow-lg gap-1.5 xs:gap-2 flex-shrink-0">
       {/* Blue Team Score 🔵 */}
-      <div className="flex items-center gap-1">
-        <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#3b82f6]" />
-        <span className="text-xs xs:text-sm font-black text-blue-400 font-mono leading-none">
+      <div className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+        <span className="text-sm xs:text-base sm:text-lg font-black text-white font-mono leading-none">
           {scoreTeamA}
         </span>
       </div>
 
       {/* Target Score (101 if both >= 5, or 51 Asam) */}
-      <div className="flex flex-col items-center justify-center px-1 border-x border-slate-700/80 leading-none">
-        <span className="text-[6px] xs:text-[6.5px] font-bold text-amber-300">الهدف</span>
-        <span className="text-[9.5px] xs:text-[11px] font-black text-amber-400 font-mono mt-0.5">
+      <div className="flex flex-col items-center justify-center px-1.5 border-x border-slate-700/80 leading-none">
+        <span className="text-[6.5px] xs:text-[7px] font-bold text-amber-300">الهدف</span>
+        <span className="text-[10.5px] xs:text-xs font-black text-amber-400 font-mono mt-0.5">
           {targetScore}
         </span>
       </div>
 
       {/* Red Team Score 🔴 */}
-      <div className="flex items-center gap-1">
-        <span className="text-xs xs:text-sm font-black text-red-400 font-mono leading-none">
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm xs:text-base sm:text-lg font-black text-white font-mono leading-none">
           {scoreTeamB}
         </span>
-        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
       </div>
     </div>
   );
 
-  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - كبسولة مدمجة خفيفة
+  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - كبسولتان أوسع بأرقام بيضاء أكبر وبدون هالة زرقاء أو حمراء
   const renderTricksPanel = () => (
-    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-1.5 py-0.5 shadow-lg gap-1 flex-shrink-0">
+    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-1.5 py-0.5 shadow-lg gap-1.5 flex-shrink-0">
       {/* Blue Tricks 🔵 */}
-      <div className="flex items-center gap-1 bg-blue-950/80 border border-blue-500/40 rounded-lg px-1.5 py-0.2">
-        <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#3b82f6]" />
-        <span className="text-xs xs:text-sm font-black font-mono text-cyan-200 leading-none">
+      <div className="flex items-center justify-between gap-1.5 bg-[#161b26] border border-slate-600/60 rounded-lg px-2 xs:px-2.5 py-0.5 min-w-[38px] xs:min-w-[44px]">
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+        <span className="text-sm xs:text-base sm:text-lg font-black font-mono text-white leading-none">
           {tricksTeamA}
         </span>
       </div>
 
       {/* Red Tricks 🔴 */}
-      <div className="flex items-center gap-1 bg-red-950/80 border border-red-500/40 rounded-lg px-1.5 py-0.2">
-        <span className="text-xs xs:text-sm font-black font-mono text-rose-200 leading-none">
+      <div className="flex items-center justify-between gap-1.5 bg-[#161b26] border border-slate-600/60 rounded-lg px-2 xs:px-2.5 py-0.5 min-w-[38px] xs:min-w-[44px]">
+        <span className="text-sm xs:text-base sm:text-lg font-black font-mono text-white leading-none">
           {tricksTeamB}
         </span>
-        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
       </div>
     </div>
   );

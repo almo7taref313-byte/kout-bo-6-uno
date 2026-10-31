@@ -63,13 +63,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       }`}
     >
       <div className="max-w-4xl mx-auto flex flex-col items-center">
-        {/* تنبيه دورك الآن عند نزول الكروت للأسفل */}
-        {isMyTurn && (
-          <div className="text-[9px] xs:text-[10px] font-black text-cyan-300 bg-cyan-950/80 border border-cyan-400/50 px-2.5 py-0.2 rounded-full mb-0.5 shadow-md animate-pulse">
-            <span>دورك الآن! اختر كرتك</span>
-          </div>
-        )}
-
         {/* أوراق اليد: متراصة ومتباعدة بنعومة وبدون تموج وبكامل ارتفاعها دون قص */}
         <div className="w-full flex items-center justify-center min-h-[82px] xs:min-h-[88px] sm:min-h-[98px] md:min-h-[115px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar">
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
