@@ -7,7 +7,7 @@ import './index.css';
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js?v=3', { updateViaCache: 'none' })
+      .register('/sw.js', { updateViaCache: 'none' })
       .then((reg) => {
         reg.update().catch(() => {});
       })
