@@ -32,22 +32,22 @@ interface CardCoord {
 
 // أماكن استقرار الأوراق في وسط الطاولة: مدار هندسي متزن يمنع نزول الكروت تحت اسم أو صورة أي لاعب نهائياً
 const TABLE_CARD_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 52, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
-  1: { x: 64, y: 24, rotate: -8 },       // ورقة عبود (يمين أسفل - بعيداً عن الأفاتار)
-  2: { x: 64, y: -24, rotate: -8 },      // ورقة مشاري (يمين أعلى - بعيداً عن الأفاتار)
-  3: { x: 0, y: -42, rotate: 0 },        // ورقة طارق (أعلى وسط - بعيد تماماً عن اسم وصورة طارق)
-  4: { x: -64, y: -24, rotate: 8 },      // ورقة بندر (يسار أعلى - بعيداً عن الأفاتار)
-  5: { x: -64, y: 24, rotate: 8 },       // ورقة سعود (يسار أسفل - بعيداً عن الأفاتار)
+  0: { x: 0, y: 22, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
+  1: { x: 30, y: 11, rotate: -8 },       // ورقة عبود (يمين أسفل)
+  2: { x: 30, y: -11, rotate: -8 },      // ورقة مشاري (يمين أعلى)
+  3: { x: 0, y: -22, rotate: 0 },        // ورقة طارق (أعلى وسط)
+  4: { x: -30, y: -11, rotate: 8 },      // ورقة بندر (يسار أعلى)
+  5: { x: -30, y: 11, rotate: 8 },       // ورقة سعود (يسار أسفل)
 };
 
 // إحداثيات مركز صور اللاعبين كمرجع احتياطي
 const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 260, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) في الشريط السفلي
-  1: { x: 185, y: 135, rotate: 12 },     // إلى مركز صورة عبود (يمين أسفل)
-  2: { x: 185, y: -135, rotate: 12 },    // إلى مركز صورة مشاري (يمين أعلى)
-  3: { x: 0, y: -210, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
-  4: { x: -185, y: -135, rotate: -12 },  // إلى مركز صورة بندر (يسار أعلى)
-  5: { x: -185, y: 135, rotate: -12 },   // إلى مركز صورة سعود (يسار أسفل)
+  0: { x: 0, y: 180, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) بأسفل الطاولة
+  1: { x: 170, y: 105, rotate: 10 },     // إلى مركز صورة عبود (يمين أسفل)
+  2: { x: 170, y: -105, rotate: 10 },    // إلى مركز صورة مشاري (يمين أعلى)
+  3: { x: 0, y: -180, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
+  4: { x: -170, y: -105, rotate: -10 },  // إلى مركز صورة بندر (يسار أعلى)
+  5: { x: -170, y: 105, rotate: -10 },   // إلى مركز صورة سعود (يسار أسفل)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -69,8 +69,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   isTimerDisabled = false,
 }) => {
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
-  const botSeatIndices = [0, 1, 2, 3, 4, 5].filter((idx) => idx !== humanSeatIndex);
-  const humanLatestBid = biddingHistory.filter((b) => b.playerId === humanSeatIndex).pop();
+  const allSeatIndices = [0, 1, 2, 3, 4, 5];
 
   const TIMER_RADIUS = 24;
   const TIMER_CIRCUMFERENCE = 2 * Math.PI * TIMER_RADIUS;
@@ -111,17 +110,17 @@ export const TableArena: React.FC<TableArenaProps> = ({
   }, [collectingWinnerId]);
 
   return (
-    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-visible">
+    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-0.5 relative overflow-visible">
       
       {/* 
         طاولة الكوت الفسيحة والمطورة:
-        - الهواتف: w-[92%] max-w-[430px] h-[94%] max-h-[460px]
-        - الأجهزة اللوحية والكمبيوتر: md:max-w-[820px] lg:max-w-[890px] md:max-h-[500px]
+        - الهواتف: w-[94%] max-w-[450px] h-[96%] max-h-[490px]
+        - الأجهزة اللوحية والكمبيوتر: md:max-w-[840px] lg:max-w-[920px] md:max-h-[530px]
       */}
       <div 
         ref={tableFeltRef}
         className={`jawaker-table-felt rounded-[48px] sm:rounded-[60px] md:rounded-[76px]
-          w-[92%] max-w-[430px] md:max-w-[820px] lg:max-w-[890px] h-[94%] max-h-[460px] md:max-h-[500px]
+          w-[94%] max-w-[450px] md:max-w-[840px] lg:max-w-[920px] h-[96%] max-h-[490px] md:max-h-[530px]
           relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
           isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
         }`}
@@ -224,24 +223,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
           })}
         </div>
 
-        {/* فقاعة مزاد اللاعب البشري */}
-        {phase === 'BIDDING' && humanLatestBid && players[humanSeatIndex] && (
-          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-35 pointer-events-none">
-            <ComicBidBubble
-              val={humanLatestBid.val}
-              team={players[humanSeatIndex].team}
-              seatPosition="bottom-center"
-            />
-          </div>
-        )}
-
-        {/* مقاعد اللاعبين الخمسة: توزيع محيطي متزن بدقة هندسية */}
-        {botSeatIndices.map((idx) => {
+        {/* مقاعد اللاعبين الستة على الطاولة: توزيع دائري متزن يشمل صورة اللاعب في الأسفل */}
+        {allSeatIndices.map((idx) => {
           const player = players[idx] || {
             id: idx,
-            name: `بوت ${idx + 1}`,
+            name: idx === humanSeatIndex ? 'أنت' : `بوت ${idx + 1}`,
             team: idx % 2 === 0 ? 'A' : 'B',
-            isHuman: false,
+            isHuman: idx === humanSeatIndex,
             hand: [],
             tricksWon: 0,
             avatarId: 'kuwaiti_shemagh_red',
@@ -256,25 +244,53 @@ export const TableArena: React.FC<TableArenaProps> = ({
           const relPos = (idx - humanSeatIndex + 6) % 6;
           let posClass = '';
 
-          if (relPos === 1) {
+          if (relPos === 0) {
+            // اللاعب (أنت): أسفل المنتصف على حافة الطاولة مباشرة
+            posClass = 'bottom-2 sm:bottom-2.5 left-1/2 -translate-x-1/2';
+          } else if (relPos === 1) {
             // اللاعب 1 (عبود): يمين أسفل
-            posClass = 'bottom-[18%] right-2 xs:right-3 sm:right-4';
+            posClass = 'bottom-[25%] right-2 xs:right-3.5 sm:right-5';
           } else if (relPos === 2) {
             // اللاعب 2 (مشاري): يمين أعلى
-            posClass = 'top-[18%] right-2 xs:right-3 sm:right-4';
+            posClass = 'top-[21%] right-2 xs:right-3.5 sm:right-5';
           } else if (relPos === 3) {
-            // اللاعب 3 (طارق): أعلى المنتصف على الحافة العلوية تماماً
-            posClass = 'top-0.5 sm:top-1 left-1/2 -translate-x-1/2';
+            // اللاعب 3 (طارق): أعلى المنتصف مع مسافة كافية لتاج ملزوم
+            posClass = 'top-2.5 sm:top-3.5 left-1/2 -translate-x-1/2';
           } else if (relPos === 4) {
             // اللاعب 4 (بندر): يسار أعلى
-            posClass = 'top-[18%] left-2 xs:left-3 sm:left-4';
+            posClass = 'top-[21%] left-2 xs:left-3.5 sm:left-5';
           } else if (relPos === 5) {
             // اللاعب 5 (سعود): يسار أسفل
-            posClass = 'bottom-[18%] left-2 xs:left-3 sm:left-4';
+            posClass = 'bottom-[25%] left-2 xs:left-3.5 sm:left-5';
+          }
+
+          let bubblePosClass = '';
+          let bubbleSeatPos: 'bottom-center' | 'bottom-right' | 'top-right' | 'top-center' | 'top-left' | 'bottom-left' = 'bottom-center';
+
+          if (relPos === 0) {
+            bubblePosClass = '-top-8 left-1/2 -translate-x-1/2';
+            bubbleSeatPos = 'bottom-center';
+          } else if (relPos === 1) {
+            bubblePosClass = '-left-[46px] xs:-left-[50px] top-1/2 -translate-y-1/2';
+            bubbleSeatPos = 'bottom-right';
+          } else if (relPos === 2) {
+            bubblePosClass = '-left-[46px] xs:-left-[50px] top-1/2 -translate-y-1/2';
+            bubbleSeatPos = 'top-right';
+          } else if (relPos === 3) {
+            bubblePosClass = '-right-[48px] xs:-right-[52px] top-1/2 -translate-y-1/2';
+            bubbleSeatPos = 'top-center';
+          } else if (relPos === 4) {
+            bubblePosClass = '-right-[46px] xs:-right-[50px] top-1/2 -translate-y-1/2';
+            bubbleSeatPos = 'top-left';
+          } else if (relPos === 5) {
+            bubblePosClass = '-right-[46px] xs:-right-[50px] top-1/2 -translate-y-1/2';
+            bubbleSeatPos = 'bottom-left';
           }
 
           let targetBadgePosClass = '';
-          if (relPos === 1 || relPos === 2 || relPos === 3) {
+          if (relPos === 0) {
+            targetBadgePosClass = '-top-2 -right-2';
+          } else if (relPos === 1 || relPos === 2 || relPos === 3) {
             targetBadgePosClass = '-right-7 top-1/2 -translate-y-1/2';
           } else {
             targetBadgePosClass = '-left-7 top-1/2 -translate-y-1/2';
@@ -297,23 +313,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
             <div key={idx} className={`absolute ${posClass} z-30 transition-all duration-300`}>
               <div className="relative flex flex-col items-center">
 
-                {/* فقاعة المزاد للبوت - موضوعة بجانب الأفاتار لمنع حجب وسط الطاولة */}
+                {/* فقاعة المزاد - موضوعة بجانب أو فوق الأفاتار لمنع حجب وسط الطاولة */}
                 {phase === 'BIDDING' && latestBid && (
-                  <div
-                    className={`absolute z-35 pointer-events-none ${
-                      relPos === 1 || relPos === 2
-                        ? '-left-[46px] xs:-left-[50px] top-1/2 -translate-y-1/2'
-                        : relPos === 3
-                        ? '-right-[48px] xs:-right-[52px] top-1/2 -translate-y-1/2'
-                        : '-right-[46px] xs:-right-[50px] top-1/2 -translate-y-1/2'
-                    }`}
-                  >
+                  <div className={`absolute z-35 pointer-events-none ${bubblePosClass}`}>
                     <ComicBidBubble
                       val={latestBid.val}
                       team={player.team}
-                      seatPosition={
-                        relPos === 1 ? 'bottom-right' : relPos === 2 ? 'top-right' : relPos === 3 ? 'top-center' : relPos === 4 ? 'top-left' : 'bottom-left'
-                      }
+                      seatPosition={bubbleSeatPos}
                     />
                   </div>
                 )}
@@ -433,7 +439,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   }`}
                 >
                   <span className="text-[9px] xs:text-[10px] sm:text-[11px] font-black font-sans tracking-wide truncate leading-tight drop-shadow-sm">
-                    {player.name}
+                    {idx === humanSeatIndex ? (player.name || 'أنت') : player.name}
                   </span>
                 </div>
               </div>

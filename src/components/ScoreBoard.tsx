@@ -78,74 +78,52 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
     }
   }
 
-  // Helper Renderer: Match Total Score (إجمالي النتيجة) - strictly with Team Colors, no "لنا" / "لهم"
+  // Helper Renderer: Match Total Score (إجمالي النتيجة) - مدمجة وعالية التباين
   const renderScorePanel = () => (
-    <div className="flex items-center bg-[#0d1017] border-2 border-slate-700/90 rounded-2xl px-2 xs:px-2.5 py-0.5 xs:py-1 shadow-2xl gap-1.5 xs:gap-2 flex-shrink-0">
+    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-1.5 xs:px-2 py-0.5 shadow-lg gap-1 xs:gap-1.5 flex-shrink-0">
       {/* Blue Team Score 🔵 */}
-      <div className="flex flex-col items-center leading-none min-w-[32px] xs:min-w-[38px]">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 xs:w-3 xs:h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] border border-blue-300/80" />
-        </div>
-        <span className="text-sm xs:text-base sm:text-lg font-black text-blue-400 font-mono mt-0.5 drop-shadow leading-none">
+      <div className="flex items-center gap-1">
+        <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#3b82f6]" />
+        <span className="text-xs xs:text-sm font-black text-blue-400 font-mono leading-none">
           {scoreTeamA}
         </span>
-        {statusTextA && (
-          <span className="text-[6.5px] xs:text-[7.5px] font-black text-amber-300 bg-black/80 border border-amber-400 px-1 py-0.2 rounded mt-0.5 whitespace-nowrap animate-pulse">
-            {statusTextA}
-          </span>
-        )}
       </div>
 
       {/* Target Score (101 if both >= 5, or 51 Asam) */}
-      <div className="flex flex-col items-center justify-center px-1.5 text-center leading-none border-x border-slate-700/80">
-        <span className="text-[6.5px] xs:text-[7.5px] font-bold text-amber-300 whitespace-nowrap">
-          الهدف
-        </span>
-        <span className="text-[11px] xs:text-xs sm:text-sm font-black text-amber-400 font-mono mt-0.5">
+      <div className="flex flex-col items-center justify-center px-1 border-x border-slate-700/80 leading-none">
+        <span className="text-[6px] xs:text-[6.5px] font-bold text-amber-300">الهدف</span>
+        <span className="text-[9.5px] xs:text-[11px] font-black text-amber-400 font-mono mt-0.5">
           {targetScore}
         </span>
       </div>
 
       {/* Red Team Score 🔴 */}
-      <div className="flex flex-col items-center leading-none min-w-[32px] xs:min-w-[38px]">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 xs:w-3 xs:h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] border border-red-300/80" />
-        </div>
-        <span className="text-sm xs:text-base sm:text-lg font-black text-red-400 font-mono mt-0.5 drop-shadow leading-none">
+      <div className="flex items-center gap-1">
+        <span className="text-xs xs:text-sm font-black text-red-400 font-mono leading-none">
           {scoreTeamB}
         </span>
-        {statusTextB && (
-          <span className="text-[6.5px] xs:text-[7.5px] font-black text-amber-300 bg-black/80 border border-amber-400 px-1 py-0.2 rounded mt-0.5 whitespace-nowrap animate-pulse">
-            {statusTextB}
-          </span>
-        )}
+        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]" />
       </div>
     </div>
   );
 
-  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - يقتصر على عدد الأكلات فقط دون كلمة الأكلات
+  // Helper Renderer: Round Tricks Panel (عداد الأكلات) - كبسولة مدمجة خفيفة
   const renderTricksPanel = () => (
-    <div className="flex items-center bg-[#0d1017] border-2 border-slate-700/90 rounded-2xl p-1 xs:p-1.5 shadow-2xl gap-1.5 xs:gap-2 flex-shrink-0">
+    <div className="flex items-center bg-[#0d1017] border border-slate-700/80 rounded-xl px-1.5 py-0.5 shadow-lg gap-1 flex-shrink-0">
       {/* Blue Tricks 🔵 */}
-      <div className="flex items-center gap-1.5 bg-blue-950/80 border border-blue-500/50 rounded-xl px-1.5 xs:px-2 py-0.5 xs:py-1">
-        <span className="w-2.5 h-2.5 xs:w-3 xs:h-3 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] border border-blue-200 flex-shrink-0" />
-        {/* Snow-white background badge for trick count */}
-        <div className="bg-[#f8fafc] border border-slate-200/90 shadow-sm rounded-lg min-w-[28px] xs:min-w-[34px] h-6 xs:h-7 flex items-center justify-center px-1">
-          <span className="text-base xs:text-lg sm:text-xl font-black font-mono text-[#0063B0] leading-none">
-            {tricksTeamA}
-          </span>
-        </div>
+      <div className="flex items-center gap-1 bg-blue-950/80 border border-blue-500/40 rounded-lg px-1.5 py-0.2">
+        <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#3b82f6]" />
+        <span className="text-xs xs:text-sm font-black font-mono text-cyan-200 leading-none">
+          {tricksTeamA}
+        </span>
       </div>
 
       {/* Red Tricks 🔴 */}
-      <div className="flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-xl px-1.5 xs:px-2 py-0.5 xs:py-1">
-        {/* Snow-white background badge for trick count */}
-        <div className="bg-[#f8fafc] border border-slate-200/90 shadow-sm rounded-lg min-w-[28px] xs:min-w-[34px] h-6 xs:h-7 flex items-center justify-center px-1">
-          <span className="text-base xs:text-lg sm:text-xl font-black font-mono text-[#EA1D2D] leading-none">
-            {tricksTeamB}
-          </span>
-        </div>
-        <span className="w-2.5 h-2.5 xs:w-3 xs:h-3 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] border border-red-200 flex-shrink-0" />
+      <div className="flex items-center gap-1 bg-red-950/80 border border-red-500/40 rounded-lg px-1.5 py-0.2">
+        <span className="text-xs xs:text-sm font-black font-mono text-rose-200 leading-none">
+          {tricksTeamB}
+        </span>
+        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]" />
       </div>
     </div>
   );
@@ -154,100 +132,64 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   const renderTrumpBadge = () => {
     if (trumpInfo && trumpColor) {
       return (
-        <div className="flex items-center gap-1.5 bg-[#121622] border-2 border-amber-400/90 px-2 py-0.5 rounded-xl shadow-md flex-shrink-0 animate-pulse">
-          <span className="text-[8.5px] xs:text-[9.5px] font-black text-amber-300 whitespace-nowrap">
-            الحكم:
-          </span>
-          <div
-            className="px-2 py-0.5 rounded-lg font-black text-[10px] xs:text-xs shadow-sm flex items-center gap-1 border border-white/60"
-            style={{
-              backgroundColor: trumpInfo.hex,
-              color: trumpColor === 'yellow' ? '#111827' : '#ffffff',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-white shadow-sm inline-block border border-black/20" />
-            <span className="drop-shadow">{trumpInfo.name}</span>
-          </div>
+        <div
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded-xl font-black text-[9px] xs:text-[10px] shadow-sm border border-white/40 flex-shrink-0 animate-pulse"
+          style={{
+            backgroundColor: trumpInfo.hex,
+            color: trumpColor === 'yellow' ? '#111827' : '#ffffff',
+          }}
+          title={`الحكم: ${trumpInfo.name}`}
+        >
+          <span className="w-2 h-2 rounded-full bg-white shadow-sm inline-block" />
+          <span className="drop-shadow">{trumpInfo.name}</span>
         </div>
       );
     }
     return (
-      <div className="flex items-center gap-1 bg-[#121622]/70 border border-slate-700/60 px-2 py-0.5 rounded-xl flex-shrink-0">
-        <span className="text-[8px] xs:text-[9px] text-slate-400 font-medium whitespace-nowrap">
-          الحكم: لم يُحدد
+      <div className="flex items-center gap-1 bg-[#121622]/80 border border-slate-700/60 px-1.5 py-0.5 rounded-xl flex-shrink-0">
+        <span className="text-[7.5px] xs:text-[8px] text-slate-400 font-medium whitespace-nowrap">
+          الحكم: -
         </span>
       </div>
     );
   };
 
   return (
-    <header className="w-full bg-[#171a22]/98 backdrop-blur-md z-30 select-none flex-shrink-0 border-b border-[#2d323b] shadow-md flex flex-col">
-      {/* 1. Main Top Row (Contains Rooms, Score in Center, and Controls on Left) */}
-      <div className="w-full px-1.5 xs:px-2.5 sm:px-4 py-1 flex items-center justify-between min-h-[44px] xs:min-h-[48px] sm:min-h-[52px] gap-1">
+    <header className="w-full bg-[#171a22]/98 backdrop-blur-md z-30 select-none flex-shrink-0 border-b border-[#2d323b] shadow-md">
+      {/* Unified Single Row: Tricks on Right, Score in Center, Trump & Actions on Left */}
+      <div className="w-full px-1 xs:px-2 sm:px-3 py-1 flex items-center justify-between min-h-[40px] xs:min-h-[44px] gap-1 overflow-x-hidden">
         
-        {/* Right Section (in RTL): Widescreen (Tricks & Trump) */}
-        <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 flex-shrink-0">
-          {/* On Widescreen / Landscape: Display Tricks & Trump right here on the right */}
-          <div className="hud-widescreen-only items-center gap-2">
-            {renderTricksPanel()}
-            {renderTrumpBadge()}
-          </div>
+        {/* Right Section (in RTL): Tricks Panel (عداد الأكلات) */}
+        <div className="flex items-center flex-shrink-0">
+          {renderTricksPanel()}
         </div>
 
-        {/* Center: Total Match Score (إجمالي النتيجة) - Completely unobstructed, centered, zero overlap */}
-        <div className="flex items-center justify-center flex-1 min-w-0 px-1 pointer-events-auto">
+        {/* Center: Total Match Score (إجمالي النتيجة) */}
+        <div className="flex items-center justify-center flex-shrink-0">
           {renderScorePanel()}
         </div>
 
-        {/* Left Section (in RTL): Action Buttons */}
+        {/* Left Section (in RTL): Trump Badge + Sound + Exit */}
         <div className="flex items-center gap-1 xs:gap-1.5 flex-shrink-0">
-          {/* Rules button (Visible on widescreen, accessible via settings on mobile) */}
-          <button
-            onClick={onOpenRules}
-            className="hidden md:flex w-7 h-7 xs:w-8 xs:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] items-center justify-center text-amber-400 font-bold text-xs xs:text-sm transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
-            title="القوانين"
-          >
-            📖
-          </button>
-
-          {/* Screen orientation button (Visible on widescreen, accessible via settings on mobile) */}
-          <button
-            onClick={onOpenScreenModal}
-            className="hidden md:flex w-7 h-7 xs:w-8 xs:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] items-center justify-center text-slate-200 text-xs xs:text-sm transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
-            title="أوضاع الشاشة"
-          >
-            🖥️
-          </button>
+          {renderTrumpBadge()}
 
           {/* Sound toggle button */}
           <button
             onClick={onToggleSound}
-            className="w-7 h-7 xs:w-8 xs:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs xs:text-sm transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
+            className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
             title="الصوت"
           >
             {soundEnabled ? '🔊' : '🔇'}
           </button>
 
-
-
-          {/* Exit game button: أيقونة باب أصفر مفتوح دالة وواضحة جداً على الخروج */}
+          {/* Exit game button */}
           <button
             onClick={onExitGame}
-            className="w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-400/70 hover:border-amber-300 flex items-center justify-center transition active:scale-90 shadow-md cursor-pointer group"
+            className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-400/70 hover:border-amber-300 flex items-center justify-center transition active:scale-90 shadow-md cursor-pointer group"
             title="خروج من اللعبة"
           >
-            <YellowDoorIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5 group-hover:scale-105 transition" />
+            <YellowDoorIcon className="w-3.5 h-3.5 group-hover:scale-105 transition" />
           </button>
-        </div>
-      </div>
-
-      {/* 2. Mobile Portrait Sub-Bar (Displays Round Tricks on Right, Trump Badge on Left - NEVER overlaps score) */}
-      <div className="hud-sub-bar w-full px-2 xs:px-3 py-1 items-center justify-between border-t border-slate-800/80 bg-[#10131b]/95 shadow-inner">
-        <div className="flex items-center gap-1.5">
-          {renderTricksPanel()}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {renderTrumpBadge()}
         </div>
       </div>
     </header>
