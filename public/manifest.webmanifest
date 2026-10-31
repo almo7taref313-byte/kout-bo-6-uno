@@ -3,27 +3,27 @@
   "name": "كوت بو ستة أونو",
   "short_name": "كوت أونو",
   "description": "لعبة كوت بو ستة أونو الكويتية الأصيلة بقواعد الديوانية، كروت أونو، ونظام الغرف والمقاعد التفاعلي.",
-  "theme_color": "#070c14",
-  "background_color": "#22252a",
+  "theme_color": "#0a0d14",
+  "background_color": "#0a0d14",
   "display": "standalone",
   "orientation": "portrait",
   "start_url": "/",
   "scope": "/",
   "icons": [
     {
-      "src": "/pwa-192x192.png",
+      "src": "/pwa-192-v2.png?v=2",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-512x512.png",
+      "src": "/pwa-512-v2.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-maskable-512x512.png",
+      "src": "/pwa-maskable-512-v2.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
