@@ -1,4 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  CardTheme,
+  getStoredCardTheme,
+  preloadWhiteCardAssets,
+  setStoredCardTheme,
+} from '../utils/cardAssets';
 
 interface SettingsModalProps {
   soundEnabled: boolean;
@@ -17,6 +23,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenScreenModal,
   onClose,
 }) => {
+  const [cardTheme, setCardTheme] = useState<CardTheme>(() => getStoredCardTheme());
+
+  const handleSelectCardTheme = (theme: CardTheme) => {
+    if (theme === 'white') {
+      preloadWhiteCardAssets();
+    }
+    setCardTheme(theme);
+    setStoredCardTheme(theme);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2.5 xs:p-3 sm:p-4">
       <div className="bg-slate-900 border-2 border-amber-500/60 rounded-2xl sm:rounded-3xl w-full max-w-sm p-3 xs:p-4 text-right shadow-2xl max-h-[92dvh] overflow-y-auto">
@@ -35,7 +51,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Settings List */}
-        <div className="space-y-2 mb-4">
+        <div className="space-y-2.5 mb-4">
+          {/* Card Style Switcher: Colored vs White */}
+          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🃏</span>
+                <div>
+                  <span className="text-xs font-bold text-white block">شكل أوراق اللعب (الكروت)</span>
+                  <span className="text-[10px] text-slate-400">
+                    {cardTheme === 'white'
+                      ? 'الكروت البيضاء (واضحة ومريحة للعين)'
+                      : 'الكروت الملونة (أونو الكلاسيكية)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleSelectCardTheme('colored')}
+                className={`py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border ${
+                  cardTheme === 'colored'
+                    ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                <span>🎨</span>
+                <span>الكروت الملونة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectCardTheme('white')}
+                className={`py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border ${
+                  cardTheme === 'white'
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                <span>🃏</span>
+                <span>الكروت البيضاء</span>
+              </button>
+            </div>
+          </div>
+
           {/* Sound Toggle */}
           <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">
             <div className="flex items-center gap-2">
