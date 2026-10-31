@@ -58,13 +58,13 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
-      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-0.5 pb-2 sm:pb-3 px-1 xs:px-2 select-none flex-shrink-0 transition-all duration-200 ${
-        isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
+      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-2.5 sm:pt-3 pb-2.5 sm:pb-3.5 px-1 xs:px-2 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
+        isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}
     >
-      <div className="max-w-4xl mx-auto flex flex-col items-center">
-        {/* أوراق اليد: متراصة ومتباعدة بنعومة وبدون تموج وبكامل ارتفاعها دون قص */}
-        <div className="w-full flex items-center justify-center min-h-[82px] xs:min-h-[88px] sm:min-h-[98px] md:min-h-[115px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar">
+      <div className="max-w-4xl mx-auto flex flex-col items-center overflow-visible">
+        {/* أوراق اليد: متراصة ومرفوعة بمسافة مريحة عن الخط الفاصل وبكامل ارتفاعها دون أي قص */}
+        <div className="w-full flex items-end justify-center min-h-[90px] xs:min-h-[98px] sm:min-h-[112px] md:min-h-[130px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto overflow-y-visible px-1 sm:px-2 pt-4 sm:pt-5 pb-1 no-scrollbar">
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
             const isLegal = isMyTurn
               ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
