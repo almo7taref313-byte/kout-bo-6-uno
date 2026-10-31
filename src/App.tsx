@@ -46,6 +46,7 @@ import { RoomsModal } from './components/RoomsModal';
 import { ExitConfirmModal } from './components/ExitConfirmModal';
 import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
+import { MatchOverModal } from './components/MatchOverModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
 
 const getOrCreateDeviceId = (): string => {
@@ -574,47 +575,21 @@ export default function App() {
       roundNumber === 1 &&
       (buyerPlayer ? (buyerPlayer.team === 'A' ? curScoreB === 0 : curScoreA === 0) : false);
     const matchStatus = getMatchTargetAndStatus(curScoreA, curScoreB);
-    const isMatchOver = matchStatus.isMatchOver || isAsamFirstRound;
+    const isMatchOver = matchStatus.isMatchOver;
+
+    if (isMatchOver) {
+      stopTimer();
+      setPhase('MATCH_OVER');
+      soundEngine.playCheeringAndWhistle(3200);
+      nativeBridge.hapticVictory();
+      return;
+    }
 
     if (isMultiplayerActive && !isRoomHost) {
       return;
     }
 
-    if (isMatchOver) {
-      if (isMultiplayerActive) {
-        const sharedDeck = buildDeck();
-        const randDealer = Math.floor(Math.random() * 6);
-        setMatchScoreTeamA(0);
-        setMatchScoreTeamB(0);
-        setRoundNumber(1);
-        setDealerIdx(randDealer);
-        const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
-        setCurrentDealingTeam(initialDealingTeam);
-        if (randDealer % 2 === 0) {
-          setLastDealerTeamA(randDealer);
-          setLastDealerTeamB(5);
-        } else {
-          setLastDealerTeamB(randDealer);
-          setLastDealerTeamA(4);
-        }
-
-        roomSync.publish({
-          type: 'START_GAME',
-          roomCode,
-          senderId: deviceId,
-          seats,
-          deck: sharedDeck,
-          dealerIdx: randDealer,
-          roundNumber: 1,
-          scores: { a: 0, b: 0 },
-          timestamp: Date.now(),
-        });
-
-        startNewRound(sharedDeck, randDealer);
-      } else {
-        startNewMatch();
-      }
-    } else {
+    {
       const nextR = roundNumber + 1;
       const curDealingTeam = currentDealingTeam || (dealerIdx % 2 === 0 ? 'A' : 'B');
       const { nextDealingTeam, nextDealer, newLastDealerTeamA, newLastDealerTeamB } = computeNextRoundDealer(
@@ -1929,6 +1904,61 @@ export default function App() {
           onClose={() => setShowRoomsModal(false)}
         />
       )}
+
+      {/* Match Over Celebration Modal */}
+      {phase === 'MATCH_OVER' && (() => {
+        const matchStatus = getMatchTargetAndStatus(matchScoreTeamA, matchScoreTeamB);
+        const winningTeam = matchStatus.winnerTeam || (matchScoreTeamA >= matchScoreTeamB ? 'A' : 'B');
+        return (
+          <MatchOverModal
+            scoreTeamA={matchScoreTeamA}
+            scoreTeamB={matchScoreTeamB}
+            winnerTeam={winningTeam}
+            isZeroAsam={matchStatus.isZeroAsam}
+            onNewGame={() => {
+              soundEngine.init();
+              soundEngine.playCardSlide();
+              if (isMultiplayerActive) {
+                const sharedDeck = buildDeck();
+                const randDealer = Math.floor(Math.random() * 6);
+                setMatchScoreTeamA(0);
+                setMatchScoreTeamB(0);
+                setRoundNumber(1);
+                setDealerIdx(randDealer);
+                const initialDealingTeam = randDealer % 2 === 0 ? 'A' : 'B';
+                setCurrentDealingTeam(initialDealingTeam);
+                if (randDealer % 2 === 0) {
+                  setLastDealerTeamA(randDealer);
+                  setLastDealerTeamB(5);
+                } else {
+                  setLastDealerTeamB(randDealer);
+                  setLastDealerTeamA(4);
+                }
+
+                roomSync.publish({
+                  type: 'START_GAME',
+                  roomCode,
+                  senderId: deviceId,
+                  seats,
+                  deck: sharedDeck,
+                  dealerIdx: randDealer,
+                  roundNumber: 1,
+                  scores: { a: 0, b: 0 },
+                  timestamp: Date.now(),
+                });
+
+                startNewRound(sharedDeck, randDealer);
+              } else {
+                startNewMatch();
+              }
+            }}
+            onExit={() => {
+              stopTimer();
+              setPhase('LOBBY');
+            }}
+          />
+        );
+      })()}
 
       {/* Exit Confirmation Modal */}
       {showExitConfirm && (

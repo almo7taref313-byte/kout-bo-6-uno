@@ -929,39 +929,29 @@ export function getMatchTargetAndStatus(scoreA: number, scoreB: number): {
   statusTextA?: string;
   statusTextB?: string;
 } {
+  const bothHaveNonZero = scoreA > 0 && scoreB > 0;
   const bothHaveFiveOrMore = scoreA >= 5 && scoreB >= 5;
-  const targetScore = bothHaveFiveOrMore ? 101 : 51;
-  const isAsamActive = !bothHaveFiveOrMore;
+  const targetScore = bothHaveNonZero ? 101 : 51;
+  const isAsamActive = !bothHaveNonZero;
 
   let isMatchOver = false;
   let winnerTeam: 'A' | 'B' | null = null;
   let isZeroAsam = false;
 
-  if (bothHaveFiveOrMore) {
-    if (scoreA >= 101) {
-      isMatchOver = true;
-      winnerTeam = 'A';
-    } else if (scoreB >= 101) {
-      isMatchOver = true;
-      winnerTeam = 'B';
-    }
-  } else {
-    // Either team has < 5 points, so reaching 51 wins by Asam!
-    if (scoreA >= 51 && scoreB < 5) {
-      isMatchOver = true;
-      winnerTeam = 'A';
-      isZeroAsam = scoreB === 0;
-    } else if (scoreB >= 51 && scoreA < 5) {
-      isMatchOver = true;
-      winnerTeam = 'B';
-      isZeroAsam = scoreA === 0;
-    } else if (scoreA >= 101) {
-      isMatchOver = true;
-      winnerTeam = 'A';
-    } else if (scoreB >= 101) {
-      isMatchOver = true;
-      winnerTeam = 'B';
-    }
+  if (scoreA >= 101) {
+    isMatchOver = true;
+    winnerTeam = 'A';
+  } else if (scoreB >= 101) {
+    isMatchOver = true;
+    winnerTeam = 'B';
+  } else if (scoreA >= 51 && scoreB === 0) {
+    isMatchOver = true;
+    winnerTeam = 'A';
+    isZeroAsam = true;
+  } else if (scoreB >= 51 && scoreA === 0) {
+    isMatchOver = true;
+    winnerTeam = 'B';
+    isZeroAsam = true;
   }
 
   let statusTextA: string | undefined;
