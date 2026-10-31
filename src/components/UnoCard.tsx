@@ -36,13 +36,8 @@ export const UnoCard: React.FC<UnoCardProps> = ({
   else if (card.color === 'green') textColor = '#15803d';
   else if (card.color === 'blue') textColor = '#0369a1';
 
-  const isHolo = card.isMaker; // Joker is strictly black and white without rainbow holo
-  const holoClass = isHolo ? 'holo-card' : '';
-  const glowClass = card.isJoker
-    ? 'card-joker-glow'
-    : card.isMaker
-    ? 'card-maker-glow'
-    : '';
+  const holoClass = '';
+  const glowClass = card.isJoker ? 'card-joker-glow' : '';
 
   const sizeClass =
     size === 'table' ? 'uno-card-table' : size === 'mini' ? 'w-8 h-12' : 'uno-card-hand';
@@ -286,12 +281,6 @@ export const UnoCard: React.FC<UnoCardProps> = ({
     koutRoleBadge = (
       <div className="absolute -top-1.5 -right-1 bg-slate-950 text-white font-black text-[8px] px-1.5 py-0.2 rounded-full border border-white shadow-md z-30">
         الجيكر
-      </div>
-    );
-  } else if (card.isMaker) {
-    koutRoleBadge = (
-      <div className="absolute -top-1.5 -right-1 bg-cyan-500 text-white font-black text-[8px] px-1 py-0.2 rounded-full border border-white shadow-md z-30">
-        🌈 الميكر
       </div>
     );
   }
