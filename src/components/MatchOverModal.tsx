@@ -98,19 +98,14 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
           🏆
         </div>
 
-        {/* شارة سبب الحسم */}
-        <div className="inline-block bg-amber-500/18 border border-amber-400/55 text-yellow-300 text-[11.5px] font-extrabold px-3.5 py-1 rounded-full mb-2">
-          {isZeroAsam
-            ? '✨ حسم المباراة (بلوغ الهدف 51+ مقابل 0) ✨'
-            : '✨ حسم المباراة (بلوغ الهدف 101+) ✨'}
-        </div>
-
         {/* العنوان الرئيسي والفريق البطل */}
         <h2
-          className="text-2xl xs:text-[26px] font-black text-white mb-1"
+          className="text-2xl xs:text-[26px] font-black text-amber-400 mb-1 flex items-center justify-center gap-2"
           style={{ textShadow: '0 2px 12px rgba(251, 191, 36, 0.45)' }}
         >
-          مبروك الفوز الساحق! 🎉
+          <span>🎉</span>
+          <span>مبروك الفوز</span>
+          <span>🎉</span>
         </h2>
         <p
           className={`text-sm font-extrabold mb-4 ${
