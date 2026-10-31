@@ -101,7 +101,7 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
         {/* شارة سبب الحسم */}
         <div className="inline-block bg-amber-500/18 border border-amber-400/55 text-yellow-300 text-[11.5px] font-extrabold px-3.5 py-1 rounded-full mb-2">
           {isZeroAsam
-            ? '✨ حسم المباراة (فوز صم 51+ مقابل 0!) ✨'
+            ? '✨ حسم المباراة (بلوغ الهدف 51+ مقابل 0) ✨'
             : '✨ حسم المباراة (بلوغ الهدف 101+) ✨'}
         </div>
 
