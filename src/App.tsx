@@ -659,6 +659,14 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
+      const matchStatus = getMatchTargetAndStatus(nextScoreA, nextScoreB);
+      if (matchStatus.isMatchOver) {
+        setPhase('MATCH_OVER');
+        soundEngine.playCheeringAndWhistle(3200);
+        nativeBridge.hapticVictory();
+        return;
+      }
+
       // تشغيل رسالة التشويق وصوت التصفيق حين يفوز الفريق الحاكم بالجولة، وحين يخسر تظهر الرسالة الأخرى
       if (buyerIsWinner) {
         soundEngine.playCheeringAndWhistle(2400);
