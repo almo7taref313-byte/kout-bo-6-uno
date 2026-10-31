@@ -173,14 +173,16 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         <div className="flex items-center gap-1 xs:gap-1.5 flex-shrink-0">
           {renderTrumpBadge()}
 
-          {/* Sound toggle button */}
-          <button
-            onClick={onToggleSound}
-            className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
-            title="الصوت"
-          >
-            {soundEnabled ? '🔊' : '🔇'}
-          </button>
+          {/* Sound toggle button - مخفي مؤقتاً لاختبار التحديث المباشر */}
+          {false && (
+            <button
+              onClick={onToggleSound}
+              className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
+              title="الصوت"
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
+          )}
 
           {/* Exit game button */}
           <button
