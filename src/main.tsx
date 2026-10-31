@@ -1,30 +1,18 @@
-// إزالة أي كاش قديم أو Service Worker معلق في هواتف اللاعبين نهائياً
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister();
-    }
-  });
-}
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Automatically unregister stale service workers and clear cache storage so users always get fresh code
+// Register lightweight Network-First Service Worker so Android/Chrome enables 1-tap native PWA installation
+// while always loading the latest code directly from the network
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister();
-    }
-  }).catch(() => {});
-}
-
-if (typeof window !== 'undefined' && 'caches' in window) {
-  caches.keys().then((names) => {
-    for (const name of names) {
-      caches.delete(name);
-    }
-  }).catch(() => {});
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js?v=3', { updateViaCache: 'none' })
+      .then((reg) => {
+        reg.update().catch(() => {});
+      })
+      .catch(() => {});
+  });
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
