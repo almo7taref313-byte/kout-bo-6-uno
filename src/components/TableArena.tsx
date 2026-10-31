@@ -30,24 +30,24 @@ interface CardCoord {
   rotate: number;
 }
 
-// أماكن استقرار الأوراق في وسط الطاولة: مدار هندسي متزن يمنع نزول الكروت تحت اسم أو صورة أي لاعب نهائياً
+// أماكن استقرار الأوراق في وسط الطاولة: مدار هندسي متسع وواضح يمنع تراكم الكروت فوق بعضها
 const TABLE_CARD_SLOTS: Record<number, CardCoord> = {
-  0: { x: 0, y: 22, rotate: 0 },         // ورقة اللاعب (أنت - بالأسفل)
-  1: { x: 30, y: 11, rotate: -8 },       // ورقة عبود (يمين أسفل)
-  2: { x: 30, y: -11, rotate: -8 },      // ورقة مشاري (يمين أعلى)
-  3: { x: 0, y: -22, rotate: 0 },        // ورقة طارق (أعلى وسط)
-  4: { x: -30, y: -11, rotate: 8 },      // ورقة بندر (يسار أعلى)
-  5: { x: -30, y: 11, rotate: 8 },       // ورقة سعود (يسار أسفل)
+  0: { x: 0, y: 56, rotate: 0 },         // ورقة اللاعب (أنت - أمامك بالأسفل)
+  1: { x: 62, y: 28, rotate: -10 },      // ورقة عبود (أمام عبود - يمين أسفل)
+  2: { x: 62, y: -28, rotate: -10 },     // ورقة مشاري (أمام مشاري - يمين أعلى)
+  3: { x: 0, y: -56, rotate: 0 },        // ورقة طارق (أمام طارق - أعلى وسط)
+  4: { x: -62, y: -28, rotate: 10 },     // ورقة بندر (أمام بندر - يسار أعلى)
+  5: { x: -62, y: 28, rotate: 10 },      // ورقة سعود (أمام سعود - يسار أسفل)
 };
 
 // إحداثيات مركز صور اللاعبين كمرجع احتياطي
 const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 180, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) بأسفل الطاولة
-  1: { x: 170, y: 105, rotate: 10 },     // إلى مركز صورة عبود (يمين أسفل)
-  2: { x: 170, y: -105, rotate: 10 },    // إلى مركز صورة مشاري (يمين أعلى)
-  3: { x: 0, y: -180, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
-  4: { x: -170, y: -105, rotate: -10 },  // إلى مركز صورة بندر (يسار أعلى)
-  5: { x: -170, y: 105, rotate: -10 },   // إلى مركز صورة سعود (يسار أسفل)
+  0: { x: 0, y: 170, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) بأسفل الطاولة
+  1: { x: 165, y: 95, rotate: 10 },      // إلى مركز صورة عبود (يمين أسفل)
+  2: { x: 165, y: -95, rotate: 10 },     // إلى مركز صورة مشاري (يمين أعلى)
+  3: { x: 0, y: -170, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
+  4: { x: -165, y: -95, rotate: -10 },   // إلى مركز صورة بندر (يسار أعلى)
+  5: { x: -165, y: 95, rotate: -10 },    // إلى مركز صورة سعود (يسار أسفل)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -119,8 +119,8 @@ export const TableArena: React.FC<TableArenaProps> = ({
       */}
       <div 
         ref={tableFeltRef}
-        className={`jawaker-table-felt rounded-[48px] sm:rounded-[60px] md:rounded-[76px]
-          w-[94%] max-w-[450px] md:max-w-[840px] lg:max-w-[920px] h-[96%] max-h-[490px] md:max-h-[530px]
+        className={`jawaker-table-felt rounded-[44px] sm:rounded-[60px] md:rounded-[76px]
+          w-[95%] max-w-[430px] md:max-w-[820px] lg:max-w-[900px] h-[92%] max-h-[415px] xs:max-h-[440px] sm:max-h-[470px] md:max-h-[515px]
           relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
           isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
         }`}

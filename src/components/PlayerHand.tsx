@@ -58,7 +58,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
-      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1 pb-3 sm:pb-4 px-2 safe-bottom select-none flex-shrink-0 transition-all duration-200 ${
+      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-0.5 pb-2 sm:pb-3 px-1 xs:px-2 select-none flex-shrink-0 transition-all duration-200 ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-30'
       }`}
     >
@@ -71,7 +71,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         )}
 
         {/* أوراق اليد: متراصة ومتباعدة بنعومة وبدون تموج وبكامل ارتفاعها دون قص */}
-        <div className="w-full flex items-center justify-center min-h-[90px] xs:min-h-[98px] sm:min-h-[110px] md:min-h-[125px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-1.5 no-scrollbar">
+        <div className="w-full flex items-center justify-center min-h-[82px] xs:min-h-[88px] sm:min-h-[98px] md:min-h-[115px] -space-x-3 xs:-space-x-3.5 sm:-space-x-4 md:-space-x-5 overflow-x-auto px-1 sm:px-2 py-0.5 no-scrollbar">
           {sortHandCards(activePlayer.hand, trumpColor).map((card, idx) => {
             const isLegal = isMyTurn
               ? isLegalMove(activePlayer.hand, card, currentTrick, highestBid, trumpColor, isHumanBuyer)
