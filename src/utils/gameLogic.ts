@@ -962,30 +962,6 @@ export function selectBotMove(
     }
 
     // User Rule:
-    // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
-    const currentTrickWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
-    const teammateCutWithTrump =
-      isLeadOtherColor &&
-      isTeammate(currentTrickWinnerId) &&
-      trick.some((p) => {
-        if (!isTeammate(p.playerId)) return false;
-        return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
-      });
-
-    if (teammateCutWithTrump) {
-      const nonSupremeMoves = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
-      const safePool = nonSupremeMoves.length > 0 ? nonSupremeMoves : legalMoves;
-
-      const leadCards = safePool.filter((c) => c.color === leadSuit);
-      if (leadCards.length > 0) {
-        leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
-        return leadCards[0];
-      }
-
-      return selectSmartDiscard(safePool, trick, trumpColor);
-    }
-
-    // User Rule:
     // "يلعب الحكم الكبير اذا الحاكم صاحبه ولعب حكم صغير والفريق الاخر ممكن يملك حكم اكبر"
     // "الجيكر والمكر لا يستعملهم البوت في حال لعب الحاكم (خال،باش،ميم،غلام،عشره=٠)"
     const isSmallTrumpPlayedByBuyer =
@@ -1024,6 +1000,121 @@ export function selectBotMove(
           if (jokerMove) return jokerMove;
           const makerMove = legalMoves.find((c) => c.isMaker);
           if (makerMove) return makerMove;
+        }
+      }
+    }
+
+    // User Rule:
+    // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
+    const currentTrickWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
+    const teammateCutWithTrump =
+      isLeadOtherColor &&
+      isTeammate(currentTrickWinnerId) &&
+      trick.some((p) => {
+        if (!isTeammate(p.playerId)) return false;
+        return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
+      });
+
+    if (teammateCutWithTrump) {
+      const nonSupremeMoves = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
+      const safePool = nonSupremeMoves.length > 0 ? nonSupremeMoves : legalMoves;
+
+      const leadCards = safePool.filter((c) => c.color === leadSuit);
+      if (leadCards.length > 0) {
+        leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return leadCards[0];
+      }
+
+      return selectSmartDiscard(safePool, trick, trumpColor);
+    }
+
+    // User Rule:
+    // "اذا كان البوت حاكما ولعبت زات غير الحكم وهو قاص يجب ان يلعب حكما خصوصا اذا الكرت الذي لعبته هناك اكبر منه ولم يلعب او ان الزات لعب مرة اخرى"
+    const isBotVoidInLead = Boolean(
+      isLeadOtherColor && leadSuit && !bot.hand.some((c) => c.color === leadSuit)
+    );
+
+    if (isBotVoidInLead && trumpColor && !teammateCutWithTrump) {
+      const isSuitPlayedAgain = Boolean(leadSuit && suitsPlayedBefore.has(leadSuit));
+      const teammateLeadPlays = trick.filter(
+        (p) =>
+          isTeammate(p.playerId) &&
+          p.card.color === leadSuit &&
+          !p.card.isJoker &&
+          !p.card.isMaker
+      );
+
+      let hasHigherUnplayedInLeadSuit = false;
+      if (teammateLeadPlays.length > 0 && leadSuit) {
+        const maxTeammateRankIdx = Math.max(
+          ...teammateLeadPlays.map((p) => SUIT_RANKS.indexOf(p.card.rank))
+        );
+        const higherRanksInLeadSuit = SUIT_RANKS.slice(maxTeammateRankIdx + 1);
+        hasHigherUnplayedInLeadSuit = higherRanksInLeadSuit.some((rank) => {
+          const playedInPast = playedTricks.some((t) =>
+            t.some(
+              (p) =>
+                p.card.color === leadSuit &&
+                !p.card.isJoker &&
+                !p.card.isMaker &&
+                p.card.rank === rank
+            )
+          );
+          if (playedInPast) return false;
+
+          const playedInCurrentTrick = trick.some(
+            (p) =>
+              p.card.color === leadSuit &&
+              !p.card.isJoker &&
+              !p.card.isMaker &&
+              p.card.rank === rank
+          );
+          if (playedInCurrentTrick) return false;
+
+          const inBotHand = bot.hand.some(
+            (c) =>
+              c.color === leadSuit &&
+              !c.isJoker &&
+              !c.isMaker &&
+              c.rank === rank
+          );
+          if (inBotHand) return false;
+
+          return true;
+        });
+      }
+
+      const playedIds = new Set(trick.map((t) => t.playerId));
+      const opponentYetToPlay = [0, 1, 2, 3, 4, 5].some(
+        (pid) => !playedIds.has(pid) && !isTeammate(pid) && pid !== bot.id
+      );
+      const currentWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
+      const isOpponentCurrentlyWinning =
+        !isTeammate(currentWinnerId) && currentWinnerId !== bot.id;
+      const isBotOnBuyerTeam = isBotBuyer || Boolean(buyerTeam && bot.team === buyerTeam);
+
+      const shouldCutWithTrump =
+        isOpponentCurrentlyWinning ||
+        ((isBotOnBuyerTeam || opponentYetToPlay) &&
+          (hasHigherUnplayedInLeadSuit ||
+            isSuitPlayedAgain ||
+            (leadSuit ? opponentVoidSuits.has(leadSuit) : false) ||
+            (isBotBuyer && !(isFirstTimeSuitPlayed && teammatePlayedKhaleOfLead))));
+
+      if (shouldCutWithTrump) {
+        const winningSuitedTrumps = legalMoves.filter(
+          (c) =>
+            c.color === trumpColor &&
+            !c.isJoker &&
+            !c.isMaker &&
+            evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
+              bot.id
+        );
+        if (winningSuitedTrumps.length > 0) {
+          winningSuitedTrumps.sort(
+            (a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank)
+          );
+          return winningSuitedTrumps[0];
         }
       }
     }
