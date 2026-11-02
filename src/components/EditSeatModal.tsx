@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SeatConfig } from '../types';
-import { AVATARS_CATALOG } from '../utils/avatars';
+import { AVATARS_CATALOG, getBotNameForAvatar } from '../utils/avatars';
 
 interface EditSeatModalProps {
   seat: SeatConfig;
@@ -10,8 +10,6 @@ interface EditSeatModalProps {
   onClose: () => void;
 }
 
-const DEFAULT_BOT_NAMES = ['أنت', 'عبود (بوت)', 'مشاري (بوت)', 'طارق (بوت)', 'بندر (بوت)', 'سعود (بوت)'];
-
 export const EditSeatModal: React.FC<EditSeatModalProps> = ({
   seat,
   isMyCurrentSeat,
@@ -19,9 +17,17 @@ export const EditSeatModal: React.FC<EditSeatModalProps> = ({
   onVacateSeat,
   onClose,
 }) => {
-  const [name, setName] = useState(seat.name || (seat.isVacant ? '' : seat.isHuman ? `لاعب ${seat.id + 1}` : DEFAULT_BOT_NAMES[seat.id] || 'بوت ذكي'));
+  const initialAvatarId = seat.avatarId || 'kuwaiti_ghutra_white';
+  const [name, setName] = useState(
+    seat.name ||
+      (seat.isVacant
+        ? ''
+        : seat.isHuman
+        ? `لاعب ${seat.id + 1}`
+        : getBotNameForAvatar(initialAvatarId))
+  );
   const [isHuman, setIsHuman] = useState(seat.isVacant ? true : seat.isHuman);
-  const [selectedAvatarId, setSelectedAvatarId] = useState(seat.avatarId || 'kuwaiti_ghutra_white');
+  const [selectedAvatarId, setSelectedAvatarId] = useState(initialAvatarId);
   const [customPhoto, setCustomPhoto] = useState<string | null>(seat.customPhoto);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,7 +43,9 @@ export const EditSeatModal: React.FC<EditSeatModalProps> = ({
   };
 
   const handleSave = () => {
-    const finalName = name.trim() || (isHuman ? `لاعب ${seat.id + 1}` : (DEFAULT_BOT_NAMES[seat.id] || 'بوت ذكي'));
+    const finalName =
+      name.trim() ||
+      (isHuman ? `لاعب ${seat.id + 1}` : getBotNameForAvatar(selectedAvatarId));
     onSaveSeat({
       name: finalName,
       isHuman,
@@ -84,7 +92,7 @@ export const EditSeatModal: React.FC<EditSeatModalProps> = ({
                 type="button"
                 onClick={() => {
                   setIsHuman(false);
-                  setName(DEFAULT_BOT_NAMES[seat.id] || 'بوت ذكي');
+                  setName(getBotNameForAvatar(selectedAvatarId));
                 }}
                 className={`py-1 px-2 text-[10px] font-bold rounded-lg transition cursor-pointer ${
                   !isHuman ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'
@@ -126,10 +134,14 @@ export const EditSeatModal: React.FC<EditSeatModalProps> = ({
                   onClick={() => {
                     setSelectedAvatarId(av.id);
                     setCustomPhoto(null);
+                    if (!isHuman) {
+                      setName(getBotNameForAvatar(av.id));
+                    }
                   }}
                   className={`cursor-pointer w-8 h-8 rounded-full overflow-hidden border-2 transition active:scale-90 ${
                     isSelected ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-slate-700'
                   }`}
+                  title={av.title}
                 >
                   {av.render()}
                 </div>

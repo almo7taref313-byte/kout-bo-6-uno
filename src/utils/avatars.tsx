@@ -17,48 +17,64 @@ const renderSvgImg = (src: string, alt: string) => (
   />
 );
 
+export const AVATAR_BOT_NAMES: Record<string, string> = {
+  kuwaiti_ghutra_white: 'بواحمد',
+  kuwaiti_shemagh_red: 'السلم',
+  kuwaiti_gahfiya: 'جابر',
+  kuwaiti_dishdasha_plain: 'عبود',
+  kuwaiti_gahfiya_glasses: 'بدور',
+  kuwaiti_winter_ghutra: 'بوسكندر',
+};
+
+export const getBotNameForAvatar = (avatarId?: string): string => {
+  if (avatarId && AVATAR_BOT_NAMES[avatarId]) {
+    return AVATAR_BOT_NAMES[avatarId];
+  }
+  return 'بواحمد';
+};
+
 export const AVATARS_CATALOG: AvatarItem[] = [
   {
     id: 'kuwaiti_ghutra_white',
-    title: 'غترة ولحية سوداء',
+    title: 'بواحمد',
     attire: 'غترة بيضاء ولحية سوداء',
     src: '/avatars/avatar_1.svg',
-    render: () => renderSvgImg('/avatars/avatar_1.svg', 'غترة ولحية سوداء'),
+    render: () => renderSvgImg('/avatars/avatar_1.svg', 'بواحمد'),
   },
   {
     id: 'kuwaiti_shemagh_red',
-    title: 'كاب أحمر',
+    title: 'السلم',
     attire: 'شاب مبتسم بقبعة كاب حمراء',
     src: '/avatars/avatar_2.svg',
-    render: () => renderSvgImg('/avatars/avatar_2.svg', 'كاب أحمر'),
+    render: () => renderSvgImg('/avatars/avatar_2.svg', 'السلم'),
   },
   {
     id: 'kuwaiti_gahfiya',
-    title: 'قحفية كويتية',
+    title: 'جابر',
     attire: 'قحفية بيضاء مطرزة ولحية بيضاء',
     src: '/avatars/avatar_3.svg',
-    render: () => renderSvgImg('/avatars/avatar_3.svg', 'قحفية كويتية'),
+    render: () => renderSvgImg('/avatars/avatar_3.svg', 'جابر'),
   },
   {
     id: 'kuwaiti_dishdasha_plain',
-    title: 'شاب مبتسم',
+    title: 'عبود',
     attire: 'شاب مبتسم بشعر أسود مرتب',
     src: '/avatars/avatar_4.svg',
-    render: () => renderSvgImg('/avatars/avatar_4.svg', 'شاب مبتسم'),
+    render: () => renderSvgImg('/avatars/avatar_4.svg', 'عبود'),
   },
   {
     id: 'kuwaiti_gahfiya_glasses',
-    title: 'نظارة شمسية',
+    title: 'بدور',
     attire: 'شاب بنظارة شمسية سوداء',
     src: '/avatars/avatar_5.svg',
-    render: () => renderSvgImg('/avatars/avatar_5.svg', 'نظارة شمسية'),
+    render: () => renderSvgImg('/avatars/avatar_5.svg', 'بدور'),
   },
   {
     id: 'kuwaiti_winter_ghutra',
-    title: 'طاقية وشارب',
+    title: 'بوسكندر',
     attire: 'رجل بشارب كثيف وطاقية سوداء',
     src: '/avatars/avatar_6.svg',
-    render: () => renderSvgImg('/avatars/avatar_6.svg', 'طاقية وشارب'),
+    render: () => renderSvgImg('/avatars/avatar_6.svg', 'بوسكندر'),
   },
 ];
 

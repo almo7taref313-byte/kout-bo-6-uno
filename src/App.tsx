@@ -49,6 +49,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { MatchOverModal } from './components/MatchOverModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
+import { getBotNameForAvatar } from './utils/avatars';
 
 const getOrCreateDeviceId = (): string => {
   try {
@@ -64,21 +65,35 @@ const getOrCreateDeviceId = (): string => {
 };
 
 const DEFAULT_BOT_PROFILES = [
-  { name: 'أنت', avatarId: 'kuwaiti_ghutra_white' },
-  { name: 'عبود (بوت)', avatarId: 'kuwaiti_shemagh_red' },
-  { name: 'مشاري (بوت)', avatarId: 'kuwaiti_gahfiya' },
-  { name: 'طارق (بوت)', avatarId: 'kuwaiti_dishdasha_plain' },
-  { name: 'بندر (بوت)', avatarId: 'kuwaiti_gahfiya_glasses' },
-  { name: 'سعود (بوت)', avatarId: 'kuwaiti_winter_ghutra' },
+  { name: 'بواحمد', avatarId: 'kuwaiti_ghutra_white' },
+  { name: 'السلم', avatarId: 'kuwaiti_shemagh_red' },
+  { name: 'جابر', avatarId: 'kuwaiti_gahfiya' },
+  { name: 'عبود', avatarId: 'kuwaiti_dishdasha_plain' },
+  { name: 'بدور', avatarId: 'kuwaiti_gahfiya_glasses' },
+  { name: 'بوسكندر', avatarId: 'kuwaiti_winter_ghutra' },
 ];
+
+const getBotProfileForSeat = (seatIdx: number, humanAvatarId?: string, humanCustomPhoto?: string | null) => {
+  const baseProfile = DEFAULT_BOT_PROFILES[seatIdx] || DEFAULT_BOT_PROFILES[1];
+  if (!humanCustomPhoto && humanAvatarId && baseProfile.avatarId === humanAvatarId && seatIdx !== 0) {
+    return {
+      avatarId: 'kuwaiti_ghutra_white',
+      name: getBotNameForAvatar('kuwaiti_ghutra_white'),
+    };
+  }
+  return {
+    avatarId: baseProfile.avatarId,
+    name: getBotNameForAvatar(baseProfile.avatarId),
+  };
+};
 
 const DEFAULT_SEATS: SeatConfig[] = [
   { id: 0, name: 'أنت', team: 'A', avatarId: 'kuwaiti_ghutra_white', customPhoto: null, isHuman: true, isVacant: false },
-  { id: 1, name: 'عبود (بوت)', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 2, name: 'مشاري (بوت)', team: 'A', avatarId: 'kuwaiti_gahfiya', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 3, name: 'طارق (بوت)', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 4, name: 'بندر (بوت)', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 5, name: 'سعود (بوت)', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 1, name: 'السلم', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 2, name: 'جابر', team: 'A', avatarId: 'kuwaiti_gahfiya', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 3, name: 'عبود', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 4, name: 'بدور', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 5, name: 'بوسكندر', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
 ];
 
 const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null, hostDeviceId: string): SeatConfig[] => {
@@ -95,11 +110,12 @@ const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhot
         clientId: hostDeviceId,
       };
     }
+    const botProf = getBotProfileForSeat(idx, hostAvatar, hostPhoto);
     return {
       id: idx,
       name: '',
       team: idx % 2 === 0 ? 'A' : 'B',
-      avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+      avatarId: botProf.avatarId,
       customPhoto: null,
       isHuman: false,
       isVacant: true,
@@ -150,27 +166,36 @@ export default function App() {
 
   // Seats & Players
   const [seats, setSeats] = useState<SeatConfig[]>(() => {
-    const s = JSON.parse(JSON.stringify(DEFAULT_SEATS));
+    const savedAv = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
+    const savedPh = localStorage.getItem('kout_custom_photo') || null;
+    const s: SeatConfig[] = JSON.parse(JSON.stringify(DEFAULT_SEATS));
     s[0].name = localStorage.getItem('kout_user_name') || 'أنت';
-    s[0].avatarId = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
-    s[0].customPhoto = localStorage.getItem('kout_custom_photo') || null;
+    s[0].avatarId = savedAv;
+    s[0].customPhoto = savedPh;
     s[0].clientId = getOrCreateDeviceId();
+    for (let i = 1; i < 6; i++) {
+      const botProf = getBotProfileForSeat(i, savedAv, savedPh);
+      s[i].avatarId = botProf.avatarId;
+      s[i].name = botProf.name;
+    }
     return s;
   });
   const [currentHumanSeatIndex, setCurrentHumanSeatIndex] = useState<number>(0);
   const [players, setPlayers] = useState<Player[]>(() => {
+    const savedAv = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
+    const savedPh = localStorage.getItem('kout_custom_photo') || null;
     return [0, 1, 2, 3, 4, 5].map((idx) => {
       const isUser = idx === 0;
-      const defBot = DEFAULT_BOT_PROFILES[idx];
+      const defBot = getBotProfileForSeat(idx, savedAv, savedPh);
       return {
         id: idx,
-        name: isUser ? (localStorage.getItem('kout_user_name') || 'أنت') : (defBot?.name || `بوت ${idx + 1}`),
+        name: isUser ? (localStorage.getItem('kout_user_name') || 'أنت') : defBot.name,
         team: idx % 2 === 0 ? 'A' : 'B',
         isHuman: isUser,
         isVacant: false,
         hand: [],
-        avatarId: isUser ? (localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white') : (defBot?.avatarId || 'kuwaiti_shemagh_red'),
-        customPhoto: isUser ? (localStorage.getItem('kout_custom_photo') || null) : null,
+        avatarId: isUser ? savedAv : defBot.avatarId,
+        customPhoto: isUser ? savedPh : null,
       };
     });
   });
@@ -370,10 +395,21 @@ export default function App() {
       const freshPlayers: Player[] = activeSeats.map((seatCfg, idx) => {
         const isMe = idx === activeHumanSeat;
         const isHumanPlayer = Boolean(seatCfg.isHuman || isMe);
+        const defBot = getBotProfileForSeat(idx, savedAvatar, savedPhoto);
+        const resolvedAvatarId = isMe
+          ? savedAvatar
+          : isHumanPlayer
+          ? (seatCfg.avatarId || defBot.avatarId)
+          : (seatCfg.avatarId || defBot.avatarId);
+        const resolvedName = isMe
+          ? savedName
+          : isHumanPlayer
+          ? (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : `لاعب ${idx + 1}`)
+          : (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : getBotNameForAvatar(resolvedAvatarId));
         return {
           ...seatCfg,
-          name: isMe ? savedName : (seatCfg.name && seatCfg.name.trim() !== '' ? seatCfg.name : DEFAULT_BOT_PROFILES[idx].name),
-          avatarId: isMe ? savedAvatar : (seatCfg.avatarId || DEFAULT_BOT_PROFILES[idx].avatarId),
+          name: resolvedName,
+          avatarId: resolvedAvatarId,
           customPhoto: isMe ? savedPhoto : seatCfg.customPhoto,
           isHuman: isHumanPlayer,
           isVacant: false,
@@ -1411,14 +1447,28 @@ export default function App() {
     }
     const targetIdx = currentHumanSeatIndex >= 0 ? currentHumanSeatIndex : 0;
     setSeats((prev) =>
-      prev.map((s, idx) =>
-        idx === targetIdx ? { ...s, avatarId: avId, customPhoto: null } : s
-      )
+      prev.map((s, idx) => {
+        if (idx === targetIdx) {
+          return { ...s, avatarId: avId, customPhoto: null };
+        }
+        if (!s.isHuman && !s.isVacant) {
+          const botProf = getBotProfileForSeat(idx, avId, null);
+          return { ...s, avatarId: botProf.avatarId, name: botProf.name };
+        }
+        return s;
+      })
     );
     setPlayers((prev) =>
-      prev.map((p, idx) =>
-        idx === targetIdx ? { ...p, avatarId: avId, customPhoto: null } : p
-      )
+      prev.map((p, idx) => {
+        if (idx === targetIdx) {
+          return { ...p, avatarId: avId, customPhoto: null };
+        }
+        if (!p.isHuman) {
+          const botProf = getBotProfileForSeat(idx, avId, null);
+          return { ...p, avatarId: botProf.avatarId, name: botProf.name };
+        }
+        return p;
+      })
     );
   };
 
@@ -1648,10 +1698,11 @@ export default function App() {
     if (idx === currentHumanSeatIndex) return;
     setSeats((prev) => {
       const next = [...prev];
+      const botProf = getBotProfileForSeat(idx, userAvatar, userCustomPhoto);
       next[idx] = {
         ...next[idx],
-        name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
-        avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+        name: botProf.name,
+        avatarId: botProf.avatarId,
         customPhoto: null,
         isHuman: false,
         isVacant: false,
@@ -1701,10 +1752,11 @@ export default function App() {
       const next = prev.map((seat, idx) => {
         if (idx === currentHumanSeatIndex) return seat;
         if (seat.isVacant || !seat.name || seat.name.trim() === '') {
+          const botProf = getBotProfileForSeat(idx, userAvatar, userCustomPhoto);
           return {
             ...seat,
-            name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
-            avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+            name: botProf.name,
+            avatarId: botProf.avatarId,
             customPhoto: null,
             isHuman: false,
             isVacant: false,
@@ -1836,11 +1888,16 @@ export default function App() {
             }
             soundEngine.init();
             soundEngine.playCardSlide();
-            const stdSeats = JSON.parse(JSON.stringify(DEFAULT_SEATS));
+            const stdSeats: SeatConfig[] = JSON.parse(JSON.stringify(DEFAULT_SEATS));
             stdSeats[0].name = userName;
             stdSeats[0].avatarId = userAvatar;
             stdSeats[0].customPhoto = userCustomPhoto;
             stdSeats[0].clientId = deviceId;
+            for (let i = 1; i < 6; i++) {
+              const botProf = getBotProfileForSeat(i, userAvatar, userCustomPhoto);
+              stdSeats[i].avatarId = botProf.avatarId;
+              stdSeats[i].name = botProf.name;
+            }
             setSeats(stdSeats);
             setCurrentHumanSeatIndex(0);
             setIsRoomHost(true);
