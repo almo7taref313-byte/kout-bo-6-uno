@@ -824,7 +824,7 @@ class SoundEngineClass {
     osc.stop(now + 0.12);
   }
 
-  // صوت هادئ ومريح لعداد الوقت (نغمة كاليمبا/ماريمبا خشبية دافئة ومريحة للأذن)
+  // صوت هادئ ومريح لعداد الوقت طوال الـ 20 ثانية بنفس النغمة الهادئة دون أي تغيير في آخر 5 ثوانٍ
   playTimerTick(secondsLeft: number = 10) {
     if (!this.enabled) return;
     this.init();
@@ -834,20 +834,12 @@ class SoundEngineClass {
     }
 
     const now = this.ctx.currentTime;
-    const isUrgent = secondsLeft <= 5;
     const isEven = Math.round(secondsLeft) % 2 === 0;
 
-    // نغمات دافئة ومريحة للأذن: تناوب هادئ بين G4 (392Hz) و C5 (523.25Hz)، وفي آخر 5 ثوانٍ بين E5 (659.25Hz) و G5 (783.99Hz)
-    const baseFreq = isUrgent
-      ? isEven
-        ? 659.25
-        : 783.99
-      : isEven
-      ? 392.0
-      : 523.25;
-
-    const duration = isUrgent ? 0.13 : 0.1;
-    const peakGain = isUrgent ? 0.08 : 0.05;
+    // نغمات دافئة ومريحة للأذن: تناوب هادئ وموحد بين G4 (392Hz) و C5 (523.25Hz) طوال الـ 20 ثانية كاملة
+    const baseFreq = isEven ? 392.0 : 523.25;
+    const duration = 0.1;
+    const peakGain = 0.05;
 
     const osc = this.ctx.createOscillator();
     const subOsc = this.ctx.createOscillator();
@@ -862,7 +854,7 @@ class SoundEngineClass {
     subOsc.frequency.setValueAtTime(baseFreq * 0.5, now);
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(isUrgent ? 1500 : 1050, now);
+    filter.frequency.setValueAtTime(1050, now);
     filter.Q.setValueAtTime(0.7, now);
 
     gain.gain.setValueAtTime(0.0001, now);

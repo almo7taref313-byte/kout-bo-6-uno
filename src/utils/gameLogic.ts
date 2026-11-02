@@ -551,6 +551,44 @@ export function selectBotMove(
 
   const isLead = trick.length === 0;
 
+  const isTeammate = (pid: number): boolean => {
+    if (pid === bot.id) return false;
+    const p = context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+    if (p && bot.team) {
+      return p.team === bot.team;
+    }
+    return pid % 2 === bot.id % 2;
+  };
+
+  // قاعدة فورية ملزمة:
+  // "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
+  if (!isLead && trumpColor) {
+    const teammatePlayedSmallTrump = trick.some(
+      (p) =>
+        isTeammate(p.playerId) &&
+        p.card.color === trumpColor &&
+        !p.card.isJoker &&
+        !p.card.isMaker &&
+        p.card.rank !== '1'
+    );
+    const opponentPlayedTrumpKhale = trick.some(
+      (p) =>
+        !isTeammate(p.playerId) &&
+        p.playerId !== bot.id &&
+        p.card.color === trumpColor &&
+        p.card.rank === '1'
+    );
+
+    if (teammatePlayedSmallTrump && opponentPlayedTrumpKhale) {
+      const jokerInHand =
+        rawLegalMoves.find((c) => c.isJoker || c.rank === 'wild_draw4') ||
+        bot.hand.find((c) => c.isJoker || c.rank === 'wild_draw4');
+      if (jokerInHand) {
+        return jokerInHand;
+      }
+    }
+  }
+
   // ============================================================================
   // TERMINOLOGY & CRITICAL RULE (مفردات معتمدة):
   // "الجيكر/الميكر يخيس = أن يبدأ اللاعب به اللعب (في بداية الأكلة فيفقد قوته)"
@@ -712,7 +750,8 @@ export function selectBotMove(
     }
   }
 
-  // Check if the buyer (الحاكم) played a high card (خال=1, باش=draw2, ميم=skip, غلام=reverse, عشرة=0) in this trick:
+  // Check if the teammate buyer (الحاكم صاحبه) played a high card (خال=1, باش=draw2, ميم=skip, غلام=reverse, عشرة=0) in this trick
+  // and is currently winning the trick:
   // Rule: "الجيكر والمكر لا يستعملهم البوت في حال لعب الحاكم (خال،باش،ميم،غلام،عشره=٠)"
   const buyerPlayInTrick =
     buyerId !== null && buyerId !== undefined
@@ -721,6 +760,8 @@ export function selectBotMove(
 
   const isBuyerHighCardPlayed = Boolean(
     buyerPlayInTrick &&
+      buyerTeam === bot.team &&
+      evaluateTrickWinner(trick, trumpColor, highestBid) === buyerId &&
       !buyerPlayInTrick.card.isJoker &&
       !buyerPlayInTrick.card.isMaker &&
       ['1', 'draw2', 'skip', 'reverse', '0'].includes(buyerPlayInTrick.card.rank)
@@ -742,15 +783,6 @@ export function selectBotMove(
         leadSuit !== 'special' &&
         (!trumpColor || leadSuit !== trumpColor)
     );
-
-    const isTeammate = (pid: number): boolean => {
-      if (pid === bot.id) return false;
-      const p = context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
-      if (p && bot.team) {
-        return p.team === bot.team;
-      }
-      return pid % 2 === bot.id % 2;
-    };
 
     // User Rule:
     // "اذا كان الزات يلعب اول مره ولعب الخال وليس حكما فلا يجب ان يلعب البوت من نفس الفريق حكما ابدا"
@@ -931,8 +963,10 @@ export function selectBotMove(
 
     // User Rule:
     // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
+    const currentTrickWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
     const teammateCutWithTrump =
       isLeadOtherColor &&
+      isTeammate(currentTrickWinnerId) &&
       trick.some((p) => {
         if (!isTeammate(p.playerId)) return false;
         return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;

@@ -422,14 +422,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
             targetBadgePosClass = '-left-7 top-1/2 -translate-y-1/2';
           }
 
-          const isCritical = isTurn && timerRemaining <= 4;
           const isDealer = dealerIdx === idx;
 
-          const activeTimerColor = isCritical
-            ? '#ff003b'
-            : isTeamA
-            ? '#00e5ff'
-            : '#ff2a5f';
+          const activeTimerColor = isTeamA ? '#00e5ff' : '#ff2a5f';
 
           const timerGlowStyle = isTurn
             ? { filter: `drop-shadow(0 0 5px ${activeTimerColor})` }
@@ -549,9 +544,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </svg>
 
                   <div
-                    className={`rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11 ${
-                      isTurn && isCritical ? 'animate-pulse' : ''
-                    }`}
+                    className="rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11"
                   >
                     <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
                   </div>
