@@ -325,7 +325,7 @@ export default function App() {
       return;
     }
 
-    lastTickSecondRef.current = TURN_TIMER_DURATION;
+    lastTickSecondRef.current = TURN_TIMER_DURATION + 1;
     setTimerRemaining(TURN_TIMER_DURATION);
 
     timerIntervalRef.current = setInterval(() => {
@@ -336,7 +336,7 @@ export default function App() {
         }
         const nextVal = Math.max(0, Number((prev - 0.2).toFixed(2)));
         const wholeSec = Math.ceil(nextVal);
-        if (wholeSec < lastTickSecondRef.current && wholeSec >= 1 && wholeSec < TURN_TIMER_DURATION) {
+        if (wholeSec < lastTickSecondRef.current && wholeSec >= 1 && wholeSec <= TURN_TIMER_DURATION) {
           lastTickSecondRef.current = wholeSec;
           soundEngine.playTimerTick(wholeSec);
         }

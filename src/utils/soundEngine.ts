@@ -824,7 +824,7 @@ class SoundEngineClass {
     osc.stop(now + 0.12);
   }
 
-  // صوت هادئ ومريح لعداد الوقت طوال الـ 20 ثانية بنفس النغمة الهادئة دون أي تغيير في آخر 5 ثوانٍ
+  // صوت عداد الوقت: هادئ ومريح في أول 15 ثانية، ويتغير إلى نغمة تنبيهية مميزة وواضحة في آخر 5 ثوانٍ
   playTimerTick(secondsLeft: number = 10) {
     if (!this.enabled) return;
     this.init();
@@ -834,47 +834,107 @@ class SoundEngineClass {
     }
 
     const now = this.ctx.currentTime;
-    const isEven = Math.round(secondsLeft) % 2 === 0;
+    const sec = Math.round(secondsLeft);
+    const isUrgent = sec <= 5;
 
-    // نغمات دافئة ومريحة للأذن: تناوب هادئ وموحد بين G4 (392Hz) و C5 (523.25Hz) طوال الـ 20 ثانية كاملة
-    const baseFreq = isEven ? 392.0 : 523.25;
-    const duration = 0.1;
-    const peakGain = 0.05;
+    if (!isUrgent) {
+      // أول 15 ثانية: نغمة خشبية دافئة وهادئة تتناوب بين G4 (392Hz) و C5 (523.25Hz)
+      const isEven = sec % 2 === 0;
+      const baseFreq = isEven ? 392.0 : 523.25;
+      const duration = 0.1;
+      const peakGain = 0.05;
 
-    const osc = this.ctx.createOscillator();
-    const subOsc = this.ctx.createOscillator();
-    const filter = this.ctx.createBiquadFilter();
-    const gain = this.ctx.createGain();
+      const osc = this.ctx.createOscillator();
+      const subOsc = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.985, now + duration);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.985, now + duration);
 
-    subOsc.type = 'triangle';
-    subOsc.frequency.setValueAtTime(baseFreq * 0.5, now);
+      subOsc.type = 'triangle';
+      subOsc.frequency.setValueAtTime(baseFreq * 0.5, now);
 
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1050, now);
-    filter.Q.setValueAtTime(0.7, now);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1050, now);
+      filter.Q.setValueAtTime(0.7, now);
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(peakGain, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
-    const subGain = this.ctx.createGain();
-    subGain.gain.setValueAtTime(peakGain * 0.35, now);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      const subGain = this.ctx.createGain();
+      subGain.gain.setValueAtTime(peakGain * 0.35, now);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
-    osc.connect(filter);
-    subOsc.connect(subGain);
-    subGain.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.ctx.destination);
+      osc.connect(filter);
+      subOsc.connect(subGain);
+      subGain.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
 
-    osc.start(now);
-    subOsc.start(now);
-    osc.stop(now + duration + 0.01);
-    subOsc.stop(now + duration + 0.01);
+      osc.start(now);
+      subOsc.start(now);
+      osc.stop(now + duration + 0.01);
+      subOsc.stop(now + duration + 0.01);
+      return;
+    }
+
+    // آخر 5 ثوانٍ: نغمة تنبيه مزدوجة سريعة وواضحة تتصاعد حدتها مع كل ثانية (5 -> 1)
+    const urgentFreqMap: Record<number, number> = {
+      5: 880.0,     // A5
+      4: 932.33,    // Bb5
+      3: 987.77,    // B5
+      2: 1046.5,    // C6
+      1: 1174.66,   // D6
+    };
+    const baseFreq = urgentFreqMap[sec] || 987.77;
+    const peakGain = 0.115;
+
+    // نبضتان متتاليتان (Double-Beep) لتمييز آخر 5 ثوانٍ بوضوح تام
+    const pulses = [
+      { offset: 0, freq: baseFreq, dur: 0.075 },
+      { offset: 0.09, freq: baseFreq * 1.2, dur: 0.085 },
+    ];
+
+    pulses.forEach((p) => {
+      if (!this.ctx) return;
+      const startTime = now + p.offset;
+      const osc = this.ctx.createOscillator();
+      const harmOsc = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      const harmGain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(p.freq, startTime);
+
+      harmOsc.type = 'sine';
+      harmOsc.frequency.setValueAtTime(p.freq * 1.5, startTime);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2800, startTime);
+      filter.Q.setValueAtTime(1.0, startTime);
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + p.dur);
+
+      harmGain.gain.setValueAtTime(peakGain * 0.3, startTime);
+      harmGain.gain.exponentialRampToValueAtTime(0.0001, startTime + p.dur);
+
+      osc.connect(filter);
+      harmOsc.connect(harmGain);
+      harmGain.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(startTime);
+      harmOsc.start(startTime);
+      osc.stop(startTime + p.dur + 0.01);
+      harmOsc.stop(startTime + p.dur + 0.01);
+    });
   }
 
   // إيقاف أي صوت "طاف" سابق قيد التشغيل لمنع تداخل الأصوات بين اللاعبين والبوتات

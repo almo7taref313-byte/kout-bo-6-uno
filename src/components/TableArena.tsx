@@ -424,10 +424,26 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           const isDealer = dealerIdx === idx;
 
-          const activeTimerColor = isTeamA ? '#00e5ff' : '#ff2a5f';
+          const isCritical = isTurn && !isTimerDisabled && timerRemaining <= 5 && timerRemaining > 0;
+          const isCriticalFlash = isCritical && Math.floor(timerRemaining * 2.5) % 2 === 0;
+          const activeTimerColor = isCritical
+            ? isTeamA
+              ? isCriticalFlash
+                ? '#ff1744'
+                : '#ffbe0b'
+              : isCriticalFlash
+              ? '#ffbe0b'
+              : '#ff6d00'
+            : isTeamA
+            ? '#00e5ff'
+            : '#ff2a5f';
 
           const timerGlowStyle = isTurn
-            ? { filter: `drop-shadow(0 0 5px ${activeTimerColor})` }
+            ? {
+                filter: isCritical
+                  ? `drop-shadow(0 0 7px ${activeTimerColor}) drop-shadow(0 0 14px rgba(255, 190, 11, 0.85))`
+                  : `drop-shadow(0 0 5px ${activeTimerColor})`,
+              }
             : {};
 
           return (
@@ -508,7 +524,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
                       cx="26"
                       cy="26"
                       r={TIMER_RADIUS}
-                      stroke={isTeamA ? 'rgba(0, 160, 255, 0.3)' : 'rgba(255, 40, 80, 0.3)'}
+                      stroke={
+                        isCritical
+                          ? 'rgba(255, 190, 11, 0.45)'
+                          : isTeamA
+                          ? 'rgba(0, 160, 255, 0.3)'
+                          : 'rgba(255, 40, 80, 0.3)'
+                      }
                       strokeWidth="2"
                       fill="none"
                     />
@@ -519,13 +541,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         cy="26"
                         r={TIMER_RADIUS}
                         stroke={activeTimerColor}
-                        strokeWidth="3.8"
+                        strokeWidth={isCritical ? '4.4' : '3.8'}
                         strokeLinecap="round"
                         fill="none"
                         style={{
                           strokeDasharray: `${TIMER_CIRCUMFERENCE}px`,
                           strokeDashoffset: `${timerOffset}px`,
-                          transition: 'stroke-dashoffset 200ms linear, stroke 300ms ease',
+                          transition: 'stroke-dashoffset 200ms linear, stroke 180ms ease',
                         }}
                       />
                     )}
@@ -544,7 +566,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </svg>
 
                   <div
-                    className="rounded-full overflow-hidden border border-slate-700 bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11"
+                    className={`rounded-full overflow-hidden border bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11 ${
+                      isCritical
+                        ? 'border-amber-400 ring-2 ring-red-500/80 scale-105'
+                        : 'border-slate-700'
+                    }`}
                   >
                     <AvatarView avatarId={player.avatarId} customPhoto={player.customPhoto} />
                   </div>
