@@ -338,7 +338,9 @@ export default function App() {
         const wholeSec = Math.ceil(nextVal);
         if (wholeSec < lastTickSecondRef.current && wholeSec >= 1 && wholeSec <= TURN_TIMER_DURATION) {
           lastTickSecondRef.current = wholeSec;
-          soundEngine.playTimerTick(wholeSec);
+          if (wholeSec <= 5) {
+            soundEngine.playTimerTick(wholeSec);
+          }
         }
         return nextVal;
       });

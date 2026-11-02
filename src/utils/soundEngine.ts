@@ -786,9 +786,12 @@ class SoundEngineClass {
     osc.stop(now + 0.12);
   }
 
-  // صوت عداد الوقت: هادئ ومريح في أول 15 ثانية، ويتغير إلى نغمة تنبيهية مميزة وواضحة في آخر 5 ثوانٍ
+  // صوت عداد الوقت: صامت تماماً حتى آخر 5 ثوانٍ حيث يعمل بصوته المتسارع
   playTimerTick(secondsLeft: number = 10) {
     if (!this.enabled) return;
+    const sec = Math.round(secondsLeft);
+    if (sec > 5 || sec <= 0) return;
+
     this.init();
     if (!this.ctx) return;
     if ((this.ctx.state as string) !== 'running') {
@@ -796,52 +799,6 @@ class SoundEngineClass {
     }
 
     const now = this.ctx.currentTime;
-    const sec = Math.round(secondsLeft);
-    const isUrgent = sec <= 5;
-
-    if (!isUrgent) {
-      // أول 15 ثانية: نغمة خشبية دافئة وهادئة تتناوب بين G4 (392Hz) و C5 (523.25Hz)
-      const isEven = sec % 2 === 0;
-      const baseFreq = isEven ? 392.0 : 523.25;
-      const duration = 0.1;
-      const peakGain = 0.05;
-
-      const osc = this.ctx.createOscillator();
-      const subOsc = this.ctx.createOscillator();
-      const filter = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(baseFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.985, now + duration);
-
-      subOsc.type = 'triangle';
-      subOsc.frequency.setValueAtTime(baseFreq * 0.5, now);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1050, now);
-      filter.Q.setValueAtTime(0.7, now);
-
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(peakGain, now + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-      const subGain = this.ctx.createGain();
-      subGain.gain.setValueAtTime(peakGain * 0.35, now);
-      subGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-      osc.connect(filter);
-      subOsc.connect(subGain);
-      subGain.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      subOsc.start(now);
-      osc.stop(now + duration + 0.01);
-      subOsc.stop(now + duration + 0.01);
-      return;
-    }
 
     // آخر 5 ثوانٍ: نغمة تنبيه مزدوجة سريعة وواضحة تتصاعد حدتها مع كل ثانية (5 -> 1)
     const urgentFreqMap: Record<number, number> = {
