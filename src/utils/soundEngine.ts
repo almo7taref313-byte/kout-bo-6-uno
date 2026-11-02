@@ -3,12 +3,8 @@ import { MAKER_VOICE_BASE64 } from './makerVoiceData';
 import { APPLAUSE_BASE64 } from './applauseVoiceData';
 import {
   BAOON_LOSS_BASE64,
-  LOSER_SKIP_BASE64,
+  SKIP_VOICES_BASE64,
   THROW_PAPER_BASE64,
-  TIED_SKIP_0_BASE64,
-  TIED_SKIP_1_BASE64,
-  TIED_SKIP_2_BASE64,
-  WINNER_SKIP_BASE64,
 } from './customVoicesData';
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -34,10 +30,8 @@ class SoundEngineClass {
   private matchWinAudio: HTMLAudioElement | null = null;
 
   // عناصر الصوت عبر HTMLAudioElement (محمّلة مباشرة من الذاكرة Base64 + مسار الملف العام لضمان سرعة 0ms)
-  private loserSkipAudio: HTMLAudioElement | null = null;
-  private winnerSkipAudio: HTMLAudioElement | null = null;
-  private tiedSkipAudios: HTMLAudioElement[] = [];
-  private tiedSkipIndex: number = 0;
+  private skipAudios: HTMLAudioElement[] = [];
+  private lastSkipIndex: number = -1;
   private baoonLossAudio: HTMLAudioElement | null = null;
   private throwPaperAudio: HTMLAudioElement | null = null;
   private jokerVoiceAudio: HTMLAudioElement | null = null;
@@ -58,14 +52,8 @@ class SoundEngineClass {
   private isDecodingApplause: boolean = false;
   private activeApplauseSource: AudioBufferSourceNode | null = null;
 
-  private loserSkipBuffer: AudioBuffer | null = null;
-  private isDecodingLoserSkip: boolean = false;
-
-  private winnerSkipBuffer: AudioBuffer | null = null;
-  private isDecodingWinnerSkip: boolean = false;
-
-  private tiedSkipBuffers: (AudioBuffer | null)[] = [null, null, null];
-  private isDecodingTiedSkip: boolean[] = [false, false, false];
+  private skipBuffers: (AudioBuffer | null)[] = [];
+  private isDecodingSkip: boolean[] = [];
 
   private baoonLossBuffer: AudioBuffer | null = null;
   private isDecodingBaoonLoss: boolean = false;
@@ -155,48 +143,20 @@ class SoundEngineClass {
     );
   }
 
-  private decodeLoserSkipBuffer(onReady?: (buf: AudioBuffer) => void) {
+  private decodeSkipBuffer(index: number, onReady?: (buf: AudioBuffer) => void) {
+    if (SKIP_VOICES_BASE64.length === 0) return;
+    const safeIdx = ((index % SKIP_VOICES_BASE64.length) + SKIP_VOICES_BASE64.length) % SKIP_VOICES_BASE64.length;
+    const base64 = SKIP_VOICES_BASE64[safeIdx];
+    if (!base64) return;
     this.decodeBase64Audio(
-      LOSER_SKIP_BASE64,
-      () => this.loserSkipBuffer,
+      base64,
+      () => this.skipBuffers[safeIdx] ?? null,
       (buf) => {
-        this.loserSkipBuffer = buf;
+        this.skipBuffers[safeIdx] = buf;
       },
-      () => this.isDecodingLoserSkip,
+      () => Boolean(this.isDecodingSkip[safeIdx]),
       (val) => {
-        this.isDecodingLoserSkip = val;
-      },
-      onReady
-    );
-  }
-
-  private decodeWinnerSkipBuffer(onReady?: (buf: AudioBuffer) => void) {
-    this.decodeBase64Audio(
-      WINNER_SKIP_BASE64,
-      () => this.winnerSkipBuffer,
-      (buf) => {
-        this.winnerSkipBuffer = buf;
-      },
-      () => this.isDecodingWinnerSkip,
-      (val) => {
-        this.isDecodingWinnerSkip = val;
-      },
-      onReady
-    );
-  }
-
-  private decodeTiedSkipBuffer(index: number, onReady?: (buf: AudioBuffer) => void) {
-    const base64List = [TIED_SKIP_0_BASE64, TIED_SKIP_1_BASE64, TIED_SKIP_2_BASE64];
-    const safeIdx = ((index % 3) + 3) % 3;
-    this.decodeBase64Audio(
-      base64List[safeIdx],
-      () => this.tiedSkipBuffers[safeIdx],
-      (buf) => {
-        this.tiedSkipBuffers[safeIdx] = buf;
-      },
-      () => this.isDecodingTiedSkip[safeIdx],
-      (val) => {
-        this.isDecodingTiedSkip[safeIdx] = val;
+        this.isDecodingSkip[safeIdx] = val;
       },
       onReady
     );
@@ -268,11 +228,9 @@ class SoundEngineClass {
     this.decodeJokerBuffer();
     this.decodeMakerBuffer();
     this.decodeApplauseBuffer();
-    this.decodeLoserSkipBuffer();
-    this.decodeWinnerSkipBuffer();
-    this.decodeTiedSkipBuffer(0);
-    this.decodeTiedSkipBuffer(1);
-    this.decodeTiedSkipBuffer(2);
+    for (let i = 0; i < SKIP_VOICES_BASE64.length; i++) {
+      this.decodeSkipBuffer(i);
+    }
     this.decodeBaoonLossBuffer();
     this.decodeThrowPaperBuffer();
 
@@ -295,29 +253,10 @@ class SoundEngineClass {
     }
 
     // تهيئة عناصر الصوت لزر "طاف" وخسارة الباون ورمي الورقة عبر البيانات المدمجة في الذاكرة لتجنب أي تأخير بالشبكة
-    if (!this.loserSkipAudio && typeof window !== 'undefined') {
+    if (this.skipAudios.length === 0 && SKIP_VOICES_BASE64.length > 0 && typeof window !== 'undefined') {
       try {
-        this.loserSkipAudio = new Audio(`data:audio/mpeg;base64,${LOSER_SKIP_BASE64}`);
-        this.loserSkipAudio.preload = 'auto';
-      } catch {}
-    }
-
-    if (!this.winnerSkipAudio && typeof window !== 'undefined') {
-      try {
-        this.winnerSkipAudio = new Audio(`data:audio/mpeg;base64,${WINNER_SKIP_BASE64}`);
-        this.winnerSkipAudio.preload = 'auto';
-      } catch {}
-    }
-
-    if (this.tiedSkipAudios.length === 0 && typeof window !== 'undefined') {
-      const tiedDataUris = [
-        `data:audio/mpeg;base64,${TIED_SKIP_0_BASE64}`,
-        `data:audio/mpeg;base64,${TIED_SKIP_1_BASE64}`,
-        `data:audio/mpeg;base64,${TIED_SKIP_2_BASE64}`,
-      ];
-      try {
-        this.tiedSkipAudios = tiedDataUris.map((uri) => {
-          const a = new Audio(uri);
+        this.skipAudios = SKIP_VOICES_BASE64.map((b64) => {
+          const a = new Audio(`data:audio/mpeg;base64,${b64}`);
           a.preload = 'auto';
           return a;
         });
@@ -945,24 +884,8 @@ class SoundEngineClass {
       } catch {}
       this.activeSkipSource = null;
     }
-    if (this.loserSkipAudio) {
-      try {
-        this.loserSkipAudio.pause();
-        if (this.loserSkipAudio.readyState >= 1) {
-          this.loserSkipAudio.currentTime = 0;
-        }
-      } catch {}
-    }
-    if (this.winnerSkipAudio) {
-      try {
-        this.winnerSkipAudio.pause();
-        if (this.winnerSkipAudio.readyState >= 1) {
-          this.winnerSkipAudio.currentTime = 0;
-        }
-      } catch {}
-    }
-    if (this.tiedSkipAudios.length > 0) {
-      this.tiedSkipAudios.forEach((a) => {
+    if (this.skipAudios.length > 0) {
+      this.skipAudios.forEach((a) => {
         try {
           a.pause();
           if (a.readyState >= 1) {
@@ -973,130 +896,55 @@ class SoundEngineClass {
     }
   }
 
-  // تشغيل الصوت الخاص بزر "طاف" في حال كان فريق اللاعب أو البوت خاسراً بالنقاط فقط
-  playLoserSkipVoice() {
-    if (!this.enabled) return;
-    this.init();
-    this.stopSkipVoices();
-
-    const playWebAudio = () => {
-      if (!this.ctx) return;
-      if (this.loserSkipBuffer) {
-        this.playDecodedSkipBuffer(this.loserSkipBuffer);
-      } else {
-        this.decodeLoserSkipBuffer((buf) => this.playDecodedSkipBuffer(buf));
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.loserSkipAudio) {
-          this.loserSkipAudio = new Audio(`data:audio/mpeg;base64,${LOSER_SKIP_BASE64}`);
-          this.loserSkipAudio.preload = 'auto';
-        }
-        const audio = this.loserSkipAudio;
-        audio.pause();
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            playWebAudio();
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    playWebAudio();
-  }
-
-  // تشغيل الصوت الخاص بزر "طاف" في حال كان فريق اللاعب أو البوت رابحاً (متقدماً) بالنقاط فقط
-  playWinnerSkipVoice() {
-    if (!this.enabled) return;
-    this.init();
-    this.stopSkipVoices();
-
-    const playWebAudio = () => {
-      if (!this.ctx) return;
-      if (this.winnerSkipBuffer) {
-        this.playDecodedSkipBuffer(this.winnerSkipBuffer);
-      } else {
-        this.decodeWinnerSkipBuffer((buf) => this.playDecodedSkipBuffer(buf));
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.winnerSkipAudio) {
-          this.winnerSkipAudio = new Audio(`data:audio/mpeg;base64,${WINNER_SKIP_BASE64}`);
-          this.winnerSkipAudio.preload = 'auto';
-        }
-        const audio = this.winnerSkipAudio;
-        audio.pause();
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            playWebAudio();
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    playWebAudio();
-  }
-
-  // تشغيل أحد الأصوات الثلاثة الخاصة بزر "طاف" في حال التعادل بالنقاط أو بدء المباراة (0-0) للاعبين والبوتات
-  playTiedSkipVoice(specificIndex?: number): number {
+  // تشغيل صوت "طاف" بتوزيع عشوائي من الأصوات المخصصة بدون تكرار نفس الصوت مرتين متتاليتين
+  playRandomSkipVoice(specificIndex?: number): number {
     if (!this.enabled) return 0;
     this.init();
     this.stopSkipVoices();
 
-    const idx =
-      typeof specificIndex === 'number'
-        ? ((specificIndex % 3) + 3) % 3
-        : this.tiedSkipIndex % 3;
+    const count = SKIP_VOICES_BASE64.length;
+    if (count === 0) {
+      this.playPassTone();
+      return 0;
+    }
 
-    this.tiedSkipIndex = (idx + 1) % 3;
+    let idx: number;
+    if (typeof specificIndex === 'number') {
+      idx = ((specificIndex % count) + count) % count;
+    } else if (count === 1) {
+      idx = 0;
+    } else {
+      do {
+        idx = Math.floor(Math.random() * count);
+      } while (idx === this.lastSkipIndex);
+    }
+    this.lastSkipIndex = idx;
 
     const playWebAudio = () => {
       if (!this.ctx) return;
-      const existing = this.tiedSkipBuffers[idx];
+      const existing = this.skipBuffers[idx];
       if (existing) {
         this.playDecodedSkipBuffer(existing);
       } else {
-        this.decodeTiedSkipBuffer(idx, (buf) => this.playDecodedSkipBuffer(buf));
+        this.decodeSkipBuffer(idx, (buf) => this.playDecodedSkipBuffer(buf));
       }
     };
 
+    if (this.ctx && this.skipBuffers[idx] && (this.ctx.state as string) === 'running') {
+      this.playDecodedSkipBuffer(this.skipBuffers[idx]!);
+      return idx;
+    }
+
     if (typeof window !== 'undefined') {
       try {
-        if (this.tiedSkipAudios.length === 0) {
-          const tiedDataUris = [
-            `data:audio/mpeg;base64,${TIED_SKIP_0_BASE64}`,
-            `data:audio/mpeg;base64,${TIED_SKIP_1_BASE64}`,
-            `data:audio/mpeg;base64,${TIED_SKIP_2_BASE64}`,
-          ];
-          this.tiedSkipAudios = tiedDataUris.map((uri) => {
-            const a = new Audio(uri);
+        if (this.skipAudios.length === 0) {
+          this.skipAudios = SKIP_VOICES_BASE64.map((b64) => {
+            const a = new Audio(`data:audio/mpeg;base64,${b64}`);
             a.preload = 'auto';
             return a;
           });
         }
-        const audio = this.tiedSkipAudios[idx];
+        const audio = this.skipAudios[idx];
         if (audio) {
           audio.pause();
           if (audio.readyState >= 1) {
@@ -1119,6 +967,18 @@ class SoundEngineClass {
 
     playWebAudio();
     return idx;
+  }
+
+  playLoserSkipVoice() {
+    this.playRandomSkipVoice();
+  }
+
+  playWinnerSkipVoice() {
+    this.playRandomSkipVoice();
+  }
+
+  playTiedSkipVoice(specificIndex?: number): number {
+    return this.playRandomSkipVoice(specificIndex);
   }
 
   playVictoryFanfare(isBaoon = false) {

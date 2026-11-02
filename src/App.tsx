@@ -518,23 +518,7 @@ export default function App() {
       }
 
       if (effectiveVal === 0) {
-        const passingPlayer = players[playerId];
-        const playerTeam = passingPlayer ? passingPlayer.team : (playerId % 2 === 0 ? 'A' : 'B');
-        const isWinningInPoints =
-          playerTeam === 'A'
-            ? matchScoreTeamA > matchScoreTeamB
-            : matchScoreTeamB > matchScoreTeamA;
-        const isLosingInPoints =
-          playerTeam === 'A'
-            ? matchScoreTeamA < matchScoreTeamB
-            : matchScoreTeamB < matchScoreTeamA;
-        if (isWinningInPoints) {
-          soundEngine.playWinnerSkipVoice();
-        } else if (isLosingInPoints) {
-          soundEngine.playLoserSkipVoice();
-        } else {
-          soundEngine.playTiedSkipVoice();
-        }
+        soundEngine.playRandomSkipVoice();
       } else if (effectiveVal === 9) {
         soundEngine.playBidTone(true);
       } else {
