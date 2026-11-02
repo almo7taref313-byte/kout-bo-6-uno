@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Card } from '../types';
 import { MatchTargetScore } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
+import { soundEngine } from '../utils/soundEngine';
 import { UnoCard } from './UnoCard';
 import { YellowDoorIcon } from './YellowDoorIcon';
 
@@ -49,6 +50,49 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   onExitApp,
 }) => {
   const [quickCode, setQuickCode] = useState('');
+  const [skipVoiceCount, setSkipVoiceCount] = useState<number>(() => soundEngine.getSkipVoicesCount());
+  const [uploadStatusMsg, setUploadStatusMsg] = useState<string>('');
+  const skipFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleSkipFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const readAsBase64 = (file: File): Promise<string> =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = typeof reader.result === 'string' ? reader.result : '';
+          const clean = res.includes(',') ? res.split(',')[1] : res;
+          resolve(clean);
+        };
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+
+    const base64List: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const b64 = await readAsBase64(files[i]);
+      if (b64) base64List.push(b64);
+    }
+
+    if (base64List.length > 0) {
+      const total = soundEngine.setCustomSkipVoices(base64List, true);
+      setSkipVoiceCount(total);
+      setUploadStatusMsg(`✅ تم تعديل أسماء وحفظ (${total}/6) أصوات طاف تلقائياً!`);
+      soundEngine.playRandomSkipVoice();
+
+      try {
+        await fetch('/api/upload-skip-voices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voices: soundEngine.getActiveSkipVoices() }),
+        });
+      } catch {}
+    }
+
+    e.target.value = '';
+  };
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,6 +223,51 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             دخول
           </button>
         </form>
+
+        {/* استيراد وتعديل أسماء أصوات طاف الـ 6 تلقائياً بدون الحاجة لتعديل أسمائها يدوياً */}
+        <input
+          ref={skipFileInputRef}
+          type="file"
+          accept="audio/*,.mp3,.wav,.m4a,.ogg"
+          multiple
+          onChange={handleSkipFilesSelected}
+          className="hidden"
+        />
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => skipFileInputRef.current?.click()}
+            className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs shadow transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer border ${
+              skipVoiceCount >= 6
+                ? 'bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/50'
+                : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/60 animate-pulse'
+            }`}
+          >
+            <span>🎙️</span>
+            <span>
+              {skipVoiceCount >= 6
+                ? `تم تفعيل أصوات طاف (${skipVoiceCount}/6) - اضغط للتحديث`
+                : skipVoiceCount > 0
+                  ? `تم استيراد (${skipVoiceCount}/6) - اضغط لاختيار الباقي`
+                  : 'اختر ملفات صوت "طاف" الـ 6 (تعديل الأسماء تلقائياً)'}
+            </span>
+          </button>
+          {skipVoiceCount > 0 && (
+            <button
+              type="button"
+              onClick={() => soundEngine.playRandomSkipVoice()}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs transition active:scale-95 cursor-pointer whitespace-nowrap"
+              title="تجربة صوت طاف عشوائي"
+            >
+              🔊 تجربة
+            </button>
+          )}
+        </div>
+        {uploadStatusMsg && (
+          <div className="text-[11px] font-bold text-emerald-400 text-center bg-emerald-950/60 border border-emerald-500/30 rounded-lg py-1 px-2">
+            {uploadStatusMsg}
+          </div>
+        )}
 
         {/* زر تثبيت التطبيق */}
         <button

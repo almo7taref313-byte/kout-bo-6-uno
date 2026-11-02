@@ -7,14 +7,23 @@ import {
   THROW_PAPER_BASE64,
 } from './customVoicesData';
 
+const CUSTOM_SKIP_VOICES_STORAGE_KEY = 'kout_custom_skip_voices_v1';
+
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binaryString = window.atob(base64);
+  const cleanB64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  const binaryString = window.atob(cleanB64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+function toAudioDataUrl(b64: string): string {
+  if (b64.startsWith('data:')) return b64;
+  const mime = b64.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
+  return `data:${mime};base64,${b64}`;
 }
 
 const JOKER_AUDIO_URL = '/nezal_alwahsh.mp3?v=11';
@@ -67,8 +76,20 @@ class SoundEngineClass {
   private applauseTimer: ReturnType<typeof setTimeout> | null = null;
   private applauseFadeInterval: ReturnType<typeof setInterval> | null = null;
 
+  private runtimeSkipVoices: string[] = [];
+
   constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(CUSTOM_SKIP_VOICES_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.runtimeSkipVoices = parsed.filter((x) => typeof x === 'string' && x.length > 0);
+          }
+        }
+      } catch {}
+
       const unlockOnGesture = () => {
         this.init(true);
       };
@@ -77,6 +98,47 @@ class SoundEngineClass {
       window.addEventListener('pointerup', unlockOnGesture, { passive: true });
       window.addEventListener('keydown', unlockOnGesture, { passive: true });
     }
+  }
+
+  public getActiveSkipVoices(): string[] {
+    if (SKIP_VOICES_BASE64.length > 0) return SKIP_VOICES_BASE64;
+    return this.runtimeSkipVoices;
+  }
+
+  public getSkipVoicesCount(): number {
+    return this.getActiveSkipVoices().length;
+  }
+
+  public setCustomSkipVoices(voices: string[], appendIfUnderSix: boolean = false): number {
+    const cleanNew = voices
+      .map((v) => (v.includes(',') ? v.split(',')[1] : v))
+      .filter((v) => v.length > 0);
+    if (cleanNew.length === 0) return this.getSkipVoicesCount();
+
+    let nextList: string[];
+    const current = this.getActiveSkipVoices();
+    if (appendIfUnderSix && current.length > 0 && current.length < 6 && cleanNew.length < 6) {
+      nextList = [...current, ...cleanNew].slice(0, 6);
+    } else {
+      nextList = cleanNew.slice(0, 6);
+    }
+
+    this.runtimeSkipVoices = nextList;
+    SKIP_VOICES_BASE64.length = 0;
+    nextList.forEach((v) => SKIP_VOICES_BASE64.push(v));
+
+    try {
+      localStorage.setItem(CUSTOM_SKIP_VOICES_STORAGE_KEY, JSON.stringify(nextList));
+    } catch {}
+
+    this.stopSkipVoices();
+    this.skipBuffers = [];
+    this.isDecodingSkip = [];
+    this.skipAudios = [];
+    this.lastSkipIndex = -1;
+
+    this.init(true);
+    return nextList.length;
   }
 
   private decodeBase64Audio(
@@ -144,9 +206,10 @@ class SoundEngineClass {
   }
 
   private decodeSkipBuffer(index: number, onReady?: (buf: AudioBuffer) => void) {
-    if (SKIP_VOICES_BASE64.length === 0) return;
-    const safeIdx = ((index % SKIP_VOICES_BASE64.length) + SKIP_VOICES_BASE64.length) % SKIP_VOICES_BASE64.length;
-    const base64 = SKIP_VOICES_BASE64[safeIdx];
+    const list = this.getActiveSkipVoices();
+    if (list.length === 0) return;
+    const safeIdx = ((index % list.length) + list.length) % list.length;
+    const base64 = list[safeIdx];
     if (!base64) return;
     this.decodeBase64Audio(
       base64,
@@ -228,7 +291,8 @@ class SoundEngineClass {
     this.decodeJokerBuffer();
     this.decodeMakerBuffer();
     this.decodeApplauseBuffer();
-    for (let i = 0; i < SKIP_VOICES_BASE64.length; i++) {
+    const activeSkipList = this.getActiveSkipVoices();
+    for (let i = 0; i < activeSkipList.length; i++) {
       this.decodeSkipBuffer(i);
     }
     this.decodeBaoonLossBuffer();
@@ -253,10 +317,10 @@ class SoundEngineClass {
     }
 
     // تهيئة عناصر الصوت لزر "طاف" وخسارة الباون ورمي الورقة عبر البيانات المدمجة في الذاكرة لتجنب أي تأخير بالشبكة
-    if (this.skipAudios.length === 0 && SKIP_VOICES_BASE64.length > 0 && typeof window !== 'undefined') {
+    if (this.skipAudios.length === 0 && activeSkipList.length > 0 && typeof window !== 'undefined') {
       try {
-        this.skipAudios = SKIP_VOICES_BASE64.map((b64) => {
-          const a = new Audio(`data:audio/mpeg;base64,${b64}`);
+        this.skipAudios = activeSkipList.map((b64) => {
+          const a = new Audio(toAudioDataUrl(b64));
           a.preload = 'auto';
           return a;
         });
@@ -902,7 +966,8 @@ class SoundEngineClass {
     this.init();
     this.stopSkipVoices();
 
-    const count = SKIP_VOICES_BASE64.length;
+    const activeSkipList = this.getActiveSkipVoices();
+    const count = activeSkipList.length;
     if (count === 0) {
       this.playPassTone();
       return 0;
@@ -938,8 +1003,8 @@ class SoundEngineClass {
     if (typeof window !== 'undefined') {
       try {
         if (this.skipAudios.length === 0) {
-          this.skipAudios = SKIP_VOICES_BASE64.map((b64) => {
-            const a = new Audio(`data:audio/mpeg;base64,${b64}`);
+          this.skipAudios = activeSkipList.map((b64) => {
+            const a = new Audio(toAudioDataUrl(b64));
             a.preload = 'auto';
             return a;
           });
