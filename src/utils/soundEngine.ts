@@ -76,18 +76,10 @@ class SoundEngineClass {
   private applauseTimer: ReturnType<typeof setTimeout> | null = null;
   private applauseFadeInterval: ReturnType<typeof setInterval> | null = null;
 
-  private runtimeSkipVoices: string[] = [];
-
   constructor() {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(CUSTOM_SKIP_VOICES_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            this.runtimeSkipVoices = parsed.filter((x) => typeof x === 'string' && x.length > 0);
-          }
-        }
+        localStorage.removeItem(CUSTOM_SKIP_VOICES_STORAGE_KEY);
       } catch {}
 
       const unlockOnGesture = () => {
@@ -101,44 +93,11 @@ class SoundEngineClass {
   }
 
   public getActiveSkipVoices(): string[] {
-    if (SKIP_VOICES_BASE64.length > 0) return SKIP_VOICES_BASE64;
-    return this.runtimeSkipVoices;
+    return SKIP_VOICES_BASE64;
   }
 
   public getSkipVoicesCount(): number {
-    return this.getActiveSkipVoices().length;
-  }
-
-  public setCustomSkipVoices(voices: string[], appendIfUnderSix: boolean = false): number {
-    const cleanNew = voices
-      .map((v) => (v.includes(',') ? v.split(',')[1] : v))
-      .filter((v) => v.length > 0);
-    if (cleanNew.length === 0) return this.getSkipVoicesCount();
-
-    let nextList: string[];
-    const current = this.getActiveSkipVoices();
-    if (appendIfUnderSix && current.length > 0 && current.length < 6 && cleanNew.length < 6) {
-      nextList = [...current, ...cleanNew].slice(0, 6);
-    } else {
-      nextList = cleanNew.slice(0, 6);
-    }
-
-    this.runtimeSkipVoices = nextList;
-    SKIP_VOICES_BASE64.length = 0;
-    nextList.forEach((v) => SKIP_VOICES_BASE64.push(v));
-
-    try {
-      localStorage.setItem(CUSTOM_SKIP_VOICES_STORAGE_KEY, JSON.stringify(nextList));
-    } catch {}
-
-    this.stopSkipVoices();
-    this.skipBuffers = [];
-    this.isDecodingSkip = [];
-    this.skipAudios = [];
-    this.lastSkipIndex = -1;
-
-    this.init(true);
-    return nextList.length;
+    return SKIP_VOICES_BASE64.length;
   }
 
   private decodeBase64Audio(
