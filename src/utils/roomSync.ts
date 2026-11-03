@@ -305,12 +305,30 @@ class RoomSyncManager {
 
   public requestOnlinePlayersDiscovery() {
     const senderId = this.myProfile?.clientId || this.myClientId;
+    this.pruneStaleOnlinePlayers();
+    this.notifyOnlinePlayersListeners();
+
+    if (this.currentRoomCode && (!this.client || !this.client.connected) && !this.isConnecting) {
+      this.connect(this.currentRoomCode);
+    }
+
     this.broadcastMyPresence();
-    this.publishGlobal({
-      type: 'PRESENCE_DISCOVER',
-      senderId,
-      timestamp: Date.now(),
-    });
+    setTimeout(() => {
+      this.publishGlobal({
+        type: 'PRESENCE_DISCOVER',
+        senderId,
+        timestamp: Date.now(),
+      });
+    }, 40);
+
+    if (this.currentRoomCode) {
+      this.publish({
+        type: 'SYNC_REQUEST',
+        roomCode: this.currentRoomCode,
+        senderId,
+        timestamp: Date.now(),
+      });
+    }
   }
 
   public subscribeOnlinePlayers(cb: (players: OnlinePlayer[]) => void): () => void {

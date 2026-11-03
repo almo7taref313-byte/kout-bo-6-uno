@@ -34,6 +34,8 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
 }) => {
   const [isConnected, setIsConnected] = useState<boolean>(roomSync.isConnected);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [isRefreshingOnline, setIsRefreshingOnline] = useState<boolean>(false);
+  const [refreshDone, setRefreshDone] = useState<boolean>(false);
   const [invitedMap, setInvitedMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -99,6 +101,20 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
     }
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleRefreshOnlineAndRoom = () => {
+    if (isRefreshingOnline) return;
+    soundEngine.playCardSlide();
+    setIsRefreshingOnline(true);
+    setRefreshDone(false);
+    roomSync.requestOnlinePlayersDiscovery();
+    handleSendJoinRequest();
+    setTimeout(() => {
+      setIsRefreshingOnline(false);
+      setRefreshDone(true);
+      setTimeout(() => setRefreshDone(false), 1600);
+    }, 550);
   };
 
   const handleClaimSeat = (targetSeatIdx: number) => {
@@ -364,11 +380,28 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
                   المتواجدون في اللعبة ({onlinePlayers.length})
                 </span>
               </div>
-              <span className="text-[9px] text-slate-400 font-bold">
-                {isAssigned
-                  ? `مقعدك: #${assignedSeatIdx + 1} (${assignedSeatIdx % 2 === 0 ? 'الأزرق 🔵' : 'الأحمر 🔴'})`
-                  : 'اضغط على أي مقعد فارغ للجلوس 💺'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-slate-400 font-bold hidden xs:inline">
+                  {isAssigned
+                    ? `مقعدك: #${assignedSeatIdx + 1} (${assignedSeatIdx % 2 === 0 ? 'الأزرق 🔵' : 'الأحمر 🔴'})`
+                    : 'اضغط على أي مقعد فارغ للجلوس 💺'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRefreshOnlineAndRoom}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm ${
+                    refreshDone
+                      ? 'bg-emerald-600 text-white border-emerald-400'
+                      : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                  }`}
+                  title="تحديث قائمة المتواجدين وحالة الطاولة"
+                >
+                  <span className={`inline-block ${isRefreshingOnline ? 'animate-spin' : ''}`}>🔄</span>
+                  <span>
+                    {isRefreshingOnline ? 'جاري التحديث...' : refreshDone ? 'تم التحديث ✓' : 'تحديث'}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {onlinePlayers.length > 0 ? (

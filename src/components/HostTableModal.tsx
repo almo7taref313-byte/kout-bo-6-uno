@@ -70,6 +70,9 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   const [swapSourceSeatIdx, setSwapSourceSeatIdx] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(roomSync.isConnected);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [isRefreshingOnline, setIsRefreshingOnline] = useState<boolean>(false);
+  const [refreshDone, setRefreshDone] = useState<boolean>(false);
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState<boolean>(false);
   const [invitedMap, setInvitedMap] = useState<Record<string, 'sent' | 'accepted' | 'declined'>>({});
   const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
 
@@ -157,6 +160,27 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
     }
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleRefreshOnlineAndRoom = () => {
+    if (isRefreshingOnline) return;
+    soundEngine.playCardSlide();
+    setIsRefreshingOnline(true);
+    setRefreshDone(false);
+    roomSync.requestOnlinePlayersDiscovery();
+    broadcastCurrentRoomState();
+    setTimeout(() => {
+      setIsRefreshingOnline(false);
+      setRefreshDone(true);
+      setTimeout(() => setRefreshDone(false), 1600);
+    }, 550);
+  };
+
+  const handleRegenerateTableCode = () => {
+    soundEngine.playCardSlide();
+    setIsRegeneratingCode(true);
+    onRegenerateCode();
+    setTimeout(() => setIsRegeneratingCode(false), 500);
   };
 
   const handleInviteOnlinePlayer = (player: OnlinePlayer) => {
@@ -495,14 +519,11 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  soundEngine.playCardSlide();
-                  onRegenerateCode();
-                }}
-                className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg text-[10px] border border-slate-800 transition active:scale-95 cursor-pointer"
+                onClick={handleRegenerateTableCode}
+                className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 rounded-lg text-[10px] font-black border border-amber-500/40 transition active:scale-90 cursor-pointer flex items-center gap-1 shadow-sm"
                 title="تغيير رقم الطاولة"
               >
-                🔄
+                <span className={`inline-block ${isRegeneratingCode ? 'animate-spin' : ''}`}>🔄</span>
               </button>
             </div>
 
@@ -546,13 +567,18 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  soundEngine.playCardSlide();
-                  roomSync.requestOnlinePlayersDiscovery();
-                }}
-                className="text-[9px] text-slate-400 hover:text-white font-bold cursor-pointer"
+                onClick={handleRefreshOnlineAndRoom}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm ${
+                  refreshDone
+                    ? 'bg-emerald-600 text-white border-emerald-400'
+                    : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                }`}
+                title="تحديث قائمة المتواجدين وحالة الطاولة"
               >
-                تحديث 🔄
+                <span className={`inline-block ${isRefreshingOnline ? 'animate-spin' : ''}`}>🔄</span>
+                <span>
+                  {isRefreshingOnline ? 'جاري التحديث...' : refreshDone ? 'تم التحديث ✓' : 'تحديث'}
+                </span>
               </button>
             </div>
 
@@ -725,10 +751,9 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               soundEngine.playBidTone(true);
               onStartGame();
             }}
-            className="flex-1 py-3 sm:py-3.5 btn-glow-green text-white font-black rounded-2xl text-sm xs:text-base sm:text-lg shadow-2xl transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer hover:brightness-110"
+            className="flex-1 py-3 sm:py-3.5 btn-glow-green text-white font-black rounded-2xl text-sm xs:text-base sm:text-lg shadow-2xl transition active:scale-95 flex items-center justify-center cursor-pointer hover:brightness-110"
           >
-            <span>⚡</span>
-            <span>ابدأ اللعب الآن 🃏</span>
+            <span>ابدأ اللعب الآن</span>
           </button>
         </div>
       </div>
