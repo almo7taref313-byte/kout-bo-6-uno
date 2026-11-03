@@ -68,7 +68,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 lobby-bg flex flex-col justify-between items-center p-3 xs:p-4 sm:p-6 overflow-y-auto h-full max-h-full safe-top safe-bottom select-none">
-      
       {/* Top Header: الملف الشخصي وزر تدوير الشاشة وعلامة الترس */}
       <header className="w-full max-w-sm sm:max-w-md flex items-center justify-between bg-slate-900/80 backdrop-blur-md border border-slate-800/90 rounded-2xl px-3 py-2 shadow-xl">
         {/* الملف الشخصي */}
@@ -91,8 +90,8 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
           </div>
         </button>
 
-        {/* أزرار تدوير الشاشة والإعدادات */}
-        <div className="flex items-center gap-2">
+        {/* زر تدوير الشاشة والإعدادات */}
+        <div className="flex items-center gap-1.5 xs:gap-2">
           {onToggleScreenOrientation && (
             <button
               type="button"

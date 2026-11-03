@@ -1,6 +1,6 @@
 import React from 'react';
 import { BidRecord, CalloutMessage, Player, SuitColor, TrickPlay } from '../types';
-import { TURN_TIMER_DURATION } from '../utils/gameLogic';
+import { SUIT_COLORS, TURN_TIMER_DURATION } from '../utils/gameLogic';
 import { AvatarView } from '../utils/avatars';
 import { UnoCard } from './UnoCard';
 import { ComicBidBubble } from './ComicBidBubble';
@@ -445,10 +445,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
             bubbleSeatPos = 'bottom-left';
           }
 
-          // وضع شارة المشتري / الملزوم بعيداً تماماً عن ملامح الوجه وعن اسم اللاعب
-          const targetBadgePosClass = isForcedBid
-            ? '-top-3.5 left-1/2 -translate-x-1/2'
-            : '-top-2 -right-2';
+          // موقع شارة الحكم البيضاوية:
+          // - للاعبين يمين ويسار الطاولة (1, 2, 4, 5): فوق رأس اللاعب مباشرة
+          // - للاعبين فوق وتحت الطاولة (0, 3): بجانب صورة اللاعب (يسار الصورة)
+          const targetBadgePosClass =
+            relPos === 0 || relPos === 3
+              ? '-left-[48px] sm:-left-[58px] top-1/2 -translate-y-1/2'
+              : '-top-[31px] sm:-top-[36px] left-1/2 -translate-x-1/2';
 
           const isDealer = dealerIdx === idx;
 
@@ -474,6 +477,18 @@ export const TableArena: React.FC<TableArenaProps> = ({
               }
             : {};
 
+          const buyerTrumpInfo = trumpColor && SUIT_COLORS[trumpColor] ? SUIT_COLORS[trumpColor] : null;
+          const buyerOvalGradient =
+            trumpColor === 'red'
+              ? 'linear-gradient(180deg, #ff3b4b 0%, #ea1d2d 55%, #b9101e 100%)'
+              : trumpColor === 'blue'
+              ? 'linear-gradient(180deg, #1d8cf8 0%, #0063b0 55%, #00447c 100%)'
+              : trumpColor === 'green'
+              ? 'linear-gradient(180deg, #4ade80 0%, #2eb844 55%, #1b7a2b 100%)'
+              : trumpColor === 'yellow'
+              ? 'linear-gradient(180deg, #ffe34d 0%, #fed000 55%, #eab308 100%)'
+              : 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)';
+
           return (
             <div key={idx} className={`absolute ${posClass} z-30 transition-all duration-300`}>
               <div className="relative flex flex-col items-center">
@@ -496,32 +511,45 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 >
                   
                   {isBuyer && (
-                    <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
-                      {isForcedBid ? (
-                        <div
-                          className={`px-1.5 py-0.5 rounded-full bg-white flex items-center justify-center shadow-xl whitespace-nowrap ${
-                            player.team === 'A'
-                              ? 'border-2 border-[#0063B0] ring-1 ring-blue-500/40'
-                              : 'border-2 border-[#EA1D2D] ring-1 ring-red-500/40'
+                    <div
+                      className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none transition-all duration-300`}
+                    >
+                      <div
+                        className={`min-w-[44px] h-[28px] sm:min-w-[52px] sm:h-[33px] px-2.5 rounded-full flex items-center justify-center gap-0.5 tabular-nums ${
+                          buyerTrumpInfo
+                            ? 'border-2 border-white/95'
+                            : 'border-2 border-amber-400/95'
+                        }`}
+                        style={{
+                          background: buyerOvalGradient,
+                          color: buyerTrumpInfo
+                            ? trumpColor === 'yellow'
+                              ? '#111827'
+                              : '#ffffff'
+                            : '#fde047',
+                          boxShadow: buyerTrumpInfo
+                            ? `0 4px 12px rgba(0,0,0,0.85), inset 0 2px 3px rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.35), 0 0 14px ${buyerTrumpInfo.hex}aa`
+                            : '0 4px 12px rgba(0,0,0,0.85), inset 0 1.5px 2px rgba(255,255,255,0.2)',
+                        }}
+                        title={
+                          buyerTrumpInfo
+                            ? `الحكم: ${buyerTrumpInfo.name} (${highestBid})`
+                            : `عدد الحكم: ${highestBid}`
+                        }
+                      >
+                        <span
+                          className={`font-black text-[17px] sm:text-[20px] leading-none ${
+                            buyerTrumpInfo && trumpColor === 'yellow'
+                              ? 'drop-shadow-[0_1px_0px_rgba(255,255,255,0.65)]'
+                              : 'drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.9)]'
                           }`}
                         >
-                          <span className="font-black text-black text-[7.5px] xs:text-[8.5px] leading-none">
-                            ملزوم ⚡
-                          </span>
-                        </div>
-                      ) : (
-                        <div
-                          className={`w-5.5 h-5.5 xs:w-6.5 xs:h-6.5 rounded-full bg-white flex items-center justify-center shadow-xl ${
-                            player.team === 'A'
-                              ? 'border-2 border-[#0063B0] ring-1 ring-blue-500/40'
-                              : 'border-2 border-[#EA1D2D] ring-1 ring-red-500/40'
-                          }`}
-                        >
-                          <span className="font-mono font-black text-black text-[10px] xs:text-[11px] leading-none">
-                            {highestBid === 9 ? '👑' : highestBid}
-                          </span>
-                        </div>
-                      )}
+                          {highestBid}
+                        </span>
+                        {isForcedBid && (
+                          <span className="text-[11px] sm:text-[13px] leading-none">⚡</span>
+                        )}
+                      </div>
                     </div>
                   )}
 
