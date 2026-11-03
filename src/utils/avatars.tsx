@@ -22,7 +22,7 @@ export const AVATAR_BOT_NAMES: Record<string, string> = {
   kuwaiti_shemagh_red: 'السلم',
   kuwaiti_gahfiya: 'جابر',
   kuwaiti_dishdasha_plain: 'عبود',
-  kuwaiti_gahfiya_glasses: 'بدور',
+  kuwaiti_gahfiya_glasses: 'بدر',
   kuwaiti_winter_ghutra: 'بوسكندر',
 };
 
@@ -64,10 +64,10 @@ export const AVATARS_CATALOG: AvatarItem[] = [
   },
   {
     id: 'kuwaiti_gahfiya_glasses',
-    title: 'بدور',
+    title: 'بدر',
     attire: 'شاب بنظارة شمسية سوداء',
     src: '/avatars/avatar_5.svg',
-    render: () => renderSvgImg('/avatars/avatar_5.svg', 'بدور'),
+    render: () => renderSvgImg('/avatars/avatar_5.svg', 'بدر'),
   },
   {
     id: 'kuwaiti_winter_ghutra',

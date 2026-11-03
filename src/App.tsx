@@ -71,7 +71,7 @@ const DEFAULT_BOT_PROFILES = [
   { name: 'السلم', avatarId: 'kuwaiti_shemagh_red' },
   { name: 'جابر', avatarId: 'kuwaiti_gahfiya' },
   { name: 'عبود', avatarId: 'kuwaiti_dishdasha_plain' },
-  { name: 'بدور', avatarId: 'kuwaiti_gahfiya_glasses' },
+  { name: 'بدر', avatarId: 'kuwaiti_gahfiya_glasses' },
   { name: 'بوسكندر', avatarId: 'kuwaiti_winter_ghutra' },
 ];
 
@@ -94,7 +94,7 @@ const DEFAULT_SEATS: SeatConfig[] = [
   { id: 1, name: 'السلم', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
   { id: 2, name: 'جابر', team: 'A', avatarId: 'kuwaiti_gahfiya', customPhoto: null, isHuman: false, isVacant: false },
   { id: 3, name: 'عبود', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 4, name: 'بدور', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 4, name: 'بدر', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
   { id: 5, name: 'بوسكندر', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
 ];
 
@@ -129,9 +129,14 @@ export default function App() {
   const [deviceId] = useState<string>(getOrCreateDeviceId);
 
   // User profile (persisted permanently in localStorage)
-  const [userName, setUserName] = useState<string>(
-    () => localStorage.getItem('kout_user_name') || 'أنت (اللاعب)'
-  );
+  const [userName, setUserName] = useState<string>(() => {
+    const saved = localStorage.getItem('kout_user_name');
+    if (saved === 'بدور') {
+      localStorage.setItem('kout_user_name', 'بدر');
+      return 'بدر';
+    }
+    return saved || 'أنت (اللاعب)';
+  });
   const [userAvatar, setUserAvatar] = useState<string>(
     () => localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white'
   );
@@ -185,15 +190,17 @@ export default function App() {
   const [seats, setSeats] = useState<SeatConfig[]>(() => {
     const savedAv = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
     const savedPh = localStorage.getItem('kout_custom_photo') || null;
+    const rawSavedName = localStorage.getItem('kout_user_name');
+    const savedName = rawSavedName === 'بدور' ? 'بدر' : (rawSavedName || 'أنت');
     const s: SeatConfig[] = JSON.parse(JSON.stringify(DEFAULT_SEATS));
-    s[0].name = localStorage.getItem('kout_user_name') || 'أنت';
+    s[0].name = savedName;
     s[0].avatarId = savedAv;
     s[0].customPhoto = savedPh;
     s[0].clientId = getOrCreateDeviceId();
     for (let i = 1; i < 6; i++) {
       const botProf = getBotProfileForSeat(i, savedAv, savedPh);
       s[i].avatarId = botProf.avatarId;
-      s[i].name = botProf.name;
+      s[i].name = botProf.name === 'بدور' ? 'بدر' : botProf.name;
     }
     return s;
   });
@@ -201,12 +208,15 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>(() => {
     const savedAv = localStorage.getItem('kout_user_avatar') || 'kuwaiti_ghutra_white';
     const savedPh = localStorage.getItem('kout_custom_photo') || null;
+    const rawSavedName = localStorage.getItem('kout_user_name');
+    const savedName = rawSavedName === 'بدور' ? 'بدر' : (rawSavedName || 'أنت');
     return [0, 1, 2, 3, 4, 5].map((idx) => {
       const isUser = idx === 0;
       const defBot = getBotProfileForSeat(idx, savedAv, savedPh);
+      const botName = defBot.name === 'بدور' ? 'بدر' : defBot.name;
       return {
         id: idx,
-        name: isUser ? (localStorage.getItem('kout_user_name') || 'أنت') : defBot.name,
+        name: isUser ? savedName : botName,
         team: idx % 2 === 0 ? 'A' : 'B',
         isHuman: isUser,
         isVacant: false,
