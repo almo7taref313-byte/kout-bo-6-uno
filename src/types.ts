@@ -81,6 +81,7 @@ export interface TrickPlay {
 export interface BidRecord {
   playerId: number;
   val: number; // 0 for Pass, 5-8, 9 for Baoon
+  forced?: boolean; // true when Dealer chose ملزوم
 }
 
 export type GamePhase = 'LOBBY' | 'BIDDING' | 'CHOOSE_TRUMP' | 'PLAYING' | 'ROUND_END' | 'MATCH_OVER';

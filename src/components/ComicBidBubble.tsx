@@ -3,6 +3,7 @@ import { Team } from '../types';
 
 interface ComicBidBubbleProps {
   val: number; // 0 for طاف, 9 for باون, 5-8 for number
+  forced?: boolean;
   team: Team;
   seatPosition: 'bottom-right' | 'top-right' | 'top-center' | 'top-left' | 'bottom-left' | 'bottom-center';
   className?: string;
@@ -14,6 +15,7 @@ interface ComicBidBubbleProps {
  */
 export const ComicBidBubble: React.FC<ComicBidBubbleProps> = ({
   val,
+  forced = false,
   team: _team,
   seatPosition,
   className = '',
@@ -70,7 +72,7 @@ export const ComicBidBubble: React.FC<ComicBidBubbleProps> = ({
         )}
       </svg>
 
-      {/* Bubble Content: كلمة طاف أو رقم المزايدة أو باون */}
+      {/* Bubble Content: كلمة طاف أو ملزوم أو رقم المزايدة أو باون */}
       <div
         className={`relative z-10 flex flex-col items-center justify-center text-center pointer-events-none leading-none ${
           pointsDown ? '-translate-y-0.5' : pointsRight ? '-translate-x-0.5' : 'translate-x-0.5'
@@ -83,6 +85,10 @@ export const ComicBidBubble: React.FC<ComicBidBubbleProps> = ({
         ) : isBaoon ? (
           <span className="text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-black text-amber-700 font-sans whitespace-nowrap">
             باون 👑
+          </span>
+        ) : forced ? (
+          <span className="text-[9.5px] xs:text-[10.5px] sm:text-[11.5px] font-black text-amber-700 font-sans whitespace-nowrap">
+            ملزوم
           </span>
         ) : (
           <span className="text-xs xs:text-sm sm:text-base font-black text-slate-950 font-mono">

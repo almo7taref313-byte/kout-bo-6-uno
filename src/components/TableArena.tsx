@@ -42,17 +42,24 @@ interface TableGridLayout {
 // حساب حجم الكرت وإحداثيات الشبكة (3×2) رياضياً من أبعاد الطاولة الفعلية لضمان عدم التداخل نهائياً على الموبايل والتابلت والكمبيوتر
 const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGridLayout => {
   const isCompactLandscape = tableH < 360 && tableW > tableH;
+  const isCompactPortrait = !isCompactLandscape && tableH < 395;
   const isWideTable = tableW >= 560;
 
   // المساحة المحجوزة للأفاتارات العلوية والسفلية والجانبية مع هامش أمان مريح يمنع ملامسة الكروت لأسماء أو صور اللاعبين
-  const verticalAvatarClearance = isCompactLandscape ? 132 : isWideTable ? 190 : 164;
+  const verticalAvatarClearance = isCompactLandscape
+    ? 132
+    : isCompactPortrait
+    ? 142
+    : isWideTable
+    ? 190
+    : 164;
   const horizontalAvatarClearance = isCompactLandscape ? 160 : isWideTable ? 190 : 146;
 
   const availH = Math.max(76, tableH - verticalAvatarClearance);
   const availW = Math.max(140, tableW - horizontalAvatarClearance);
 
   // المسافات الفاصلة بين الصفين وبين الأعمدة الثلاثة
-  const vGap = isCompactLandscape ? 6 : tableH < 410 ? 10 : 14;
+  const vGap = isCompactLandscape ? 6 : tableH < 410 ? 8 : 14;
   const hGap = isCompactLandscape ? 12 : tableW < 400 ? 10 : tableW < 560 ? 14 : 22;
 
   const maxH = Math.floor((availH - vGap) / 2);
@@ -503,6 +510,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   <div className={`absolute z-35 pointer-events-none ${bubblePosClass}`}>
                     <ComicBidBubble
                       val={latestBid.val}
+                      forced={latestBid.forced}
                       team={player.team}
                       seatPosition={bubbleSeatPos}
                     />

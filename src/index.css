@@ -5,16 +5,22 @@
     --font-sans: 'Tajawal', -apple-system, sans-serif;
     --font-uno: 'Fredoka', 'Impact', sans-serif;
     --font-callout: 'Changa', 'Tajawal', sans-serif;
+    --app-vh: 100dvh;
+    --app-vw: 100vw;
+    --auto-safe-top: 0px;
+    --auto-safe-bottom: 0px;
+    --auto-safe-left: 0px;
+    --auto-safe-right: 0px;
   }
 
   html, body, #root {
     font-family: var(--font-sans);
     height: 100%;
-    height: 100dvh;
+    height: var(--app-vh, 100dvh);
     width: 100%;
     width: 100vw;
     max-width: 100vw;
-    max-height: 100dvh;
+    max-height: var(--app-vh, 100dvh);
     margin: 0;
     padding: 0;
     user-select: none;
@@ -34,12 +40,29 @@
   font-family: 'Changa', 'Tajawal', sans-serif;
 }
 
+#gameMainWrapper {
+  height: var(--app-vh, 100dvh);
+  max-height: var(--app-vh, 100dvh);
+}
+
 .safe-top {
-  padding-top: max(4px, env(safe-area-inset-top));
+  padding-top: calc(max(env(safe-area-inset-top, 0px), var(--auto-safe-top, 0px)) + 8px) !important;
 }
 
 .safe-bottom {
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--auto-safe-bottom, 0px)) + 8px) !important;
+}
+
+.scoreboard-header {
+  padding-top: max(env(safe-area-inset-top, 0px), var(--auto-safe-top, 0px));
+  padding-left: max(env(safe-area-inset-left, 0px), var(--auto-safe-left, 0px));
+  padding-right: max(env(safe-area-inset-right, 0px), var(--auto-safe-right, 0px));
+}
+
+.player-hand-footer {
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--auto-safe-bottom, 0px)) + 4px);
+  padding-left: max(12px, env(safe-area-inset-left, 0px), var(--auto-safe-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px), var(--auto-safe-right, 0px));
 }
 
 /* No scrollbar utility */

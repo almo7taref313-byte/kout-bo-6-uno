@@ -291,6 +291,12 @@ export default function App() {
   phaseRef.current = phase;
   const currentTrickRef = useRef<TrickPlay[]>(currentTrick);
   currentTrickRef.current = currentTrick;
+  const isForcedBidRef = useRef<boolean>(isForcedBid);
+  isForcedBidRef.current = isForcedBid;
+  const highestBidRef = useRef<number>(highestBid);
+  highestBidRef.current = highestBid;
+  const bidWinnerRef = useRef<number | null>(bidWinner);
+  bidWinnerRef.current = bidWinner;
   const isTrickResolvingRef = useRef<boolean>(false);
   const lastPlayedTurnKeyRef = useRef<string>('');
   const lastTimeoutTurnKeyRef = useRef<string>('');
@@ -460,8 +466,11 @@ export default function App() {
       setPlayers(freshPlayers);
       setTrumpColor(null);
       setBidWinner(null);
+      bidWinnerRef.current = null;
       setHighestBid(4);
+      highestBidRef.current = 4;
       setIsForcedBid(false);
+      isForcedBidRef.current = false;
       setBiddingHistory([]);
       setCurrentTrick([]);
       setPlayedTricksInRound([]);
@@ -588,12 +597,16 @@ export default function App() {
       setTimerRemaining(TURN_TIMER_DURATION);
 
       let effectiveVal = val;
-      const isDealerForced = forced || (playerId === dealerIdx && highestBid <= 4 && val === 0);
+      const isDealerForced = Boolean(
+        forced || (playerId === dealerIdx && highestBid <= 4 && val === 0)
+      );
       if (isDealerForced) {
         effectiveVal = 5;
         setIsForcedBid(true);
+        isForcedBidRef.current = true;
       } else if (effectiveVal > highestBid) {
         setIsForcedBid(false);
+        isForcedBidRef.current = false;
       }
 
       if (effectiveVal === 0) {
@@ -604,7 +617,10 @@ export default function App() {
         soundEngine.playBidTone(false);
       }
 
-      const nextBids = [...biddingHistory, { playerId, val: effectiveVal }];
+      const nextBids = [
+        ...biddingHistory,
+        { playerId, val: effectiveVal, forced: isDealerForced },
+      ];
       setBiddingHistory(nextBids);
 
       let newHighest = highestBid;
@@ -614,7 +630,9 @@ export default function App() {
         newHighest = effectiveVal;
         newWinner = playerId;
         setHighestBid(effectiveVal);
+        highestBidRef.current = effectiveVal;
         setBidWinner(playerId);
+        bidWinnerRef.current = playerId;
       }
 
       if (isMultiplayerActive && !isFromRemote) {
@@ -632,7 +650,11 @@ export default function App() {
       if (effectiveVal === 9) {
         stopTimer();
         setBidWinner(playerId);
+        bidWinnerRef.current = playerId;
         setHighestBid(9);
+        highestBidRef.current = 9;
+        setIsForcedBid(false);
+        isForcedBidRef.current = false;
         setCurrentTurn(playerId);
         setPhase('CHOOSE_TRUMP');
 
@@ -653,8 +675,11 @@ export default function App() {
         scheduleGameTimeout(() => {
           if (newWinner === null) {
             setIsForcedBid(true);
+            isForcedBidRef.current = true;
             setHighestBid(5);
+            highestBidRef.current = 5;
             setBidWinner(dealerIdx);
+            bidWinnerRef.current = dealerIdx;
             setCurrentTurn(dealerIdx);
             const dealer = players[dealerIdx];
 
@@ -809,24 +834,29 @@ export default function App() {
 
   // Round Completion logic
   const handleRoundFinish = useCallback(
-    (buyerIsWinner: boolean, curTricksA: number, curTricksB: number) => {
+    (buyerIsWinner: boolean, _curTricksA: number, _curTricksB: number) => {
       stopTimer();
       isTrickResolvingRef.current = false;
       currentTrickRef.current = [];
       setPhase('ROUND_END');
 
-      const buyerPlayer = bidWinner !== null ? players[bidWinner] : players[0];
-      const buyerTeam = buyerPlayer.team;
-      const isBaoon = highestBid === 9;
-      const pts = isBaoon ? 36 : highestBid;
+      const activeWinnerIdx = bidWinnerRef.current !== null ? bidWinnerRef.current : bidWinner;
+      const activeBid = highestBidRef.current || highestBid;
+      const activeForced = isForcedBidRef.current;
 
+      const buyerPlayer = activeWinnerIdx !== null ? players[activeWinnerIdx] : players[0];
+      const buyerTeam = buyerPlayer.team;
+      const isBaoon = activeBid === 9;
+      const pts = isBaoon ? 36 : activeBid;
+
+      // عند اختيار ملزوم (activeForced === true) الخسارة 5 نقاط فقط، أما عند اختيار 5 طوعاً فالخسارة 10 نقاط (وباقي الأعداد الضعف)
       let defensePts = 0;
       if (isBaoon) {
         defensePts = 18;
-      } else if (isForcedBid) {
+      } else if (activeForced) {
         defensePts = 5;
       } else {
-        defensePts = highestBid * 2;
+        defensePts = activeBid * 2;
       }
 
       let nextScoreA = matchScoreTeamA;
@@ -2306,6 +2336,69 @@ export default function App() {
   const isLandscapeModeRef = useRef<boolean>(isLandscapeMode);
   const manualScreenModeRef = useRef<'auto' | 'landscape' | 'portrait'>('auto');
 
+  const syncDeviceViewportAndSafeAreas = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const vv = window.visualViewport;
+    const winW = Math.round(vv?.width || window.innerWidth);
+    const winH = Math.round(vv?.height || window.innerHeight);
+
+    const root = document.documentElement;
+    root.style.setProperty('--app-vw', `${winW}px`);
+    root.style.setProperty('--app-vh', `${winH}px`);
+
+    const ua = navigator.userAgent || '';
+    const isIPhoneOrIPod = /iPhone|iPod/i.test(ua);
+    const isIPad =
+      /iPad/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && !isIPhoneOrIPod);
+    const isAndroid = /Android/i.test(ua);
+
+    const screenLongSide = Math.max(window.screen?.width || winW, window.screen?.height || winH);
+    const isNotchOrDynamicIslandIPhone = isIPhoneOrIPod && screenLongSide >= 800;
+
+    const isForcedLand = document.body.classList.contains('forced-landscape-mode');
+    const isForcedPort = document.body.classList.contains('forced-portrait-mode');
+    const isPortraitNow = isForcedPort || (!isForcedLand && winH >= winW);
+
+    let safeTop = 0;
+    let safeBottom = 0;
+    let safeLeft = 0;
+    let safeRight = 0;
+
+    if (isPortraitNow) {
+      if (isNotchOrDynamicIslandIPhone) {
+        // حماية شاملة لشاشات الآيفون الرأسية من تداخل الساعة وعلامة السيرفس والجزيرة التفاعلية/النوتش مع عداد النتيجة
+        safeTop = 48;
+        safeBottom = 14;
+      } else if (isIPhoneOrIPod) {
+        safeTop = 24;
+        safeBottom = 6;
+      } else if (isIPad) {
+        safeTop = 18;
+        safeBottom = 8;
+      } else if (isAndroid) {
+        const isStandalone =
+          window.matchMedia?.('(display-mode: standalone)').matches ||
+          window.matchMedia?.('(display-mode: fullscreen)').matches;
+        safeTop = isStandalone ? 24 : 6;
+        safeBottom = 6;
+      }
+    } else {
+      // في الوضع الأفقي للآيفون، النوتش أو الجزيرة التفاعلية تكون على يمين أو يسار الشاشة
+      if (isNotchOrDynamicIslandIPhone) {
+        safeLeft = 18;
+        safeRight = 18;
+        safeBottom = 6;
+      }
+    }
+
+    root.style.setProperty('--auto-safe-top', `${safeTop}px`);
+    root.style.setProperty('--auto-safe-bottom', `${safeBottom}px`);
+    root.style.setProperty('--auto-safe-left', `${safeLeft}px`);
+    root.style.setProperty('--auto-safe-right', `${safeRight}px`);
+  }, []);
+
   const applyOrientationMode = useCallback((mode: 'auto' | 'landscape' | 'portrait') => {
     manualScreenModeRef.current = mode;
     const nearSquare = isNearSquareViewport();
@@ -2331,22 +2424,28 @@ export default function App() {
       setIsLandscapeMode(false);
     }
 
+    syncDeviceViewportAndSafeAreas();
+
     requestAnimationFrame(() => {
+      syncDeviceViewportAndSafeAreas();
       window.dispatchEvent(new Event('kout-layout-refresh'));
     });
     setTimeout(() => {
+      syncDeviceViewportAndSafeAreas();
       window.dispatchEvent(new Event('kout-layout-refresh'));
     }, 60);
     setTimeout(() => {
+      syncDeviceViewportAndSafeAreas();
       window.dispatchEvent(new Event('kout-layout-refresh'));
     }, 280);
-  }, []);
+  }, [syncDeviceViewportAndSafeAreas]);
 
   useEffect(() => {
-    // البدء بالوضع الطبيعي التلقائي بدون أي تدوير قسري يقلب شاشة هواتف الفولد
+    // البدء بالوضع الطبيعي التلقائي وضبط المقاسات والهوامش الآمنة أوتوماتيكياً لكل جهاز
     applyOrientationMode('auto');
 
     const handleNativeViewportChange = () => {
+      syncDeviceViewportAndSafeAreas();
       if (manualScreenModeRef.current === 'auto') {
         applyOrientationMode('auto');
       } else if (isNearSquareViewport()) {
@@ -2360,6 +2459,7 @@ export default function App() {
 
     window.addEventListener('resize', handleNativeViewportChange);
     window.addEventListener('orientationchange', handleNativeViewportChange);
+    window.visualViewport?.addEventListener('resize', handleNativeViewportChange);
 
     const screenOrient = (window.screen as Screen & { orientation?: ScreenOrientation })?.orientation;
     screenOrient?.addEventListener?.('change', handleNativeViewportChange);
@@ -2367,9 +2467,10 @@ export default function App() {
     return () => {
       window.removeEventListener('resize', handleNativeViewportChange);
       window.removeEventListener('orientationchange', handleNativeViewportChange);
+      window.visualViewport?.removeEventListener('resize', handleNativeViewportChange);
       screenOrient?.removeEventListener?.('change', handleNativeViewportChange);
     };
-  }, [applyOrientationMode]);
+  }, [applyOrientationMode, syncDeviceViewportAndSafeAreas]);
 
   const handleToggleScreenOrientation = useCallback(() => {
     const nextLandscape = !isLandscapeModeRef.current;

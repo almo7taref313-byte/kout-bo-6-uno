@@ -564,6 +564,71 @@ export function selectBotMove(
   const isTeamCurrentlyWinning = !isLead && isTeammate(initialTrickWinnerId);
   const isLastPlayerInTrick = trick.length === 5;
 
+  // تتبع دقيق لعدد الحكام الملعوبة وهل كروت الحكم محصورة فقط عند فريق البوت (الخصم لا يملك أي كرت حكم)
+  const playedSuitedTrumpCount = trumpColor
+    ? playedTricks.reduce(
+        (acc, t) =>
+          acc +
+          t.filter((p) => p.card.color === trumpColor && !p.card.isJoker && !p.card.isMaker).length,
+        0
+      )
+    : 0;
+  const mySuitedTrumpCount = trumpColor
+    ? bot.hand.filter((c) => c.color === trumpColor && !c.isJoker && !c.isMaker).length
+    : 0;
+
+  const opponentsVoidInTrump = new Set<number>();
+  if (trumpColor) {
+    playedTricks.forEach((t) => {
+      const tLead = getEffectiveLeadColor(t, highestBid, trumpColor);
+      if (tLead === trumpColor) {
+        t.forEach((p) => {
+          const pPlayer = context?.players
+            ? context.players.find((pl) => pl.id === p.playerId) || context.players[p.playerId]
+            : null;
+          const isSameTeam = pPlayer
+            ? pPlayer.team === bot.team
+            : p.playerId % 2 === bot.id % 2;
+          if (!isSameTeam && p.card.color !== trumpColor && !p.card.isJoker && !p.card.isMaker) {
+            opponentsVoidInTrump.add(p.playerId);
+          }
+        });
+      }
+    });
+  }
+
+  const opponentSeatIds = [0, 1, 2, 3, 4, 5].filter((pid) => {
+    const pPlayer = context?.players
+      ? context.players.find((pl) => pl.id === pid) || context.players[pid]
+      : null;
+    return pPlayer ? pPlayer.team !== bot.team : pid % 2 !== bot.id % 2;
+  });
+
+  const opponentsHoldAnySuitedTrump = Boolean(
+    trumpColor &&
+      context?.players &&
+      context.players.length > 0 &&
+      context.players.some(
+        (pl) =>
+          pl.team !== bot.team &&
+          pl.hand.some((c) => c.color === trumpColor && !c.isJoker && !c.isMaker)
+      )
+  );
+
+  // هل كروت الحكم محصورة فقط عند فريق البوت (الخصم لا يملك أي حكم في يده)؟
+  const opponentsExhaustedTrumps = Boolean(
+    trumpColor &&
+      ((context?.players && context.players.length > 0 && !opponentsHoldAnySuitedTrump) ||
+        playedSuitedTrumpCount + mySuitedTrumpCount >= 13 ||
+        (opponentSeatIds.length > 0 && opponentSeatIds.every((id) => opponentsVoidInTrump.has(id))))
+  );
+
+  // حساب عدد الأكلات التي كسبها الفريق الخصم حتى الآن في هذه الجولة
+  const opponentWonTricksCount = playedTricks.reduce((count, t) => {
+    const wId = evaluateTrickWinner(t, trumpColor, highestBid);
+    return !isTeammate(wId) && wId !== bot.id ? count + 1 : count;
+  }, 0);
+
   // قاعدة فورية ملزمة:
   // "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
   if (!isLead && trumpColor) {
@@ -815,6 +880,34 @@ export function selectBotMove(
     }
   }
 
+  // التحقق من قاعدة:
+  // "إذا كان البوت آخر لاعب قبل الحاكم (من فريق الخصم) وعنده حكام وعند الحاكم حكام وكانت النزلة زات غير الحكم وقد قصه البوت قبل الحاكم:
+  // يلعب زات آخر غير الحكم بما أن عدد أكلات الفريق الآخر لم تصل 3 أكلات في عدد 5 أكلات وبنفس المقياس عند 6 أكلات إذا لم يصل الخصم إلى 4 أكلات وهكذا باقي أعداد الأكلات، خصوصاً إذا كانت الأكلة لفريق البوت"
+  const isBotDirectlyBeforeOpponentBuyer = Boolean(
+    !isLead &&
+      isBuyerOpponent &&
+      buyerId !== null &&
+      buyerId !== undefined &&
+      (bot.id + 1) % 6 === buyerId &&
+      !trick.some((p) => p.playerId === buyerId)
+  );
+
+  const botHasSuitedTrumps = Boolean(
+    trumpColor && bot.hand.some((c) => c.color === trumpColor && !c.isJoker && !c.isMaker)
+  );
+
+  const opponentBuyerHasSuitedTrumps = Boolean(
+    trumpColor &&
+      buyerId !== null &&
+      buyerId !== undefined &&
+      (buyerPlayer && buyerPlayer.hand && buyerPlayer.hand.length > 0
+        ? buyerPlayer.hand.some((c) => c.color === trumpColor && !c.isJoker && !c.isMaker)
+        : !opponentsVoidInTrump.has(buyerId) && !opponentsExhaustedTrumps)
+  );
+
+  const dangerTrickThreshold = Math.max(1, (highestBid || 5) - 2);
+  const isOpponentBelowDangerTricks = opponentWonTricksCount < dangerTrickThreshold;
+
   // 1. TACTICAL RULES WHEN RESPONDING (!isLead):
   if (!isLead) {
     const leadSuit = getEffectiveLeadColor(trick, highestBid, trumpColor);
@@ -823,6 +916,37 @@ export function selectBotMove(
         leadSuit !== 'special' &&
         (!trumpColor || leadSuit !== trumpColor)
     );
+
+    const isBotVoidInLead = Boolean(
+      isLeadOtherColor && leadSuit && !bot.hand.some((c) => c.color === leadSuit)
+    );
+
+    // تطبيق قاعدة: البوت آخر لاعب قبل الحاكم الخصم وقاصّ للزات الملعوب وعنده حكام وعند الحاكم حكام
+    if (
+      isBotDirectlyBeforeOpponentBuyer &&
+      isLeadOtherColor &&
+      isBotVoidInLead &&
+      botHasSuitedTrumps &&
+      opponentBuyerHasSuitedTrumps &&
+      isOpponentBelowDangerTricks
+    ) {
+      const nonTrumpDiscardMoves = legalMoves.filter(
+        (c) => (!trumpColor || c.color !== trumpColor) && !c.isJoker && !c.isMaker
+      );
+      if (nonTrumpDiscardMoves.length > 0) {
+        return selectSmartDiscard(nonTrumpDiscardMoves, trick, trumpColor);
+      }
+    }
+
+    // تطبيق قاعدة: إذا كانت كروت الحكم فقط عند فريق البوت والأكلة الحالية لفريق البوت، لا يقطع بالحكم بل يلعب زاتاً آخر غير الحكم
+    if (opponentsExhaustedTrumps && isLeadOtherColor && isBotVoidInLead && isTeamCurrentlyWinning) {
+      const nonTrumpDiscardMoves = legalMoves.filter(
+        (c) => (!trumpColor || c.color !== trumpColor) && !c.isJoker && !c.isMaker
+      );
+      if (nonTrumpDiscardMoves.length > 0) {
+        return selectSmartDiscard(nonTrumpDiscardMoves, trick, trumpColor);
+      }
+    }
 
     // User Rule:
     // "اذا كان الزات يلعب اول مره ولعب الخال وليس حكما فلا يجب ان يلعب البوت من نفس الفريق حكما ابدا"
@@ -979,7 +1103,7 @@ export function selectBotMove(
                 !p.card.isJoker &&
                 !p.card.isMaker &&
                 p.card.rank === rank
-            );
+              );
             if (playedByTeammateInCurrentTrick) return false;
 
             return true;
@@ -1019,7 +1143,7 @@ export function selectBotMove(
       const currentWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
       const opponentCurrentlyWinning = !isTeammate(currentWinnerId) && currentWinnerId !== bot.id;
 
-      if (opponentYetToPlay || opponentCurrentlyWinning) {
+      if ((opponentYetToPlay && !opponentsExhaustedTrumps) || opponentCurrentlyWinning) {
         // Play the highest suited trump (خال الحكم، باش، ميم، غلام، عشرة...) to protect partner buyer's small trump!
         const myStrongSuitedTrumps = legalMoves.filter(
           (c) =>
@@ -1070,10 +1194,6 @@ export function selectBotMove(
 
     // User Rule:
     // "اذا كان البوت حاكما ولعبت زات غير الحكم وهو قاص يجب ان يلعب حكما خصوصا اذا الكرت الذي لعبته هناك اكبر منه ولم يلعب او ان الزات لعب مرة اخرى"
-    const isBotVoidInLead = Boolean(
-      isLeadOtherColor && leadSuit && !bot.hand.some((c) => c.color === leadSuit)
-    );
-
     if (isBotVoidInLead && trumpColor && !teammateCutWithTrump) {
       const isSuitPlayedAgain = Boolean(leadSuit && suitsPlayedBefore.has(leadSuit));
       const teammateLeadPlays = trick.filter(
@@ -1136,6 +1256,7 @@ export function selectBotMove(
       const shouldCutWithTrump =
         isOpponentCurrentlyWinning ||
         ((isBotOnBuyerTeam || opponentYetToPlay) &&
+          !opponentsExhaustedTrumps &&
           (hasHigherUnplayedInLeadSuit ||
             isSuitPlayedAgain ||
             (leadSuit ? opponentVoidSuits.has(leadSuit) : false) ||
@@ -1271,51 +1392,45 @@ export function selectBotMove(
       (c) => trumpColor && c.color === trumpColor && !c.isJoker && !c.isMaker
     );
 
-    // تتبع دقيق لعدد الحكام الملعوبة وهل استنفد الفريق الخصم جميع حكامه (13 ورقة حكم في اللعبة)
-    const playedSuitedTrumpCount = trumpColor
-      ? playedTricks.reduce(
-          (acc, t) =>
-            acc +
-            t.filter((p) => p.card.color === trumpColor && !p.card.isJoker && !p.card.isMaker).length,
-          0
-        )
-      : 0;
-    const mySuitedTrumpCount = trumpColor
-      ? bot.hand.filter((c) => c.color === trumpColor && !c.isJoker && !c.isMaker).length
-      : 0;
-
-    const opponentsVoidInTrump = new Set<number>();
-    if (trumpColor) {
-      playedTricks.forEach((t) => {
-        const tLead = getEffectiveLeadColor(t, highestBid, trumpColor);
-        if (tLead === trumpColor) {
-          t.forEach((p) => {
-            const pPlayer = context?.players
-              ? context.players.find((pl) => pl.id === p.playerId) || context.players[p.playerId]
-              : null;
-            const isSameTeam = pPlayer
-              ? pPlayer.team === bot.team
-              : p.playerId % 2 === bot.id % 2;
-            if (!isSameTeam && p.card.color !== trumpColor && !p.card.isJoker && !p.card.isMaker) {
-              opponentsVoidInTrump.add(p.playerId);
-            }
-          });
-        }
-      });
-    }
-
-    const opponentSeatIds = [0, 1, 2, 3, 4, 5].filter((pid) => {
-      const pPlayer = context?.players
-        ? context.players.find((pl) => pl.id === pid) || context.players[pid]
-        : null;
-      return pPlayer ? pPlayer.team !== bot.team : pid % 2 !== bot.id % 2;
-    });
-
-    const opponentsExhaustedTrumps = Boolean(
-      trumpColor &&
-        (playedSuitedTrumpCount + mySuitedTrumpCount >= 13 ||
-          (opponentSeatIds.length > 0 && opponentSeatIds.every((id) => opponentsVoidInTrump.has(id))))
+    const allNonTrumpLeadMoves = baseLeadPool.filter(
+      (c) => c.color !== trumpColor && c.color !== 'special'
     );
+
+    // قاعدة أساسية: "في حال كانت كروت الحكم فقط عند فريقه لا يحكم ويلعب زات آخر حتى لا يقلل عدد كروت الحكم عند فريقه"
+    if (opponentsExhaustedTrumps && allNonTrumpLeadMoves.length > 0) {
+      const feedableToPartnerWhenNoEnemyTrumps = uncutNonTrumps.filter(
+        (c) =>
+          partnerVoidSuits.has(c.color) &&
+          c.color !== lastTrickLeadSuit &&
+          !isBuyerOpponent
+      );
+      if (feedableToPartnerWhenNoEnemyTrumps.length > 0) {
+        feedableToPartnerWhenNoEnemyTrumps.sort(
+          (a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank)
+        );
+        return feedableToPartnerWhenNoEnemyTrumps[0];
+      }
+
+      const preferredNonTrumpPool =
+        unplayedUncutNonTrumps.length > 0
+          ? unplayedUncutNonTrumps
+          : notJustPlayedUncutNonTrumps.length > 0
+          ? notJustPlayedUncutNonTrumps
+          : notJustPlayedCutNonTrumps.length > 0
+          ? notJustPlayedCutNonTrumps
+          : uncutNonTrumps.length > 0
+          ? uncutNonTrumps
+          : allNonTrumpLeadMoves;
+
+      if (wildCardsInHand.length > 0 && nonWildCardsInHand.length <= wildCardsInHand.length + 1) {
+        return selectSmartDiscard(preferredNonTrumpPool, trick, trumpColor);
+      }
+
+      const sortedNonTrumps = [...preferredNonTrumpPool].sort(
+        (a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank)
+      );
+      return sortedNonTrumps[0];
+    }
 
     // هل لُعب زات (ليس حكماً) في دورة سابقة وأكلها اللاعب؟
     const hasNonTrumpTrickBeenPlayed = playedTricks.some((t) => {
@@ -1452,7 +1567,7 @@ export function selectBotMove(
 
       // ب) إذا كانت جميع ألوان الزات في يد البوت قد لُعبت سابقاً، يمنع تكرار الزات الذي لُعب في الأكلة السابقة مباشرةً (lastTrickLeadSuit):
       // وإذا كان الحاكم خصماً ولديه حكم أعلى ضامن للأكلة (Master Trump) يلعبه بدلاً من تكرار الزات الملعوب
-      if (isBuyerOpponent && suitedTrumps.length > 0) {
+      if (isBuyerOpponent && suitedTrumps.length > 0 && !opponentsExhaustedTrumps) {
         const masterTrumps = suitedTrumps.filter(isHighestRemainingTrump);
         if (masterTrumps.length > 0) {
           masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
@@ -1468,8 +1583,8 @@ export function selectBotMove(
       }
 
       // ج) إذا لم يبقَ في الزات غير المقصوص سوى نفس الزات الذي أكل به الأكلة للتو (lastTrickLeadSuit):
-      // إذا كان البوت يملك حكماً (أو زاتاً آخر غير lastTrickLeadSuit) يغير اللعب ولا يعيد نفس الزات مباشرةً
-      if (suitedTrumps.length > 0 && (!isBuyerOpponent || !canStrikeWithTrumpNextTrick)) {
+      // إذا كان البوت يملك حكماً (أو زاتاً آخر غير lastTrickLeadSuit) يغير اللعب ولا يعيد نفس الزات مباشرةً (بشرط أن الخصم لم يستنفد حكامه)
+      if (suitedTrumps.length > 0 && !opponentsExhaustedTrumps && (!isBuyerOpponent || !canStrikeWithTrumpNextTrick)) {
         suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
         return suitedTrumps[0];
       }
@@ -1495,8 +1610,8 @@ export function selectBotMove(
       const preferredCutPool = notJustPlayedCutNonTrumps.length > 0 ? notJustPlayedCutNonTrumps : cutNonTrumps;
       if (buyerTeam === bot.team) {
         // إذا كان الفريق هو صاحب الحكم:
-        // إذا استنفد الخصم جميع حكامه (فلم يعد بإمكان الخصم قص الزات بالحكم!) وكان الحاكم لم يتبقَ بيده سوى حكم واحد، يحافظ الحاكم على حكمه الأخير ويلعب الزات
-        if (opponentsExhaustedTrumps && isBotBuyer && suitedTrumps.length <= 1) {
+        // إذا استنفد الخصم جميع حكامه (فلم يعد بإمكان الخصم قص الزات بالحكم!) يحافظ البوت على حكام فريقه ويلعب الزات الآخر
+        if (opponentsExhaustedTrumps) {
           preferredCutPool.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
           return preferredCutPool[0];
         }
@@ -1505,6 +1620,10 @@ export function selectBotMove(
         return suitedTrumps[0];
       } else {
         // إذا كان الخصم هو صاحب الحكم:
+        if (opponentsExhaustedTrumps) {
+          preferredCutPool.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+          return preferredCutPool[0];
+        }
         // أ) يلعب الحكم الأكبر الذي ليس أكبر منه إن وُجد في يده
         const masterTrumps = suitedTrumps.filter(isHighestRemainingTrump);
         if (masterTrumps.length > 0) {
@@ -1558,6 +1677,31 @@ export function selectBotMove(
     // Enemy is currently winning: check if we can win the trick!
     const buyerStillToPlay =
       buyerId !== null && buyerId !== undefined && !trick.some((p) => p.playerId === buyerId);
+
+    const leadSuit = getEffectiveLeadColor(trick, highestBid, trumpColor);
+    const isLeadOtherColor = Boolean(
+      leadSuit && leadSuit !== 'special' && (!trumpColor || leadSuit !== trumpColor)
+    );
+    const isBotVoidInLead = Boolean(
+      isLeadOtherColor && leadSuit && !bot.hand.some((c) => c.color === leadSuit)
+    );
+
+    // إذا كان البوت آخر لاعب قبل الحاكم الخصم وقاصّ للزات وعند الحاكم حكام ولم يصل الخصم لعدد الخطر: لا يقطع بالحكم بل يرمي زاتاً آخر غير الحكم
+    if (
+      isBotDirectlyBeforeOpponentBuyer &&
+      isLeadOtherColor &&
+      isBotVoidInLead &&
+      botHasSuitedTrumps &&
+      opponentBuyerHasSuitedTrumps &&
+      isOpponentBelowDangerTricks
+    ) {
+      const nonTrumpDiscardMoves = legalMoves.filter(
+        (c) => (!trumpColor || c.color !== trumpColor) && !c.isJoker && !c.isMaker
+      );
+      if (nonTrumpDiscardMoves.length > 0) {
+        return selectSmartDiscard(nonTrumpDiscardMoves, trick, trumpColor);
+      }
+    }
 
     const winningMoves = legalMoves.filter((c) => {
       // Maker protection in early/mid round (only when hand.length > 4):
