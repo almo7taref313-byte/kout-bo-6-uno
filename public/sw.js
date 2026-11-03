@@ -1,7 +1,7 @@
 // Minimal network-first Service Worker required by Chrome/Android for native PWA installation (WebAPK)
 // Uses Network-First strategy with no-store so users ALWAYS get the latest live code without stale caching!
 
-const CACHE_NAME = 'kout-uno-live-v19';
+const CACHE_NAME = 'kout-uno-live-v20';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

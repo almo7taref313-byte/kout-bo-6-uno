@@ -57,21 +57,57 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   const isCritical = timerRemaining <= 4;
 
   const sortedHand = sortHandCards(activePlayer.hand, trumpColor);
-  const overlapPx =
-    sortedHand.length >= 8 ? -15 : sortedHand.length >= 6 ? -11 : -7;
+
+  const [handGapPx, setHandGapPx] = React.useState<number>(2);
+
+  React.useEffect(() => {
+    const updateSpacing = () => {
+      const isForcedLandscape =
+        typeof document !== 'undefined' &&
+        document.body.classList.contains('forced-landscape-mode');
+      const effectiveWidth = isForcedLandscape
+        ? Math.max(window.innerWidth, window.innerHeight)
+        : window.innerWidth;
+      const isLandscape = isForcedLandscape || window.innerWidth > window.innerHeight;
+      const count = Math.max(1, sortedHand.length);
+
+      if (isLandscape || effectiveWidth >= 520) {
+        // في الوضع الأفقي أو الشاشات العريضة: مسافة موجبة مريحة بين كل كرت والآخر بدون أي تداخل
+        setHandGapPx(count >= 8 ? 4 : count >= 6 ? 6 : 8);
+      } else {
+        // في الوضع العمودي للهاتف: استغلال كامل عرض الشاشة لمباعدة الكروت قدر الإمكان
+        const cardW = effectiveWidth >= 410 ? 54 : effectiveWidth >= 360 ? 50 : 46;
+        const availW = effectiveWidth - 16;
+        const totalCardsW = count * cardW;
+        if (totalCardsW + (count - 1) * 4 <= availW) {
+          setHandGapPx(5);
+        } else if (count > 1) {
+          const calculatedOverlap = Math.floor((availW - totalCardsW) / (count - 1));
+          // تقليص التداخل للحد الأدنى الضروري فقط لاحتواء الكروت مع بقاء مساحة لمس واسعة لكل كرت
+          setHandGapPx(Math.max(-8, Math.min(4, calculatedOverlap)));
+        } else {
+          setHandGapPx(0);
+        }
+      }
+    };
+
+    updateSpacing();
+    window.addEventListener('resize', updateSpacing);
+    return () => window.removeEventListener('resize', updateSpacing);
+  }, [sortedHand.length]);
 
   return (
     <footer
-      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-2 xs:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
+      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-1.5 xs:px-2.5 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}
     >
       <div className="max-w-5xl mx-auto flex flex-col items-center overflow-visible">
-        {/* ترتيب أوراق اليد من اليسار لليمين فعلياً بحيث يركب الكرت الأيمن فوق الطرف الأيمن للكرت الأيسر ويبقى الرقم العلوي الأيسر مكشوفاً 100% */}
+        {/* ترتيب أوراق اليد من اليسار لليمين بمسافات متباعدة وواضحة تمنع الضغط بالخطأ */}
         <div
           dir="ltr"
           style={{ direction: 'ltr' }}
-          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[78px] xs:min-h-[84px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
+          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[78px] xs:min-h-[84px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-1 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
         >
           {sortedHand.map((card, idx) => {
             const isLegal = isMyTurn
@@ -82,7 +118,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 key={card.id}
                 style={{
                   zIndex: 10 + idx,
-                  marginLeft: idx === 0 ? '0px' : `${overlapPx}px`,
+                  marginLeft: idx === 0 ? '0px' : `${handGapPx}px`,
                 }}
                 className="transition-transform duration-200 hover:-translate-y-2.5"
               >
