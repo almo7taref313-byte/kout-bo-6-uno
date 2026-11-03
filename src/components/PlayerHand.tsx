@@ -75,16 +75,17 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         // في الوضع الأفقي أو الشاشات العريضة: مسافة موجبة مريحة بين كل كرت والآخر بدون أي تداخل
         setHandGapPx(count >= 8 ? 4 : count >= 6 ? 6 : 8);
       } else {
-        // في الوضع العمودي للهاتف: استغلال كامل عرض الشاشة لمباعدة الكروت قدر الإمكان
-        const cardW = effectiveWidth >= 410 ? 54 : effectiveWidth >= 360 ? 50 : 46;
-        const availW = effectiveWidth - 16;
+        // في الوضع العمودي للهاتف: ترك هامش مريح من الطرفين الأيمن والأيسر وتوزيع الكروت في الوسط بدون اكتظاظ
+        const cardW =
+          effectiveWidth >= 480 ? 64 : effectiveWidth >= 410 ? 50 : effectiveWidth >= 360 ? 48 : 45;
+        const sideMargin = effectiveWidth >= 380 ? 52 : 40;
+        const availW = effectiveWidth - sideMargin;
         const totalCardsW = count * cardW;
-        if (totalCardsW + (count - 1) * 4 <= availW) {
-          setHandGapPx(5);
+        if (totalCardsW + (count - 1) * 3 <= availW) {
+          setHandGapPx(3);
         } else if (count > 1) {
           const calculatedOverlap = Math.floor((availW - totalCardsW) / (count - 1));
-          // تقليص التداخل للحد الأدنى الضروري فقط لاحتواء الكروت مع بقاء مساحة لمس واسعة لكل كرت
-          setHandGapPx(Math.max(-8, Math.min(4, calculatedOverlap)));
+          setHandGapPx(Math.max(-14, Math.min(3, calculatedOverlap)));
         } else {
           setHandGapPx(0);
         }
@@ -98,16 +99,16 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
-      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-1.5 xs:px-2.5 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
+      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-3 xs:px-4 sm:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}
     >
       <div className="max-w-5xl mx-auto flex flex-col items-center overflow-visible">
-        {/* ترتيب أوراق اليد من اليسار لليمين بمسافات متباعدة وواضحة تمنع الضغط بالخطأ */}
+        {/* ترتيب أوراق اليد من اليسار لليمين بمسافات متوازنة وهوامش جانبية مريحة */}
         <div
           dir="ltr"
           style={{ direction: 'ltr' }}
-          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[78px] xs:min-h-[84px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-1 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
+          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[74px] xs:min-h-[80px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
         >
           {sortedHand.map((card, idx) => {
             const isLegal = isMyTurn

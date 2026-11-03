@@ -1835,9 +1835,124 @@ export default function App() {
     setEditingSeatIndex(null);
   };
 
+  const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      document.body.classList.contains('forced-landscape-mode') ||
+      window.innerWidth > window.innerHeight
+    );
+  });
+  const lastPhysicalPostureRef = useRef<'portrait' | 'landscape' | null>(null);
+
+  useEffect(() => {
+    const syncOrientationState = () => {
+      const nativeLandscape = window.innerWidth > window.innerHeight;
+      if (nativeLandscape) {
+        // إذا دار الهاتف فعلياً بالعرض من النظام، نلغي التدوير الإجباري لكي لا تنقلب الشاشة مرتين
+        if (document.body.classList.contains('forced-landscape-mode')) {
+          document.body.classList.remove('forced-landscape-mode');
+        }
+        setIsLandscapeMode(true);
+        lastPhysicalPostureRef.current = 'landscape';
+      } else {
+        // إذا عاد الهاتف للوضع الرأسي من النظام بعد أن كان بالعرض، نحدث الحالة تلقائياً
+        if (lastPhysicalPostureRef.current === 'landscape') {
+          document.body.classList.remove('forced-landscape-mode');
+          setIsLandscapeMode(false);
+          lastPhysicalPostureRef.current = 'portrait';
+        } else {
+          setIsLandscapeMode(document.body.classList.contains('forced-landscape-mode'));
+        }
+      }
+    };
+
+    const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
+      if (e.gamma === null || e.beta === null) return;
+      const absGamma = Math.abs(e.gamma);
+      const absBeta = Math.abs(e.beta);
+
+      let detectedPosture: 'portrait' | 'landscape' | null = null;
+      if (absGamma > 65 && absBeta < 40) {
+        detectedPosture = 'landscape';
+      } else if (absBeta > 55 && absGamma < 30) {
+        detectedPosture = 'portrait';
+      }
+
+      if (!detectedPosture || detectedPosture === lastPhysicalPostureRef.current) return;
+      lastPhysicalPostureRef.current = detectedPosture;
+
+      const isNativePortrait = window.innerHeight > window.innerWidth;
+      if (detectedPosture === 'landscape') {
+        if (isNativePortrait) {
+          document.body.classList.add('forced-landscape-mode');
+        } else {
+          document.body.classList.remove('forced-landscape-mode');
+        }
+        setIsLandscapeMode(true);
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+      } else {
+        document.body.classList.remove('forced-landscape-mode');
+        setIsLandscapeMode(!isNativePortrait);
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+      }
+    };
+
+    window.addEventListener('resize', syncOrientationState);
+    window.addEventListener('orientationchange', syncOrientationState);
+    window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+    const screenOrient = (window.screen as Screen & { orientation?: ScreenOrientation })?.orientation;
+    screenOrient?.addEventListener?.('change', syncOrientationState);
+
+    return () => {
+      window.removeEventListener('resize', syncOrientationState);
+      window.removeEventListener('orientationchange', syncOrientationState);
+      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+      screenOrient?.removeEventListener?.('change', syncOrientationState);
+    };
+  }, []);
+
+  const handleToggleScreenOrientation = () => {
+    const currentlyForced = document.body.classList.contains('forced-landscape-mode');
+    const nativeLandscape = window.innerWidth > window.innerHeight;
+    const currentlyLandscape = currentlyForced || nativeLandscape;
+    const screenOrient = (window.screen as Screen & {
+      orientation?: ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void };
+    })?.orientation;
+
+    if (currentlyLandscape) {
+      // التبديل إلى الوضع الرأسي (Portrait)
+      document.body.classList.remove('forced-landscape-mode');
+      setIsLandscapeMode(false);
+      lastPhysicalPostureRef.current = 'portrait';
+      try {
+        screenOrient?.unlock?.();
+        screenOrient?.lock?.('portrait')?.catch(() => {});
+      } catch {}
+    } else {
+      // التبديل إلى الوضع الأفقي (Landscape)
+      if (window.innerHeight >= window.innerWidth) {
+        document.body.classList.add('forced-landscape-mode');
+      }
+      setIsLandscapeMode(true);
+      lastPhysicalPostureRef.current = 'landscape';
+      try {
+        screenOrient?.lock?.('landscape')?.catch(() => {});
+      } catch {}
+    }
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  };
+
   const handleSetAutoScreen = () => {
     document.body.classList.remove('forced-landscape-mode');
+    setIsLandscapeMode(window.innerWidth > window.innerHeight);
+    lastPhysicalPostureRef.current = null;
     setShowScreenModal(false);
+    try {
+      const screenOrient = (window.screen as Screen & {
+        orientation?: ScreenOrientation & { unlock?: () => void };
+      })?.orientation;
+      screenOrient?.unlock?.();
+    } catch {}
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
@@ -1852,6 +1967,8 @@ export default function App() {
     } else {
       document.body.classList.remove('forced-landscape-mode');
     }
+    setIsLandscapeMode(true);
+    lastPhysicalPostureRef.current = 'landscape';
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   };
 
@@ -1934,8 +2051,10 @@ export default function App() {
             players={players}
             roomCode={roomCode}
             soundEnabled={soundEnabled}
+            isLandscapeMode={isLandscapeMode}
             matchTargetScore={matchTargetScore}
             onToggleSound={toggleSound}
+            onToggleScreenOrientation={handleToggleScreenOrientation}
             onOpenProfile={() => setShowProfileModal(true)}
             onOpenRooms={() => setShowRoomsModal(true)}
             onOpenRules={() => setShowRulesModal(true)}

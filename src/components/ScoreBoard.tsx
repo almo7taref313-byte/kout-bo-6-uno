@@ -15,8 +15,10 @@ interface ScoreBoardProps {
   players: Player[];
   roomCode: string;
   soundEnabled: boolean;
+  isLandscapeMode?: boolean;
   matchTargetScore?: MatchTargetScore;
   onToggleSound: () => void;
+  onToggleScreenOrientation?: () => void;
   onOpenProfile: () => void;
   onOpenRooms: () => void;
   onOpenRules: () => void;
@@ -37,8 +39,10 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   players,
   roomCode,
   soundEnabled,
+  isLandscapeMode = false,
   matchTargetScore = 101,
   onToggleSound,
+  onToggleScreenOrientation,
   onOpenRooms,
   onOpenRules,
   onOpenScreenModal,
@@ -167,9 +171,38 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
           {renderScorePanel()}
         </div>
 
-        {/* Left Section (in RTL): Trump Badge + Sound + Exit */}
+        {/* Left Section (in RTL): Trump Badge + Orientation Toggle + Sound + Exit */}
         <div className="flex items-center gap-1 xs:gap-1.5 flex-shrink-0">
           {renderTrumpBadge()}
+
+          {/* Screen Orientation toggle button */}
+          <button
+            onClick={onToggleScreenOrientation || onOpenScreenModal}
+            className={`w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg flex items-center justify-center transition active:scale-95 shadow cursor-pointer border ${
+              isLandscapeMode
+                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/70'
+                : 'bg-[#2b303c] hover:bg-[#343a49] text-slate-200 border-slate-700/60'
+            }`}
+            title={isLandscapeMode ? 'تغيير الشاشة للوضع الرأسي' : 'تغيير الشاشة للوضع الأفقي'}
+            aria-label="تبديل وضعية الشاشة"
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                isLandscapeMode ? 'rotate-90 text-emerald-300' : 'text-slate-200'
+              }`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="6" y="3" width="12" height="18" rx="2.5" />
+              <path d="M10 18h4" />
+              <path d="M2.5 9.5a8.5 8.5 0 0 1 3-4.5" />
+              <path d="M21.5 14.5a8.5 8.5 0 0 1-3 4.5" />
+            </svg>
+          </button>
 
           {/* Sound toggle button */}
           <button

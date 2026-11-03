@@ -560,6 +560,10 @@ export function selectBotMove(
     return pid % 2 === bot.id % 2;
   };
 
+  const initialTrickWinnerId = !isLead ? evaluateTrickWinner(trick, trumpColor, highestBid) : -1;
+  const isTeamCurrentlyWinning = !isLead && isTeammate(initialTrickWinnerId);
+  const isLastPlayerInTrick = trick.length === 5;
+
   // قاعدة فورية ملزمة:
   // "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
   if (!isLead && trumpColor) {
@@ -593,6 +597,7 @@ export function selectBotMove(
   // TERMINOLOGY & CRITICAL RULE (مفردات معتمدة):
   // "الجيكر/الميكر يخيس = أن يبدأ اللاعب به اللعب (في بداية الأكلة فيفقد قوته)"
   // "لا يسمح للبوت أن يجعل الجيكر أو الميكر يخيس، ويُسمح ببقائه آخر كرت للأكلة الثامنة فقط إذا ضمن 100% ألا يبدأ به اللعب"
+  // "البوت لا يضرب بالميكر والأكلة لنا خصوصاً أنه اللاعب الأخير"
   // ============================================================================
   const wildCardsInHand = bot.hand.filter((c) => c.isJoker || c.isMaker);
   const nonWildCardsInHand = bot.hand.filter((c) => !c.isJoker && !c.isMaker);
@@ -606,8 +611,8 @@ export function selectBotMove(
     }
 
     // 1b. في حال الباون: لا يرمي البوت الميكر إلا بعد نزول الجيكر وخال الحكم، أو إذا كان آخر لاعب قبل مبتدئ اللعب ولا يوجد خال الحكم بالأكلة، أو عند الكرت السابع فما بعده
-    // وبما أن filterBotWildMoves لا يبقي الميكر في الباون إلا عند تحقق أحد هذه الشروط الثلاثة، يرميه البوت فوراً عند تحقق الشرط!
-    if (highestBid === 9) {
+    // وبشرط ألا تكون الأكلة محسومة لفريق البوت أصلاً
+    if (highestBid === 9 && !isTeamCurrentlyWinning) {
       const makerMove = legalWildMoves.find((c) => c.isMaker);
       if (
         makerMove &&
@@ -619,7 +624,8 @@ export function selectBotMove(
     }
 
     // 2. الميكر/الجيكر يلعب في أول دورة إذا كان أحدهما عند آخر لاعب في الطاولة قبل اللاعب البادئ في الدورة
-    if (playedTricks.length === 0 && trick.length === 5) {
+    // بشرط ألا تكون الأكلة حالياً لفريق البوت (لا يضرب بالميكر والأكلة لنا خصوصاً أنه اللاعب الأخير)
+    if (playedTricks.length === 0 && trick.length === 5 && !isTeamCurrentlyWinning) {
       const makerMove = legalWildMoves.find((c) => c.isMaker);
       if (
         makerMove &&
@@ -695,14 +701,16 @@ export function selectBotMove(
       }
 
       // If the bot holds Maker and the Joker hasn't fallen yet (and Maker can win Trick 7 now),
-      // cash Maker on Trick 7 so it doesn't risk getting burned by an unfallen Joker on Trick 8.
-      if (holdsMakerWithUnfallenJoker && canAnyWildWinCurrentTrick) {
+      // cash Maker on Trick 7 ONLY if the trick is NOT already won by our teammate!
+      if (holdsMakerWithUnfallenJoker && canAnyWildWinCurrentTrick && !isTeamCurrentlyWinning) {
         return pickWildCard();
       }
 
       // Otherwise, safeLosingNonWildMoves are 100% guaranteed to lose Trick 7 (another player will lead Trick 8).
       // Restrict legalMoves so no downstream rule can ever pick a winning normal card on Trick 7!
-      legalMoves = [...safeLosingNonWildMoves, ...legalWildMoves];
+      legalMoves = isTeamCurrentlyWinning
+        ? [...safeLosingNonWildMoves]
+        : [...safeLosingNonWildMoves, ...legalWildMoves];
     }
 
     // 3. Trick 6 Lookahead (e.g., 2 normal cards + 1 wild card):
@@ -728,19 +736,22 @@ export function selectBotMove(
         return hasLowExitForNextTrick;
       });
 
-      if (safeNonWildMovesForTrick6.length === 0 && canAnyWildWinCurrentTrick) {
+      if (safeNonWildMovesForTrick6.length === 0 && canAnyWildWinCurrentTrick && !isTeamCurrentlyWinning) {
         return pickWildCard();
       }
 
       if (safeNonWildMovesForTrick6.length > 0) {
-        legalMoves = [...safeNonWildMovesForTrick6, ...legalWildMoves];
+        legalMoves = isTeamCurrentlyWinning
+          ? [...safeNonWildMovesForTrick6]
+          : [...safeNonWildMovesForTrick6, ...legalWildMoves];
       }
     }
 
     // 4. Lead-lock prevention in late round (hand.length <= 5):
     // If all non-wild cards in the bot's hand are trumps or top honors ('1', 'draw2'),
     // taking the lead with a normal card could keep the bot leading every remaining trick until Trick 8!
-    if (bot.hand.length <= 5 && nonWildCardsInHand.length > 1) {
+    // Never trigger this to steal a teammate's winning trick!
+    if (bot.hand.length <= 5 && nonWildCardsInHand.length > 1 && !isTeamCurrentlyWinning) {
       const lowNonTrumpExitCards = nonWildCardsInHand.filter(
         (c) => (!trumpColor || c.color !== trumpColor) && c.rank !== '1' && c.rank !== 'draw2'
       );
@@ -748,6 +759,35 @@ export function selectBotMove(
         return pickWildCard();
       }
     }
+
+    // قاعدة حاسمة: البوت لا يضرب بالميكر والأكلة لنا (فريقه متقدم في الأكلة الحالية)، خصوصاً إذا كان اللاعب الأخير
+    if (isTeamCurrentlyWinning) {
+      const withoutMakerWhenTeamWinning = legalMoves.filter((c) => {
+        if (c.isMaker || c.rank === 'wild_color') return false;
+        if (isLastPlayerInTrick && (c.isJoker || c.rank === 'wild_draw4')) return false;
+        return true;
+      });
+      if (withoutMakerWhenTeamWinning.length > 0) {
+        legalMoves = withoutMakerWhenTeamWinning;
+        if (legalMoves.length === 1) return legalMoves[0];
+      }
+    }
+  }
+
+  // إذا كان البوت هو اللاعب الأخير في الأكلة (trick.length === 5) والأكلة محسومة لفريقه (isTeamCurrentlyWinning):
+  // لا يضرب بالميكر ولا يقطع على زميله، بل يرمي أصغر ورقة متاحة لا تسحب الأكلة من زميله إن أمكن
+  if (!isLead && isLastPlayerInTrick && isTeamCurrentlyWinning) {
+    const nonWildMoves = legalMoves.filter((c) => !c.isMaker && !c.isJoker);
+    const pool = nonWildMoves.length > 0 ? nonWildMoves : legalMoves;
+    const movesKeepingPartnerLead = pool.filter(
+      (c) =>
+        evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) !==
+        bot.id
+    );
+    if (movesKeepingPartnerLead.length > 0) {
+      return selectSmartDiscard(movesKeepingPartnerLead, trick, trumpColor);
+    }
+    return selectSmartDiscard(pool, trick, trumpColor);
   }
 
   // Check if the teammate buyer (الحاكم صاحبه) played a high card (خال=1, باش=draw2, ميم=skip, غلام=reverse, عشرة=0) in this trick
@@ -994,8 +1034,8 @@ export function selectBotMove(
           return myStrongSuitedTrumps[0];
         }
 
-        // If no suited trump higher than buyer's small trump, use Joker/Maker if bid >= 6
-        if (highestBid >= 6) {
+        // Only use Joker/Maker if an opponent actually over-trumped our buyer (never strike with Maker when the trick is still ours!)
+        if (highestBid >= 6 && opponentCurrentlyWinning) {
           const jokerMove = legalMoves.find((c) => c.isJoker);
           if (jokerMove) return jokerMove;
           const makerMove = legalMoves.find((c) => c.isMaker);
