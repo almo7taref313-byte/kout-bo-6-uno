@@ -2196,35 +2196,47 @@ export default function App() {
     setEditingSeatIndex(null);
   };
 
+  const isNearSquareViewport = () => {
+    if (typeof window === 'undefined') return false;
+    const minD = Math.min(window.innerWidth, window.innerHeight);
+    const maxD = Math.max(window.innerWidth, window.innerHeight);
+    return maxD > 0 && minD / maxD > 0.72;
+  };
+
   const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     if (document.body.classList.contains('forced-landscape-mode')) return true;
     if (document.body.classList.contains('forced-portrait-mode')) return false;
-    return window.innerWidth > window.innerHeight;
+    return window.innerWidth > window.innerHeight && !isNearSquareViewport();
   });
   const isLandscapeModeRef = useRef<boolean>(isLandscapeMode);
-  const lastPhysicalPostureRef = useRef<'portrait' | 'landscape' | null>(null);
-  const lastNativeLandscapeRef = useRef<boolean>(
-    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : false
-  );
-  const manualToggleCooldownRef = useRef<number>(0);
-  const hasManualToggleRef = useRef<boolean>(false);
-  const pendingPostureRef = useRef<{ posture: 'portrait' | 'landscape' | null; since: number }>({
-    posture: null,
-    since: 0,
-  });
-  const sensorPermRequestedRef = useRef<boolean>(false);
+  const manualScreenModeRef = useRef<'auto' | 'landscape' | 'portrait'>('auto');
 
-  const applyOrientationMode = useCallback((targetLandscape: boolean) => {
-    isLandscapeModeRef.current = targetLandscape;
-    setIsLandscapeMode(targetLandscape);
-    if (targetLandscape) {
+  const applyOrientationMode = useCallback((mode: 'auto' | 'landscape' | 'portrait') => {
+    manualScreenModeRef.current = mode;
+    const nearSquare = isNearSquareViewport();
+
+    if (mode === 'auto') {
+      document.body.classList.remove('forced-landscape-mode', 'forced-portrait-mode');
+      const nativeLand = window.innerWidth > window.innerHeight && !nearSquare;
+      isLandscapeModeRef.current = nativeLand;
+      setIsLandscapeMode(nativeLand);
+    } else if (mode === 'landscape') {
       document.body.classList.remove('forced-portrait-mode');
-      document.body.classList.add('forced-landscape-mode');
+      if (!nearSquare) {
+        document.body.classList.add('forced-landscape-mode');
+      } else {
+        document.body.classList.remove('forced-landscape-mode');
+      }
+      isLandscapeModeRef.current = true;
+      setIsLandscapeMode(true);
     } else {
       document.body.classList.remove('forced-landscape-mode');
       document.body.classList.add('forced-portrait-mode');
+      isLandscapeModeRef.current = false;
+      setIsLandscapeMode(false);
     }
+
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('kout-layout-refresh'));
     });
@@ -2236,169 +2248,54 @@ export default function App() {
     }, 280);
   }, []);
 
-  const requestMotionSensorPermissions = useCallback(() => {
-    if (sensorPermRequestedRef.current || typeof window === 'undefined') return;
-    sensorPermRequestedRef.current = true;
-    try {
-      const DME = (window as unknown as { DeviceMotionEvent?: { requestPermission?: () => Promise<string> } })
-        .DeviceMotionEvent;
-      if (DME && typeof DME.requestPermission === 'function') {
-        DME.requestPermission().catch(() => {});
-      }
-    } catch {}
-    try {
-      const DOE = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } })
-        .DeviceOrientationEvent;
-      if (DOE && typeof DOE.requestPermission === 'function') {
-        DOE.requestPermission().catch(() => {});
-      }
-    } catch {}
-  }, []);
-
   useEffect(() => {
-    // مزامنة الكلاس الأولي مع الحالة الابتدائية
-    applyOrientationMode(isLandscapeModeRef.current);
+    // البدء بالوضع الطبيعي التلقائي بدون أي تدوير قسري يقلب شاشة هواتف الفولد
+    applyOrientationMode('auto');
 
     const handleNativeViewportChange = () => {
-      const currentNativeLandscape = window.innerWidth > window.innerHeight;
-      if (currentNativeLandscape !== lastNativeLandscapeRef.current) {
-        lastNativeLandscapeRef.current = currentNativeLandscape;
-        lastPhysicalPostureRef.current = currentNativeLandscape ? 'landscape' : 'portrait';
-        if (Date.now() >= manualToggleCooldownRef.current) {
-          applyOrientationMode(currentNativeLandscape);
-        } else {
-          window.dispatchEvent(new Event('kout-layout-refresh'));
-        }
+      if (manualScreenModeRef.current === 'auto') {
+        applyOrientationMode('auto');
+      } else if (isNearSquareViewport()) {
+        // عند فتح شاشة الفولد الداخلية المربعية نلغي أي تدوير CSS قسري لتبقى الشاشة معتدلة دائماً
+        document.body.classList.remove('forced-landscape-mode');
+        window.dispatchEvent(new Event('kout-layout-refresh'));
+      } else {
+        window.dispatchEvent(new Event('kout-layout-refresh'));
       }
-    };
-
-    const processGravityVector = (gx: number, gy: number, gz: number) => {
-      const xyMag = Math.hypot(gx, gy);
-      const totalMag = Math.hypot(gx, gy, gz);
-      if (totalMag > 0.1 && xyMag / totalMag < 0.36) {
-        // الهاتف مسطح تماماً على الطاولة - نحافظ على الوضع الحالي
-        return;
-      }
-
-      const absX = Math.abs(gx);
-      const absY = Math.abs(gy);
-      let candidate: 'portrait' | 'landscape' | null = null;
-      if (absX > absY * 1.25) {
-        candidate = 'landscape';
-      } else if (absY > absX * 1.25) {
-        candidate = 'portrait';
-      }
-
-      if (!candidate) return;
-
-      const now = Date.now();
-      if (pendingPostureRef.current.posture !== candidate) {
-        pendingPostureRef.current = { posture: candidate, since: now };
-        return;
-      }
-      if (now - pendingPostureRef.current.since < 220) {
-        return;
-      }
-
-      if (now < manualToggleCooldownRef.current) {
-        lastPhysicalPostureRef.current = candidate;
-        return;
-      }
-
-      if (lastPhysicalPostureRef.current === null) {
-        lastPhysicalPostureRef.current = candidate;
-        if (!hasManualToggleRef.current) {
-          applyOrientationMode(candidate === 'landscape');
-        }
-        return;
-      }
-
-      if (candidate !== lastPhysicalPostureRef.current) {
-        lastPhysicalPostureRef.current = candidate;
-        applyOrientationMode(candidate === 'landscape');
-      }
-    };
-
-    const handleDeviceMotion = (e: DeviceMotionEvent) => {
-      const acc = e.accelerationIncludingGravity;
-      if (!acc || acc.x === null || acc.y === null) return;
-      processGravityVector(acc.x, acc.y, acc.z ?? 0);
-    };
-
-    const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
-      if (e.gamma === null || e.beta === null) return;
-      const betaRad = (e.beta * Math.PI) / 180;
-      const gammaRad = (e.gamma * Math.PI) / 180;
-      const gx = Math.cos(betaRad) * Math.sin(gammaRad);
-      const gy = Math.sin(betaRad);
-      const gz = Math.cos(betaRad) * Math.cos(gammaRad);
-      processGravityVector(gx, gy, gz);
-    };
-
-    const handleFirstUserGesture = () => {
-      requestMotionSensorPermissions();
     };
 
     window.addEventListener('resize', handleNativeViewportChange);
     window.addEventListener('orientationchange', handleNativeViewportChange);
-    window.addEventListener('devicemotion', handleDeviceMotion, { passive: true });
-    window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
-    window.addEventListener('touchend', handleFirstUserGesture, { passive: true, once: true });
-    window.addEventListener('click', handleFirstUserGesture, { passive: true, once: true });
 
     const screenOrient = (window.screen as Screen & { orientation?: ScreenOrientation })?.orientation;
     screenOrient?.addEventListener?.('change', handleNativeViewportChange);
 
-    const mediaQuery = window.matchMedia ? window.matchMedia('(orientation: landscape)') : null;
-    mediaQuery?.addEventListener?.('change', handleNativeViewportChange);
-
     return () => {
       window.removeEventListener('resize', handleNativeViewportChange);
       window.removeEventListener('orientationchange', handleNativeViewportChange);
-      window.removeEventListener('devicemotion', handleDeviceMotion);
-      window.removeEventListener('deviceorientation', handleDeviceOrientation);
-      window.removeEventListener('touchend', handleFirstUserGesture);
-      window.removeEventListener('click', handleFirstUserGesture);
       screenOrient?.removeEventListener?.('change', handleNativeViewportChange);
-      mediaQuery?.removeEventListener?.('change', handleNativeViewportChange);
     };
-  }, [applyOrientationMode, requestMotionSensorPermissions]);
+  }, [applyOrientationMode]);
 
   const handleToggleScreenOrientation = useCallback(() => {
-    requestMotionSensorPermissions();
     const nextLandscape = !isLandscapeModeRef.current;
-    hasManualToggleRef.current = true;
-    manualToggleCooldownRef.current = Date.now() + 1400;
-    applyOrientationMode(nextLandscape);
-  }, [applyOrientationMode, requestMotionSensorPermissions]);
+    applyOrientationMode(nextLandscape ? 'landscape' : 'portrait');
+  }, [applyOrientationMode]);
 
   const handleSetAutoScreen = useCallback(() => {
-    requestMotionSensorPermissions();
     setShowScreenModal(false);
-    hasManualToggleRef.current = false;
-    manualToggleCooldownRef.current = 0;
-    const targetLandscape =
-      lastPhysicalPostureRef.current !== null
-        ? lastPhysicalPostureRef.current === 'landscape'
-        : window.innerWidth > window.innerHeight;
-    applyOrientationMode(targetLandscape);
-  }, [applyOrientationMode, requestMotionSensorPermissions]);
+    applyOrientationMode('auto');
+  }, [applyOrientationMode]);
 
   const handleSetLandscapeScreen = useCallback(() => {
-    requestMotionSensorPermissions();
     setShowScreenModal(false);
-    hasManualToggleRef.current = true;
-    manualToggleCooldownRef.current = Date.now() + 1400;
-    applyOrientationMode(true);
-  }, [applyOrientationMode, requestMotionSensorPermissions]);
+    applyOrientationMode('landscape');
+  }, [applyOrientationMode]);
 
   const handleSetPortraitScreen = useCallback(() => {
-    requestMotionSensorPermissions();
     setShowScreenModal(false);
-    hasManualToggleRef.current = true;
-    manualToggleCooldownRef.current = Date.now() + 1400;
-    applyOrientationMode(false);
-  }, [applyOrientationMode, requestMotionSensorPermissions]);
+    applyOrientationMode('portrait');
+  }, [applyOrientationMode]);
 
   const handleToggleFullscreen = () => {
     setShowScreenModal(false);

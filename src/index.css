@@ -469,11 +469,11 @@
   box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5);
 }
 
-/* Forced landscape mode (عند قفل تدوير الهاتف وتفعيل الوضع الأفقي من داخل اللعبة أو دوران الحساس) */
+/* Forced landscape mode (عند قفل تدوير الهاتف العادي وتفعيل الوضع الأفقي يدوياً من داخل اللعبة - لا يدور شاشات الفولد المربعية) */
 body.forced-landscape-mode {
   overflow: hidden;
 }
-@media (orientation: portrait) {
+@media (orientation: portrait) and (max-aspect-ratio: 3/4) {
   body.forced-landscape-mode #gameMainWrapper {
     position: fixed !important;
     top: 50% !important;
@@ -539,25 +539,9 @@ body.forced-landscape-mode .seat-name-pill {
   margin-top: 1px !important;
 }
 
-/* Forced portrait mode (عندما تكون الشاشة بالعرض ويختار اللاعب الوضع الرأسي أو يدير الهاتف رأسياً) */
+/* Forced portrait mode (يحافظ على اتجاه الشاشة الطبيعي بدون تدوير عكسي -90deg يمنع انقلاب شاشة الفولد) */
 body.forced-portrait-mode {
   overflow: hidden;
-}
-@media (orientation: landscape) {
-  body.forced-portrait-mode #gameMainWrapper {
-    position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    width: 100vh !important;
-    width: 100dvh !important;
-    height: 100vw !important;
-    height: 100dvw !important;
-    max-width: none !important;
-    max-height: none !important;
-    transform: translate(-50%, -50%) rotate(-90deg) !important;
-    transform-origin: center center !important;
-    z-index: 100;
-  }
 }
 body.forced-portrait-mode .jawaker-table-felt {
   width: 96% !important;
