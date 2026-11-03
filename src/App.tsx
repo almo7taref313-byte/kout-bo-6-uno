@@ -1115,13 +1115,107 @@ export default function App() {
     if (!me) return;
 
     const isMeBuyer = bidWinner === currentHumanSeatIndex;
-    if (!isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)) {
-      return;
-    }
+    const legalCards = me.hand.filter((c) =>
+      isLegalMove(me.hand, c, currentTrick, highestBid, trumpColor, isMeBuyer)
+    );
+
+    // إذا كان بيد اللاعب كرت وحيد مسموح بلعبه، فإن لمس أي كرت في اليد يلعب ذلك الكرت الوحيد فوراً
+    const targetCard =
+      legalCards.length === 1
+        ? legalCards[0]
+        : isLegalMove(me.hand, card, currentTrick, highestBid, trumpColor, isMeBuyer)
+        ? card
+        : null;
+
+    if (!targetCard) return;
 
     setIsActionPending(true);
-    handlePlayCard(currentHumanSeatIndex, card);
+    handlePlayCard(currentHumanSeatIndex, targetCard);
   };
+
+  // لمس أي مكان في الطاولة أو منطقة اليد عندما يكون لدى اللاعب كرت وحيد قابل للعب
+  const handleTableSingleCardTap = () => {
+    if (phase !== 'PLAYING') return;
+    if (isActionPending || isTrickResolvingRef.current || collectingWinnerId !== null) return;
+    if (currentTurn !== currentHumanSeatIndex) return;
+    if (currentTrick.length >= 6 || currentTrickRef.current.length >= 6) return;
+    if (currentTrickRef.current.some((tp) => tp.playerId === currentHumanSeatIndex)) return;
+
+    if (highestBid === 9 && currentTrick.length > 0) {
+      const buyerTeam = bidWinner !== null ? players[bidWinner]?.team : 'A';
+      const hasOpponentJoker = currentTrick.some(
+        (tp) =>
+          (tp.card.isJoker || tp.card.rank === 'wild_draw4') &&
+          players[tp.playerId]?.team !== buyerTeam
+      );
+      if (hasOpponentJoker) return;
+    }
+
+    const me = players[currentHumanSeatIndex];
+    if (!me || me.hand.length === 0) return;
+
+    const isMeBuyer = bidWinner === currentHumanSeatIndex;
+    const legalCards = me.hand.filter((c) =>
+      isLegalMove(me.hand, c, currentTrick, highestBid, trumpColor, isMeBuyer)
+    );
+
+    if (legalCards.length === 1) {
+      setIsActionPending(true);
+      handlePlayCard(currentHumanSeatIndex, legalCards[0]);
+    }
+  };
+
+  // اللعب التلقائي الذكي إذا كان بيد اللاعب البشري كرت وحيد فقط مسموح بلعبه قانونياً
+  useEffect(() => {
+    if (phase !== 'PLAYING') return;
+    if (isActionPending || isTrickResolvingRef.current || collectingWinnerId !== null) return;
+    if (currentTurn !== currentHumanSeatIndex) return;
+    if (currentTrick.length >= 6 || currentTrickRef.current.length >= 6) return;
+    if (currentTrickRef.current.some((tp) => tp.playerId === currentHumanSeatIndex)) return;
+
+    if (highestBid === 9 && currentTrick.length > 0) {
+      const buyerTeam = bidWinner !== null ? players[bidWinner]?.team : 'A';
+      const hasOpponentJoker = currentTrick.some(
+        (tp) =>
+          (tp.card.isJoker || tp.card.rank === 'wild_draw4') &&
+          players[tp.playerId]?.team !== buyerTeam
+      );
+      if (hasOpponentJoker) return;
+    }
+
+    const me = players[currentHumanSeatIndex];
+    if (!me || !me.isHuman || me.hand.length === 0) return;
+
+    const isMeBuyer = bidWinner === currentHumanSeatIndex;
+    const legalCards = me.hand.filter((c) =>
+      isLegalMove(me.hand, c, currentTrick, highestBid, trumpColor, isMeBuyer)
+    );
+
+    if (legalCards.length !== 1) return;
+
+    const singleCard = legalCards[0];
+    const autoPlayTimer = scheduleGameTimeout(() => {
+      if (isTrickResolvingRef.current) return;
+      if (currentTrickRef.current.some((tp) => tp.playerId === currentHumanSeatIndex)) return;
+      setIsActionPending(true);
+      handlePlayCard(currentHumanSeatIndex, singleCard);
+    }, 850);
+
+    return () => clearTimeout(autoPlayTimer);
+  }, [
+    bidWinner,
+    collectingWinnerId,
+    currentHumanSeatIndex,
+    currentTrick,
+    currentTurn,
+    handlePlayCard,
+    highestBid,
+    isActionPending,
+    phase,
+    players,
+    scheduleGameTimeout,
+    trumpColor,
+  ]);
 
   // Bot card play automation
   useEffect(() => {
@@ -2409,6 +2503,7 @@ export default function App() {
             isBaoonPendingTrump={highestBid === 9 && trumpColor === null}
             isTimerDisabled={isAllHumanGame}
             isLandscapeMode={isLandscapeMode}
+            onTableTap={handleTableSingleCardTap}
           />
 
           <PlayerHand
@@ -2427,6 +2522,7 @@ export default function App() {
             dealerIdx={dealerIdx}
             isTimerDisabled={isAllHumanGame}
             isLandscapeMode={isLandscapeMode}
+            onTableTap={handleTableSingleCardTap}
           />
         </>
       )}

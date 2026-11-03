@@ -20,6 +20,7 @@ interface PlayerHandProps {
   dealerIdx?: number;
   isTimerDisabled?: boolean;
   isLandscapeMode?: boolean;
+  onTableTap?: () => void;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
@@ -38,6 +39,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   dealerIdx = 0,
   isTimerDisabled = false,
   isLandscapeMode,
+  onTableTap,
 }) => {
   const activePlayer: Player = player || {
     id: 0,
@@ -111,6 +113,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
+      onClick={() => onTableTap?.()}
       className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-3 xs:px-4 sm:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}

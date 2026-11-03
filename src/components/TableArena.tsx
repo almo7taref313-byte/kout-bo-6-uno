@@ -24,6 +24,7 @@ interface TableArenaProps {
   isBaoonPendingTrump?: boolean;
   isTimerDisabled?: boolean;
   isLandscapeMode?: boolean;
+  onTableTap?: () => void;
 }
 
 interface CardCoord {
@@ -116,6 +117,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   isBaoonPendingTrump,
   isTimerDisabled = false,
   isLandscapeMode,
+  onTableTap,
 }) => {
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
   const allSeatIndices = [0, 1, 2, 3, 4, 5];
@@ -237,7 +239,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
   }, [collectingWinnerId]);
 
   return (
-    <main className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-visible">
+    <main
+      onClick={() => onTableTap?.()}
+      className="arena-center-stage flex-1 min-h-0 min-w-0 flex items-center justify-center w-full px-2 py-1 relative overflow-visible"
+    >
       
       {/* 
         طاولة الكوت الفسيحة والمطورة لجميع الأجهزة (الموبايل، التابلت، والكمبيوتر):
