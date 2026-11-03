@@ -1199,7 +1199,7 @@ export default function App() {
       if (currentTrickRef.current.some((tp) => tp.playerId === currentHumanSeatIndex)) return;
       setIsActionPending(true);
       handlePlayCard(currentHumanSeatIndex, singleCard);
-    }, 850);
+    }, 1000);
 
     return () => clearTimeout(autoPlayTimer);
   }, [
