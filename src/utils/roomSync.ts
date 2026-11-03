@@ -54,6 +54,9 @@ export interface RoomSyncMessage {
   scores?: { a: number; b: number };
   targetScore?: 26 | 51 | 101;
   playerId?: number;
+  playerName?: string;
+  botName?: string;
+  botAvatarId?: string;
   val?: number;
   forced?: boolean;
   color?: SuitColor;
@@ -78,6 +81,8 @@ export interface RoomSyncMessage {
 export interface GlobalLobbyMessage {
   type: 'PRESENCE_PING' | 'PRESENCE_DISCOVER' | 'PRESENCE_LEAVE' | 'TABLE_INVITE' | 'INVITE_RESPONSE';
   senderId: string;
+  playerName?: string;
+  roomCode?: string;
   player?: OnlinePlayer;
   invite?: TableInvite;
   response?: {
@@ -105,6 +110,20 @@ const BROKER_AUTH = {
   password: 'Mousawi@313',
 };
 
+const getPersistentClientId = (): string => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      let id = localStorage.getItem('kout_persistent_device_id');
+      if (!id) {
+        id = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+        localStorage.setItem('kout_persistent_device_id', id);
+      }
+      return id;
+    }
+  } catch {}
+  return 'kout_' + Math.random().toString(36).substring(2, 9);
+};
+
 class RoomSyncManager {
   private client: MqttClient | null = null;
   private currentRoomCode: string | null = null;
@@ -121,12 +140,13 @@ class RoomSyncManager {
   private failCount: number = 0;
   private connStatusListeners: Set<(connected: boolean) => void> = new Set();
   public isConnected: boolean = false;
-  public myClientId: string = 'kout_' + Math.random().toString(36).substring(2, 9);
+  public myClientId: string = getPersistentClientId();
 
   // Global Presence & Direct Invites State
   private myProfile: OnlinePlayer | null = null;
   private onlinePlayersMap: Map<string, OnlinePlayer> = new Map();
   private onlinePlayersListeners: Set<(players: OnlinePlayer[]) => void> = new Set();
+  private playerLeaveListeners: Set<(clientId: string, playerName?: string, roomCode?: string) => void> = new Set();
   private inviteListeners: Set<(invite: TableInvite) => void> = new Set();
   private inviteResponseListeners: Set<
     (res: { roomCode: string; targetHostId: string; senderId: string; senderName: string; accepted: boolean }) => void
@@ -141,12 +161,54 @@ class RoomSyncManager {
     };
   }
 
+  public subscribePlayerLeave(
+    cb: (clientId: string, playerName?: string, roomCode?: string) => void
+  ): () => void {
+    this.playerLeaveListeners.add(cb);
+    return () => {
+      this.playerLeaveListeners.delete(cb);
+    };
+  }
+
+  private notifyPlayerLeave(clientId: string, playerName?: string, roomCode?: string) {
+    this.playerLeaveListeners.forEach((cb) => {
+      try {
+        cb(clientId, playerName, roomCode);
+      } catch {}
+    });
+  }
+
   private setConnection(val: boolean) {
     this.isConnected = val;
     this.connStatusListeners.forEach((cb) => {
       try {
         cb(val);
       } catch {}
+    });
+  }
+
+  private sendImmediateExitSignal() {
+    const activeId = this.myProfile?.clientId || this.myClientId;
+    const activeName = this.myProfile?.name || undefined;
+    const activeRoom = this.currentRoomCode || this.myProfile?.roomCode || undefined;
+
+    if (activeRoom) {
+      this.publish({
+        type: 'LEAVE_ROOM',
+        roomCode: activeRoom,
+        senderId: activeId,
+        playerName: activeName,
+        timestamp: Date.now(),
+      });
+    }
+
+    this.publishGlobal({
+      type: 'PRESENCE_LEAVE',
+      senderId: activeId,
+      playerName: activeName,
+      roomCode: activeRoom,
+      player: this.myProfile || undefined,
+      timestamp: Date.now(),
     });
   }
 
@@ -179,13 +241,10 @@ class RoomSyncManager {
         this.broadcastMyPresence();
       });
       window.addEventListener('beforeunload', () => {
-        if (this.myProfile) {
-          this.publishGlobal({
-            type: 'PRESENCE_LEAVE',
-            senderId: this.myProfile.clientId,
-            timestamp: Date.now(),
-          });
-        }
+        this.sendImmediateExitSignal();
+      });
+      window.addEventListener('pagehide', () => {
+        this.sendImmediateExitSignal();
       });
 
       window.addEventListener('storage', (evt) => {
@@ -208,11 +267,11 @@ class RoomSyncManager {
         }
       });
 
-      // دورة تحديث المتواجدين أونلاين وتنظيف غير النشطين كل 4 ثوانٍ
+      // دورة تحديث المتواجدين أونلاين وتنظيف غير النشطين كل 2.5 ثانية لسرعة الاستجابة الفورية
       this.presenceInterval = setInterval(() => {
         this.pruneStaleOnlinePlayers();
         this.broadcastMyPresence();
-      }, 4500);
+      }, 2500);
     }
   }
 
@@ -237,6 +296,8 @@ class RoomSyncManager {
     this.publishGlobal({
       type: 'PRESENCE_PING',
       senderId: this.myProfile.clientId,
+      playerName: this.myProfile.name,
+      roomCode: this.myProfile.roomCode,
       player: { ...this.myProfile },
       timestamp: Date.now(),
     });
@@ -318,7 +379,7 @@ class RoomSyncManager {
     const now = Date.now();
     const list: OnlinePlayer[] = [];
     this.onlinePlayersMap.forEach((p, id) => {
-      if (id !== myId && id !== this.myClientId && now - p.lastSeen < 18000) {
+      if (id !== myId && id !== this.myClientId && now - p.lastSeen < 9000) {
         list.push(p);
       }
     });
@@ -329,9 +390,10 @@ class RoomSyncManager {
     const now = Date.now();
     let changed = false;
     this.onlinePlayersMap.forEach((p, id) => {
-      if (now - p.lastSeen >= 18000) {
+      if (now - p.lastSeen >= 9000) {
         this.onlinePlayersMap.delete(id);
         changed = true;
+        this.notifyPlayerLeave(id, p.name, p.roomCode);
       }
     });
     if (changed) {
@@ -368,9 +430,15 @@ class RoomSyncManager {
         break;
       }
       case 'PRESENCE_LEAVE': {
-        if (msg.senderId && this.onlinePlayersMap.has(msg.senderId)) {
-          this.onlinePlayersMap.delete(msg.senderId);
-          this.notifyOnlinePlayersListeners();
+        if (msg.senderId) {
+          const existing = this.onlinePlayersMap.get(msg.senderId);
+          const leaverName = msg.playerName || msg.player?.name || existing?.name;
+          const leaverRoom = msg.roomCode || msg.player?.roomCode || existing?.roomCode;
+          if (this.onlinePlayersMap.has(msg.senderId)) {
+            this.onlinePlayersMap.delete(msg.senderId);
+            this.notifyOnlinePlayersListeners();
+          }
+          this.notifyPlayerLeave(msg.senderId, leaverName, leaverRoom);
         }
         break;
       }
@@ -503,13 +571,32 @@ class RoomSyncManager {
       }
 
       const activeBroker = this.hasFallenBack ? FALLBACK_BROKER : PRIMARY_BROKER;
+      const activeClientId = this.myProfile?.clientId || this.myClientId;
+      const willPayload = sealRoomMessage(
+        {
+          type: 'PRESENCE_LEAVE',
+          senderId: activeClientId,
+          playerName: this.myProfile?.name,
+          roomCode,
+          player: this.myProfile || undefined,
+          timestamp: Date.now(),
+        } as GlobalLobbyMessage,
+        GLOBAL_LOBBY_KEY
+      );
+
       const opts: mqtt.IClientOptions = {
-        clientId: this.myClientId,
+        clientId: `${activeClientId}_${Math.random().toString(36).substring(2, 6)}`,
         clean: true,
         connectTimeout: 8000,
         reconnectPeriod: 1500,
-        keepalive: 30,
+        keepalive: 10,
         rejectUnauthorized: false,
+        will: {
+          topic: GLOBAL_LOBBY_TOPIC,
+          payload: willPayload,
+          qos: 1,
+          retain: false,
+        },
       };
 
       if (BROKER_AUTH.username && !this.hasFallenBack) {
@@ -667,6 +754,15 @@ class RoomSyncManager {
         const val = it.next().value;
         if (val) this.seenMessageHashes.delete(val);
       }
+    }
+
+    if (msg.type === 'LEAVE_ROOM' && msg.senderId) {
+      const existing = this.onlinePlayersMap.get(msg.senderId);
+      if (this.onlinePlayersMap.has(msg.senderId)) {
+        this.onlinePlayersMap.delete(msg.senderId);
+        this.notifyOnlinePlayersListeners();
+      }
+      this.notifyPlayerLeave(msg.senderId, msg.playerName || existing?.name, msg.roomCode);
     }
 
     this.listeners.forEach((cb) => {

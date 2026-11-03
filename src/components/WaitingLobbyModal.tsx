@@ -261,7 +261,7 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-lg">🃏</span>
             <div className="text-right">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-xs xs:text-sm sm:text-base font-black text-white">
                   طاولة ({hostName}) الخاصة
                 </h3>
@@ -270,6 +270,9 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
                     isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
                   }`}
                 />
+                <span className="px-2 py-0.5 rounded-lg bg-slate-800 border border-indigo-500/40 text-[10px] font-black text-indigo-300 font-mono">
+                  اللاعبون بالطاولة: {seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '').length + waitingPlayers.length} / 6
+                </span>
               </div>
             </div>
           </div>

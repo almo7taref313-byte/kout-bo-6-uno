@@ -16,6 +16,7 @@ interface HostTableModalProps {
   hostName: string;
   hostAvatarId: string;
   hostCustomPhoto: string | null;
+  leaveAlert?: string | null;
   lastSeatReserved?: {
     seatIndex: number;
     name: string;
@@ -52,6 +53,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   hostName,
   hostAvatarId,
   hostCustomPhoto,
+  leaveAlert,
   onRegenerateCode,
   onSitInSeat,
   onAssignWaitingPlayerToSeat,
@@ -410,12 +412,12 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
           isLandscapeMode ? 'max-w-4xl p-2 sm:p-3 gap-1.5' : 'max-w-xl p-2.5 xs:p-3 sm:p-4 gap-2'
         }`}
       >
-        {/* 1. Compact Header Bar + Orientation Toggle */}
+        {/* 1. Compact Header Bar + Live Player Counter + Orientation Toggle */}
         <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <span className="text-lg sm:text-xl">👑</span>
             <div className="text-right">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-xs xs:text-sm sm:text-base font-black text-amber-400">
                   طاولة خاصة مع الأصدقاء
                 </h3>
@@ -425,6 +427,9 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                   }`}
                   title={isConnected ? 'متصل بالسيرفر' : 'جاري الاتصال'}
                 />
+                <span className="px-2 py-0.5 rounded-lg bg-slate-800 border border-amber-500/40 text-[10px] font-black text-amber-300 font-mono">
+                  اللاعبون بالطاولة: {filledSeats.length + waitingPlayers.length} / 6
+                </span>
               </div>
             </div>
           </div>
@@ -460,6 +465,14 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Instant Player Leave Alert Banner */}
+        {leaveAlert && (
+          <div className="bg-rose-950/90 border-2 border-rose-500/80 rounded-xl px-3 py-1.5 flex items-center justify-center gap-2 text-rose-200 text-xs font-black shadow-lg animate-pulse">
+            <span>🚪</span>
+            <span>{leaveAlert}</span>
+          </div>
+        )}
 
         {/* 2. Three Invite Methods Bar: 4-Digit Code + Copy + WhatsApp + Online Players */}
         <div

@@ -157,6 +157,8 @@ export default function App() {
   const [waitingPlayers, setWaitingPlayers] = useState<WaitingPlayer[]>([]);
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
   const [incomingInvite, setIncomingInvite] = useState<TableInvite | null>(null);
+  const [roomLeaveNotice, setRoomLeaveNotice] = useState<string | null>(null);
+  const roomLeaveNoticeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [lastSeatReserved, setLastSeatReserved] = useState<{
     seatIndex: number;
     name: string;
@@ -164,6 +166,17 @@ export default function App() {
     avatarId?: string;
     customPhoto?: string | null;
   } | null>(null);
+
+  const showRoomLeaveNotice = useCallback((text: string) => {
+    if (roomLeaveNoticeTimerRef.current) {
+      clearTimeout(roomLeaveNoticeTimerRef.current);
+    }
+    setRoomLeaveNotice(text);
+    roomLeaveNoticeTimerRef.current = setTimeout(() => {
+      setRoomLeaveNotice(null);
+      roomLeaveNoticeTimerRef.current = null;
+    }, 4200);
+  }, []);
 
   // Settings
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -329,6 +342,15 @@ export default function App() {
   }, []);
 
   const exitToLobbyCleanly = useCallback(() => {
+    if (isMultiplayerActive && roomCode) {
+      roomSync.publish({
+        type: 'LEAVE_ROOM',
+        roomCode,
+        senderId: deviceId,
+        playerName: userName,
+        timestamp: Date.now(),
+      });
+    }
     phaseRef.current = 'LOBBY';
     isTrickResolvingRef.current = false;
     currentTrickRef.current = [];
@@ -341,8 +363,12 @@ export default function App() {
     setCollectingWinnerId(null);
     setCurrentTrick([]);
     setShowExitConfirm(false);
+    setIsMultiplayerActive(false);
+    setIsRoomHost(true);
+    setWaitingPlayers([]);
+    setCurrentHumanSeatIndex(0);
     setPhase('LOBBY');
-  }, [clearAllGameTimeouts, stopTimer]);
+  }, [clearAllGameTimeouts, deviceId, isMultiplayerActive, roomCode, stopTimer, userName]);
 
   const startTimer = useCallback(() => {
     stopTimer();
@@ -507,13 +533,14 @@ export default function App() {
       type: 'LEAVE_ROOM',
       roomCode,
       senderId: deviceId,
+      playerName: userName,
       timestamp: Date.now(),
     });
     setIsMultiplayerActive(false);
     setIsRoomHost(true);
     setWaitingPlayers([]);
     setCurrentHumanSeatIndex(0);
-  }, [deviceId, roomCode]);
+  }, [deviceId, roomCode, userName]);
 
   // Choose Trump Color
   const chooseTrumpColor = useCallback(
@@ -684,6 +711,25 @@ export default function App() {
 
     return () => clearTimeout(botTimer);
   }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, roundNumber, scheduleGameTimeout, submitBid]);
+
+  // Bot trump selection automation (handles bots & human players replaced by bots mid-turn)
+  useEffect(() => {
+    if (phase !== 'CHOOSE_TRUMP') return;
+    if (trumpColor !== null) return;
+
+    const targetId = bidWinner !== null ? bidWinner : currentTurn;
+    const selector = players[targetId];
+    if (!selector || selector.isHuman) return;
+    if (isMultiplayerActive && !isRoomHost) return;
+
+    const trumpTimer = scheduleGameTimeout(() => {
+      if (phaseRef.current !== 'CHOOSE_TRUMP') return;
+      const bestCol = selectBotBestTrump(selector.hand);
+      chooseTrumpColor(bestCol, targetId);
+    }, 850);
+
+    return () => clearTimeout(trumpTimer);
+  }, [bidWinner, chooseTrumpColor, currentTurn, isMultiplayerActive, isRoomHost, phase, players, scheduleGameTimeout, trumpColor]);
 
   // Next Round / Next Match Handler
   const handleNextRoundOrMatch = useCallback((scoreA?: number, scoreB?: number) => {
@@ -1484,48 +1530,184 @@ export default function App() {
         break;
       }
 
-      case 'LEAVE_ROOM': {
-        if (isRoomHost) {
-          const leavingId = msg.senderId;
-          const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
-          setWaitingPlayers(updatedWaiting);
+      case 'BOT_TAKEOVER': {
+        const targetIdx = msg.seatIndex;
+        if (targetIdx !== undefined && targetIdx >= 0 && targetIdx < 6 && targetIdx !== currentHumanSeatIndex) {
+          const botProf = getBotProfileForSeat(targetIdx, userAvatar, userCustomPhoto);
+          const resolvedBotName = msg.botName || botProf.name;
+          const resolvedBotAvatar = msg.botAvatarId || botProf.avatarId;
+          const departedName = msg.playerName || players[targetIdx]?.name || seats[targetIdx]?.name || 'لاعب';
 
-          let seatChanged = false;
-          const updatedSeats = seats.map((s) => {
-            if (s.clientId === leavingId && s.id !== 0) {
-              seatChanged = true;
-              return {
-                ...s,
-                name: '',
-                customPhoto: null,
-                isHuman: false,
-                isVacant: true,
-                clientId: undefined,
-              };
-            }
-            return s;
-          });
+          setSeats((prev) =>
+            prev.map((s, idx) =>
+              idx === targetIdx
+                ? {
+                    ...s,
+                    name: resolvedBotName,
+                    avatarId: resolvedBotAvatar,
+                    customPhoto: null,
+                    isHuman: false,
+                    isVacant: false,
+                    clientId: undefined,
+                  }
+                : s
+            )
+          );
 
-          if (seatChanged) {
-            setSeats(updatedSeats);
-          }
+          setPlayers((prev) =>
+            prev.map((p, idx) =>
+              idx === targetIdx
+                ? {
+                    ...p,
+                    name: resolvedBotName,
+                    avatarId: resolvedBotAvatar,
+                    customPhoto: null,
+                    isHuman: false,
+                    isVacant: false,
+                  }
+                : p
+            )
+          );
 
-          const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-          roomSync.publish({
-            type: 'ROOM_STATE',
-            roomCode,
-            senderId: deviceId,
-            seats: updatedSeats,
-            waitingPlayers: updatedWaiting,
-            vacantCount: vCount,
-            timestamp: Date.now(),
-          });
+          soundEngine.playPassTone();
+          showRoomLeaveNotice(`🤖 غادر "${departedName}" — حلّ البوت (${resolvedBotName}) مكانه لإكمال اللعب فوراً`);
+          startTimer();
         }
+        break;
+      }
+
+      case 'LEAVE_ROOM': {
+        handleRemotePlayerExitRef.current(msg.senderId, msg.playerName);
         break;
       }
 
       default:
         break;
+    }
+  };
+
+  const handleRemotePlayerExitRef = useRef<(leavingId: string, leavingNameHint?: string) => void>(() => {});
+  handleRemotePlayerExitRef.current = (leavingId: string, leavingNameHint?: string) => {
+    if (!leavingId || leavingId === deviceId || leavingId === roomSync.myClientId) return;
+
+    const waitingMatch = waitingPlayers.find((w) => w.clientId === leavingId);
+    const seatedIdx = seats.findIndex((s) => !s.isVacant && s.clientId === leavingId);
+
+    if (!waitingMatch && seatedIdx === -1) return;
+
+    const departedName =
+      leavingNameHint ||
+      (seatedIdx !== -1 ? seats[seatedIdx]?.name : undefined) ||
+      waitingMatch?.name ||
+      'لاعب';
+
+    // الحالة الأولى: اللاعب خرج أثناء التواجد في صفحة الطاولة الخاصة / صالة الانتظار (قبل بدء اللعب)
+    if (phaseRef.current === 'LOBBY') {
+      const updatedWaiting = waitingPlayers.filter((w) => w.clientId !== leavingId);
+      setWaitingPlayers(updatedWaiting);
+
+      let seatChanged = false;
+      const updatedSeats = seats.map((s, idx) => {
+        if (s.clientId === leavingId && idx !== currentHumanSeatIndex) {
+          seatChanged = true;
+          return {
+            ...s,
+            name: '',
+            customPhoto: null,
+            isHuman: false,
+            isVacant: true,
+            clientId: undefined,
+          };
+        }
+        return s;
+      });
+
+      if (seatChanged) {
+        setSeats(updatedSeats);
+      }
+
+      soundEngine.playPassTone();
+      showRoomLeaveNotice(`غادر اللاعب "${departedName}" الطاولة — تناقص العدد فوراً`);
+
+      if (isRoomHost || seats[0]?.clientId === deviceId) {
+        const vCount = updatedSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+        roomSync.publish({
+          type: 'ROOM_STATE',
+          roomCode,
+          senderId: deviceId,
+          seats: updatedSeats,
+          waitingPlayers: updatedWaiting,
+          vacantCount: vCount,
+          timestamp: Date.now(),
+        });
+      }
+      return;
+    }
+
+    // الحالة الثانية: اللاعب غادر أثناء سير اللعب الفعلي في الطاولة الخاصة -> يحل محله بوت فوراً دون انقطاع أو تأخير
+    if (seatedIdx !== -1 && seatedIdx !== currentHumanSeatIndex) {
+      const alreadyBot = !seats[seatedIdx]?.isHuman && !players[seatedIdx]?.isHuman;
+      if (alreadyBot) return;
+
+      const botProf = getBotProfileForSeat(seatedIdx, userAvatar, userCustomPhoto);
+      const updatedSeats = seats.map((s, idx) =>
+        idx === seatedIdx
+          ? {
+              ...s,
+              name: botProf.name,
+              avatarId: botProf.avatarId,
+              customPhoto: null,
+              isHuman: false,
+              isVacant: false,
+              clientId: undefined,
+            }
+          : s
+      );
+
+      setSeats(updatedSeats);
+      setPlayers((prev) =>
+        prev.map((p, idx) =>
+          idx === seatedIdx
+            ? {
+                ...p,
+                name: botProf.name,
+                avatarId: botProf.avatarId,
+                customPhoto: null,
+                isHuman: false,
+                isVacant: false,
+              }
+            : p
+        )
+      );
+
+      // إذا كان المغادر هو المضيف الأصلي، ينتقل التحكم بالبوتات تلقائياً لأول لاعب بشري متبقٍ في الطاولة لضمان عدم توقف اللعب
+      let amINowHost = isRoomHost;
+      if (!isRoomHost) {
+        const firstRemainingHumanIdx = updatedSeats.findIndex((s) => s.isHuman && !s.isVacant);
+        if (firstRemainingHumanIdx === currentHumanSeatIndex) {
+          amINowHost = true;
+          setIsRoomHost(true);
+        }
+      }
+
+      soundEngine.playPassTone();
+      showRoomLeaveNotice(`🤖 غادر "${departedName}" — حلّ البوت (${botProf.name}) مكانه لإكمال اللعب فوراً`);
+
+      if (amINowHost) {
+        roomSync.publish({
+          type: 'BOT_TAKEOVER',
+          roomCode,
+          senderId: deviceId,
+          seatIndex: seatedIdx,
+          playerName: departedName,
+          botName: botProf.name,
+          botAvatarId: botProf.avatarId,
+          seats: updatedSeats,
+          timestamp: Date.now(),
+        });
+      }
+
+      startTimer();
     }
   };
 
@@ -1541,7 +1723,7 @@ export default function App() {
     };
   }, [roomCode]);
 
-  // تحديث تواجد اللاعب أونلاين والاستماع لقائمة المتواجدين والدعوات المباشرة
+  // تحديث تواجد اللاعب أونلاين والاستماع لقائمة المتواجدين والدعوات المباشرة ومغادرة اللاعبين اللحظية
   useEffect(() => {
     const status: 'lobby' | 'private_table' | 'playing' =
       phase !== 'LOBBY'
@@ -1556,13 +1738,17 @@ export default function App() {
       avatarId: userAvatar,
       customPhoto: userCustomPhoto,
       status,
-      roomCode: showHostModal || (isMultiplayerActive && !isRoomHost) ? roomCode : undefined,
+      roomCode: showHostModal || isMultiplayerActive ? roomCode : undefined,
     });
   }, [deviceId, userName, userAvatar, userCustomPhoto, phase, showHostModal, isMultiplayerActive, isRoomHost, roomCode]);
 
   useEffect(() => {
     const unsubOnline = roomSync.subscribeOnlinePlayers((list) => {
       setOnlinePlayers(list);
+    });
+
+    const unsubLeave = roomSync.subscribePlayerLeave((leavingClientId, leavingPlayerName) => {
+      handleRemotePlayerExitRef.current(leavingClientId, leavingPlayerName);
     });
 
     const unsubInvites = roomSync.subscribeInvites((invite) => {
@@ -1577,6 +1763,7 @@ export default function App() {
 
     return () => {
       unsubOnline();
+      unsubLeave();
       unsubInvites();
     };
   }, [isMultiplayerActive, isRoomHost, roomCode, showHostModal]);
@@ -2423,6 +2610,15 @@ export default function App() {
         </div>
       )}
 
+      {/* In-Game / Lobby Player Exit & Bot Replacement Toast Banner */}
+      {roomLeaveNotice && !showHostModal && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[115] w-[92%] max-w-md pointer-events-none select-none">
+          <div className="bg-slate-900/95 border-2 border-amber-400/90 rounded-2xl px-3.5 py-2 shadow-2xl flex items-center justify-center gap-2 text-amber-200 text-xs sm:text-sm font-black text-center">
+            <span>{roomLeaveNotice}</span>
+          </div>
+        </div>
+      )}
+
       {/* Host Friends & Custom Table Modal */}
       {showHostModal && (
         <HostTableModal
@@ -2437,6 +2633,7 @@ export default function App() {
           hostName={userName}
           hostAvatarId={userAvatar}
           hostCustomPhoto={userCustomPhoto}
+          leaveAlert={roomLeaveNotice}
           lastSeatReserved={lastSeatReserved}
           isMatchOngoing={phase !== 'LOBBY'}
           onToggleScreenOrientation={handleToggleScreenOrientation}
