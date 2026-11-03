@@ -48,6 +48,27 @@ export interface WaitingPlayer {
   joinedAt?: number;
 }
 
+export interface OnlinePlayer {
+  clientId: string;
+  name: string;
+  avatarId: string;
+  customPhoto: string | null;
+  status: 'lobby' | 'private_table' | 'playing';
+  roomCode?: string;
+  lastSeen: number;
+}
+
+export interface TableInvite {
+  id: string;
+  roomCode: string;
+  hostClientId: string;
+  hostName: string;
+  hostAvatarId: string;
+  hostCustomPhoto: string | null;
+  targetClientId: string;
+  timestamp: number;
+}
+
 export interface Player extends SeatConfig {
   hand: Card[];
 }
@@ -75,3 +96,4 @@ export interface CalloutMessage {
   emoji: string;
   timestamp: number;
 }
+

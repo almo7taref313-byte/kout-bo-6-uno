@@ -177,7 +177,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
         c && (c.isJoker || c.rank === 'wild_draw4' || c.label === '+4' || c.roleTitle === 'الجيكر')
       );
       const isMakerCard = Boolean(
-        c && (c.isMaker || c.rank === 'wild' || c.roleTitle === 'الميكر')
+        c && (c.isMaker || c.rank === 'wild_color' || c.roleTitle === 'الميكر')
       );
       if (isJokerCard) {
         const key = `${play.playerId}-${c.id}`;

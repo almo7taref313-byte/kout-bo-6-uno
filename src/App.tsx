@@ -4,9 +4,11 @@ import {
   CalloutMessage,
   Card,
   GamePhase,
+  OnlinePlayer,
   Player,
   SeatConfig,
   SuitColor,
+  TableInvite,
   TrickPlay,
   WaitingPlayer,
 } from './types';
@@ -49,7 +51,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { MatchOverModal } from './components/MatchOverModal';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
-import { getBotNameForAvatar } from './utils/avatars';
+import { AvatarView, getBotNameForAvatar } from './utils/avatars';
 
 const getOrCreateDeviceId = (): string => {
   try {
@@ -153,6 +155,8 @@ export default function App() {
     return Boolean(r && r.length === 4);
   });
   const [waitingPlayers, setWaitingPlayers] = useState<WaitingPlayer[]>([]);
+  const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
+  const [incomingInvite, setIncomingInvite] = useState<TableInvite | null>(null);
   const [lastSeatReserved, setLastSeatReserved] = useState<{
     seatIndex: number;
     name: string;
@@ -906,7 +910,7 @@ export default function App() {
       if (card.isJoker || card.rank === 'wild_draw4') {
         soundEngine.playCardThrow();
         soundEngine.playJokerVoice();
-      } else if (card.isMaker || card.rank === 'wild') {
+      } else if (card.isMaker || card.rank === 'wild_color') {
         soundEngine.playCardThrow();
         soundEngine.playMakerVoice();
       } else {
@@ -1182,45 +1186,149 @@ export default function App() {
 
           if (!isSeated) {
             let joinerName = msg.player?.name?.trim() || 'لاعب جديد';
-            
             if (joinerName === userName) {
-              joinerName = `لاعب (هاتف)`;
+              joinerName = `${joinerName} (ضيف)`;
             }
+            const joinerAvatar = msg.player?.avatarId || 'kuwaiti_shemagh_red';
+            const joinerPhoto = msg.player?.customPhoto || null;
 
-            const newPlayer: WaitingPlayer = {
-              clientId: joinerId,
-              name: joinerName,
-              avatarId: msg.player?.avatarId || 'kuwaiti_shemagh_red',
-              customPhoto: msg.player?.customPhoto || null,
-              joinedAt: Date.now(),
-            };
+            // إذا كان هناك مقعد شاغر على الطاولة، يتم تسكين الصديق المنضم مباشرة في أول مقعد شاغر لراحته (مع قدرته على تغيير مقعده وفريقه بضغطة زر)
+            const firstVacantIdx = seats.findIndex(
+              (s, i) => i !== currentHumanSeatIndex && (s.isVacant || !s.name || s.name.trim() === '')
+            );
 
-            setWaitingPlayers((prev) => {
-              const idx = prev.findIndex((w) => w.clientId === joinerId);
-              let nextList: WaitingPlayer[];
-              if (idx !== -1) {
-                nextList = [...prev];
-                nextList[idx] = newPlayer;
-              } else {
-                nextList = [...prev, newPlayer];
-                soundEngine.playCardSlide();
-              }
+            if (firstVacantIdx !== -1 && phase === 'LOBBY') {
+              const nextSeats = [...seats];
+              nextSeats[firstVacantIdx] = {
+                id: firstVacantIdx,
+                name: joinerName,
+                team: firstVacantIdx % 2 === 0 ? 'A' : 'B',
+                avatarId: joinerAvatar,
+                customPhoto: joinerPhoto,
+                isHuman: true,
+                isVacant: false,
+                clientId: joinerId,
+              };
+              const nextWaiting = waitingPlayers.filter((w) => w.clientId !== joinerId);
+              setSeats(nextSeats);
+              setWaitingPlayers(nextWaiting);
+              soundEngine.playBidTone(false);
 
-              const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
-              
+              const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
               roomSync.publish({
                 type: 'ROOM_STATE',
                 roomCode,
                 senderId: deviceId,
-                seats,
-                waitingPlayers: nextList,
+                seats: nextSeats,
+                waitingPlayers: nextWaiting,
                 vacantCount: vCount,
                 timestamp: Date.now(),
               });
+            } else {
+              const newPlayer: WaitingPlayer = {
+                clientId: joinerId,
+                name: joinerName,
+                avatarId: joinerAvatar,
+                customPhoto: joinerPhoto,
+                joinedAt: Date.now(),
+              };
 
-              return nextList;
-            });
+              setWaitingPlayers((prev) => {
+                const idx = prev.findIndex((w) => w.clientId === joinerId);
+                let nextList: WaitingPlayer[];
+                if (idx !== -1) {
+                  nextList = [...prev];
+                  nextList[idx] = newPlayer;
+                } else {
+                  nextList = [...prev, newPlayer];
+                  soundEngine.playBidTone(false);
+                }
+
+                const vCount = seats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+
+                roomSync.publish({
+                  type: 'ROOM_STATE',
+                  roomCode,
+                  senderId: deviceId,
+                  seats,
+                  waitingPlayers: nextList,
+                  vacantCount: vCount,
+                  timestamp: Date.now(),
+                });
+
+                return nextList;
+              });
+            }
           }
+        }
+        break;
+      }
+
+      case 'CLAIM_SEAT': {
+        const amIHost = isRoomHost || seats[0]?.clientId === deviceId;
+        if (amIHost && phase === 'LOBBY' && msg.seatIndex !== undefined) {
+          const targetIdx = msg.seatIndex;
+          const joinerId = msg.player?.clientId || msg.senderId;
+          if (!joinerId || targetIdx < 0 || targetIdx > 5 || targetIdx === currentHumanSeatIndex) break;
+
+          const targetSeat = seats[targetIdx];
+          const isTargetAvailable =
+            !targetSeat ||
+            targetSeat.isVacant ||
+            !targetSeat.name ||
+            targetSeat.name.trim() === '' ||
+            !targetSeat.isHuman;
+
+          if (!isTargetAvailable) break;
+
+          let joinerName = msg.player?.name?.trim() || 'لاعب';
+          if (joinerName === userName) {
+            joinerName = `${joinerName} (ضيف)`;
+          }
+          const joinerAvatar = msg.player?.avatarId || 'kuwaiti_shemagh_red';
+          const joinerPhoto = msg.player?.customPhoto || null;
+
+          const nextSeats = seats.map((s, idx) => {
+            if (idx === targetIdx) {
+              return {
+                id: idx,
+                name: joinerName,
+                team: (idx % 2 === 0 ? 'A' : 'B') as 'A' | 'B',
+                avatarId: joinerAvatar,
+                customPhoto: joinerPhoto,
+                isHuman: true,
+                isVacant: false,
+                clientId: joinerId,
+              };
+            }
+            if (s.clientId === joinerId && idx !== currentHumanSeatIndex) {
+              return {
+                ...s,
+                name: '',
+                customPhoto: null,
+                isHuman: false,
+                isVacant: true,
+                clientId: undefined,
+              };
+            }
+            return s;
+          });
+
+          const nextWaiting = waitingPlayers.filter((w) => w.clientId !== joinerId);
+          setSeats(nextSeats);
+          setWaitingPlayers(nextWaiting);
+          soundEngine.playCardSlide();
+
+          const vCount = nextSeats.filter((s) => s.isVacant || !s.name || s.name.trim() === '').length;
+          roomSync.publish({
+            type: 'ROOM_STATE',
+            roomCode,
+            senderId: deviceId,
+            seats: nextSeats,
+            waitingPlayers: nextWaiting,
+            vacantCount: vCount,
+            timestamp: Date.now(),
+          });
         }
         break;
       }
@@ -1272,10 +1380,11 @@ export default function App() {
         setShowRoomsModal(false);
         setIsMultiplayerActive(true);
         soundEngine.init();
+        soundEngine.playBidTone(true);
         soundEngine.playCardSlide();
 
         let activeSeats = msg.seats || seats;
-        let myAssignedIdx = currentHumanSeatIndex;
+        let myAssignedIdx = currentHumanSeatIndex >= 0 ? currentHumanSeatIndex : 0;
 
         if (msg.seats) {
           const foundIdx = msg.seats.findIndex(
@@ -1283,8 +1392,8 @@ export default function App() {
           );
           if (foundIdx !== -1) {
             myAssignedIdx = foundIdx;
-            setCurrentHumanSeatIndex(foundIdx);
           }
+          setCurrentHumanSeatIndex(myAssignedIdx);
           activeSeats = msg.seats.map((s, i) =>
             i === myAssignedIdx ? { ...s, isHuman: true, isVacant: false } : s
           );
@@ -1431,6 +1540,46 @@ export default function App() {
       unsubscribe();
     };
   }, [roomCode]);
+
+  // تحديث تواجد اللاعب أونلاين والاستماع لقائمة المتواجدين والدعوات المباشرة
+  useEffect(() => {
+    const status: 'lobby' | 'private_table' | 'playing' =
+      phase !== 'LOBBY'
+        ? 'playing'
+        : showHostModal || (isMultiplayerActive && !isRoomHost)
+        ? 'private_table'
+        : 'lobby';
+
+    roomSync.updateMyPresence({
+      clientId: deviceId,
+      name: userName,
+      avatarId: userAvatar,
+      customPhoto: userCustomPhoto,
+      status,
+      roomCode: showHostModal || (isMultiplayerActive && !isRoomHost) ? roomCode : undefined,
+    });
+  }, [deviceId, userName, userAvatar, userCustomPhoto, phase, showHostModal, isMultiplayerActive, isRoomHost, roomCode]);
+
+  useEffect(() => {
+    const unsubOnline = roomSync.subscribeOnlinePlayers((list) => {
+      setOnlinePlayers(list);
+    });
+
+    const unsubInvites = roomSync.subscribeInvites((invite) => {
+      // إذا كان اللاعب أصلاً داخل نفس الطاولة المدعو إليها لا نظهر إشعاراً مكرراً
+      if (isMultiplayerActive && roomCode === invite.roomCode && (showHostModal || !isRoomHost)) {
+        return;
+      }
+      soundEngine.init();
+      soundEngine.playBidTone(false);
+      setIncomingInvite(invite);
+    });
+
+    return () => {
+      unsubOnline();
+      unsubInvites();
+    };
+  }, [isMultiplayerActive, isRoomHost, roomCode, showHostModal]);
 
   // Profile Save (permanently persisted and synced across seats & active players)
   const handleSaveProfileName = (newName: string) => {
@@ -2216,6 +2365,64 @@ export default function App() {
         />
       )}
 
+      {/* Incoming Private Table Invite Notification Banner */}
+      {incomingInvite && (
+        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-[120] w-[94%] max-w-md pointer-events-auto select-none">
+          <div className="bg-slate-900/98 border-2 border-amber-400 rounded-2xl p-2.5 xs:p-3 shadow-2xl flex items-center justify-between gap-2.5 ring-4 ring-amber-500/20">
+            <div className="flex items-center gap-2.5 text-right min-w-0">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 bg-slate-950 shrink-0">
+                <AvatarView
+                  avatarId={incomingInvite.hostAvatarId}
+                  customPhoto={incomingInvite.hostCustomPhoto}
+                />
+              </div>
+              <div className="min-w-0 leading-tight">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs">🔔</span>
+                  <span className="text-xs xs:text-sm font-black text-amber-300 truncate block">
+                    {incomingInvite.hostName}
+                  </span>
+                </div>
+                <span className="text-[10.5px] font-bold text-slate-200 block mt-0.5">
+                  يدعوك لطاولته الخاصة <strong className="text-amber-400 font-mono">#{incomingInvite.roomCode}</strong>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const inv = incomingInvite;
+                  setIncomingInvite(null);
+                  soundEngine.playCardSlide();
+                  roomSync.sendInviteResponse(inv.roomCode, inv.hostClientId, userName, true);
+                  if (phase !== 'LOBBY') {
+                    exitToLobbyCleanly();
+                  }
+                  handleJoinRoomWaiting(inv.roomCode);
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition active:scale-95 cursor-pointer shadow-lg"
+              >
+                دخول ✅
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const inv = incomingInvite;
+                  setIncomingInvite(null);
+                  soundEngine.playPassTone();
+                  roomSync.sendInviteResponse(inv.roomCode, inv.hostClientId, userName, false);
+                }}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer border border-slate-700"
+              >
+                لاحقاً ❌
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Host Friends & Custom Table Modal */}
       {showHostModal && (
         <HostTableModal
@@ -2224,8 +2431,15 @@ export default function App() {
           currentHumanSeatIndex={currentHumanSeatIndex}
           isHost={isRoomHost}
           waitingPlayers={waitingPlayers}
+          onlinePlayers={onlinePlayers}
+          isLandscapeMode={isLandscapeMode}
+          hostClientId={deviceId}
+          hostName={userName}
+          hostAvatarId={userAvatar}
+          hostCustomPhoto={userCustomPhoto}
           lastSeatReserved={lastSeatReserved}
           isMatchOngoing={phase !== 'LOBBY'}
+          onToggleScreenOrientation={handleToggleScreenOrientation}
           onRegenerateCode={() => {
             const nextCode = String(Math.floor(1000 + Math.random() * 9000));
             setRoomCode(nextCode);
@@ -2261,12 +2475,30 @@ export default function App() {
           onVacateAllSeats={handleVacateAllSeats}
           onEditSeat={(idx) => setEditingSeatIndex(idx)}
           onStartGame={() => {
+            // 1. تسكين أي لاعبين متبقين في قائمة الانتظار في المقاعد الشاغرة أولاً
+            const queue = [...waitingPlayers];
             const finalFilledSeats = seats.map((seat, idx) => {
-              if (seat.isVacant || !seat.name || seat.name.trim() === '') {
+              if (idx === currentHumanSeatIndex) return seat;
+              const isVac = seat.isVacant || !seat.name || seat.name.trim() === '';
+              if (isVac && queue.length > 0) {
+                const nextGuest = queue.shift()!;
+                return {
+                  id: idx,
+                  name: nextGuest.name,
+                  team: (idx % 2 === 0 ? 'A' : 'B') as 'A' | 'B',
+                  avatarId: nextGuest.avatarId || 'kuwaiti_shemagh_red',
+                  customPhoto: nextGuest.customPhoto || null,
+                  isHuman: true,
+                  isVacant: false,
+                  clientId: nextGuest.clientId,
+                };
+              }
+              if (isVac) {
+                const botProf = getBotProfileForSeat(idx, userAvatar, userCustomPhoto);
                 return {
                   ...seat,
-                  name: DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
-                  avatarId: DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
+                  name: botProf.name || DEFAULT_BOT_PROFILES[idx]?.name || `بوت ${idx + 1}`,
+                  avatarId: botProf.avatarId || DEFAULT_BOT_PROFILES[idx]?.avatarId || 'kuwaiti_shemagh_red',
                   customPhoto: null,
                   isHuman: false,
                   isVacant: false,
@@ -2275,6 +2507,7 @@ export default function App() {
               return seat;
             });
             setSeats(finalFilledSeats);
+            setWaitingPlayers(queue);
             setShowHostModal(false);
             soundEngine.init();
             soundEngine.playCardSlide();
@@ -2316,16 +2549,19 @@ export default function App() {
         />
       )}
 
-      {/* Waiting Lobby for players who joined via 4-digit code */}
+      {/* Waiting Lobby for players who joined via 4-digit code, WhatsApp link, or in-game invite */}
       {isMultiplayerActive && !isRoomHost && phase === 'LOBBY' && (
         <WaitingLobbyModal
           roomCode={roomCode}
           seats={seats}
           waitingPlayers={waitingPlayers}
+          onlinePlayers={onlinePlayers}
+          isLandscapeMode={isLandscapeMode}
           myClientId={deviceId}
           myName={userName}
           myAvatarId={userAvatar}
           myCustomPhoto={userCustomPhoto}
+          onToggleScreenOrientation={handleToggleScreenOrientation}
           onLeaveRoom={handleLeaveRoom}
         />
       )}
