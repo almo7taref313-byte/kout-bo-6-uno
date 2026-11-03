@@ -512,10 +512,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   
                   {isBuyer && (
                     <div
+                      dir="ltr"
                       className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none transition-all duration-300`}
                     >
                       <div
-                        className={`min-w-[44px] h-[28px] sm:min-w-[52px] sm:h-[33px] px-2.5 rounded-full flex items-center justify-center gap-0.5 tabular-nums ${
+                        className={`w-[44px] h-[28px] sm:w-[52px] sm:h-[33px] p-0 rounded-full grid place-items-center tabular-nums ${
                           buyerTrumpInfo
                             ? 'border-2 border-white/95'
                             : 'border-2 border-amber-400/95'
@@ -538,7 +539,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         }
                       >
                         <span
-                          className={`font-black text-[17px] sm:text-[20px] leading-none ${
+                          style={{
+                            fontFamily: "'Fredoka', Arial, Helvetica, sans-serif",
+                            lineHeight: 1,
+                            textBoxTrim: 'trim-both',
+                            textBoxEdge: 'cap alphabetic',
+                          } as React.CSSProperties}
+                          className={`block font-black text-[17px] sm:text-[20px] text-center m-0 p-0 ${
                             buyerTrumpInfo && trumpColor === 'yellow'
                               ? 'drop-shadow-[0_1px_0px_rgba(255,255,255,0.65)]'
                               : 'drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.9)]'
@@ -546,20 +553,28 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         >
                           {highestBid}
                         </span>
-                        {isForcedBid && (
-                          <span className="text-[11px] sm:text-[13px] leading-none">⚡</span>
-                        )}
                       </div>
                     </div>
                   )}
 
                   {isDealer && (
-                    <span
-                      className="absolute -bottom-1 -right-1.5 z-40 w-4 h-4 xs:w-4.5 xs:h-4.5 rounded-full bg-slate-950/90 border border-amber-400/80 flex items-center justify-center text-amber-300 font-black text-[10px] xs:text-[11px] leading-none select-none shadow-md"
+                    <div
+                      dir="ltr"
+                      className="absolute -bottom-1 -right-1.5 z-40 w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] p-0 rounded-full bg-slate-950/95 border border-amber-400/90 grid place-items-center text-amber-300 select-none shadow-md"
                       title="الموزع (Dealer)"
                     >
-                      D
-                    </span>
+                      <span
+                        style={{
+                          fontFamily: "'Fredoka', Arial, Helvetica, sans-serif",
+                          lineHeight: 1,
+                          textBoxTrim: 'trim-both',
+                          textBoxEdge: 'cap alphabetic',
+                        } as React.CSSProperties}
+                        className="block font-black text-[10.5px] sm:text-[11.5px] text-center m-0 p-0"
+                      >
+                        D
+                      </span>
+                    </div>
                   )}
 
                   <svg
