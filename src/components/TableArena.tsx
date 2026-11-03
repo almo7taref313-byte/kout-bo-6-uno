@@ -23,6 +23,7 @@ interface TableArenaProps {
   dealerIdx?: number;
   isBaoonPendingTrump?: boolean;
   isTimerDisabled?: boolean;
+  isLandscapeMode?: boolean;
 }
 
 interface CardCoord {
@@ -114,6 +115,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   dealerIdx = 0,
   isBaoonPendingTrump,
   isTimerDisabled = false,
+  isLandscapeMode,
 }) => {
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
   const allSeatIndices = [0, 1, 2, 3, 4, 5];
@@ -132,7 +134,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
     const el = tableFeltRef.current;
     if (!el) return;
     const updateDimensions = () => {
-      // استخدام offsetWidth / offsetHeight بدلاً من getBoundingClientRect لأن التدوير 90 درجة في الوضع الأفقي الإجباري يعكس الطول والعرض في getBoundingClientRect
+      // استخدام offsetWidth / offsetHeight بدلاً من getBoundingClientRect لأن التدوير 90 درجة يعكس الطول والعرض في getBoundingClientRect
       const localW = el.offsetWidth || el.clientWidth;
       const localH = el.offsetHeight || el.clientHeight;
       if (localW > 0 && localH > 0) {
@@ -140,17 +142,23 @@ export const TableArena: React.FC<TableArenaProps> = ({
       }
     };
     updateDimensions();
+    const t1 = setTimeout(updateDimensions, 60);
+    const t2 = setTimeout(updateDimensions, 280);
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(updateDimensions);
       ro.observe(el);
     }
     window.addEventListener('resize', updateDimensions);
+    window.addEventListener('kout-layout-refresh', updateDimensions);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       if (ro) ro.disconnect();
       window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('kout-layout-refresh', updateDimensions);
     };
-  }, []);
+  }, [isLandscapeMode]);
 
   const dynamicCardLayout = React.useMemo(
     () => getResponsiveTableCardLayout(tableSize.w, tableSize.h),
@@ -204,11 +212,18 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
           const screenDX = avatarCenterX - tableCenterX;
           const screenDY = avatarCenterY - tableCenterY;
-          const isRotated90 = typeof document !== 'undefined' && document.body.classList.contains('forced-landscape-mode');
+          const isRotated90 =
+            typeof document !== 'undefined' &&
+            document.body.classList.contains('forced-landscape-mode') &&
+            window.innerHeight >= window.innerWidth;
+          const isRotatedMinus90 =
+            typeof document !== 'undefined' &&
+            document.body.classList.contains('forced-portrait-mode') &&
+            window.innerWidth > window.innerHeight;
 
           setCollectOffset({
-            x: Math.round(isRotated90 ? screenDY : screenDX),
-            y: Math.round(isRotated90 ? -screenDX : screenDY),
+            x: Math.round(isRotated90 ? screenDY : isRotatedMinus90 ? -screenDY : screenDX),
+            y: Math.round(isRotated90 ? -screenDX : isRotatedMinus90 ? screenDX : screenDY),
           });
         }
       };
@@ -297,9 +312,16 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   const avatarRect = avatarEl.getBoundingClientRect();
                   const screenDX = (avatarRect.left + avatarRect.width / 2) - (tableRect.left + tableRect.width / 2);
                   const screenDY = (avatarRect.top + avatarRect.height / 2) - (tableRect.top + tableRect.height / 2);
-                  const isRotated90 = typeof document !== 'undefined' && document.body.classList.contains('forced-landscape-mode');
-                  measuredX = Math.round(isRotated90 ? screenDY : screenDX);
-                  measuredY = Math.round(isRotated90 ? -screenDX : screenDY);
+                  const isRotated90 =
+                    typeof document !== 'undefined' &&
+                    document.body.classList.contains('forced-landscape-mode') &&
+                    window.innerHeight >= window.innerWidth;
+                  const isRotatedMinus90 =
+                    typeof document !== 'undefined' &&
+                    document.body.classList.contains('forced-portrait-mode') &&
+                    window.innerWidth > window.innerHeight;
+                  measuredX = Math.round(isRotated90 ? screenDY : isRotatedMinus90 ? -screenDY : screenDX);
+                  measuredY = Math.round(isRotated90 ? -screenDX : isRotatedMinus90 ? screenDX : screenDY);
                 }
               }
 

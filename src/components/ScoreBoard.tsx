@@ -177,23 +177,31 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
 
           {/* Screen Orientation toggle button */}
           <button
-            onClick={onToggleScreenOrientation || onOpenScreenModal}
-            className={`w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg flex items-center justify-center transition active:scale-95 shadow cursor-pointer border ${
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onToggleScreenOrientation) {
+                onToggleScreenOrientation();
+              } else {
+                onOpenScreenModal();
+              }
+            }}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition active:scale-90 shadow cursor-pointer border touch-manipulation ${
               isLandscapeMode
-                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/70'
-                : 'bg-[#2b303c] hover:bg-[#343a49] text-slate-200 border-slate-700/60'
+                ? 'bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border-emerald-400/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                : 'bg-[#2b303c] hover:bg-[#343a49] text-amber-300 border-slate-600/80'
             }`}
             title={isLandscapeMode ? 'تغيير الشاشة للوضع الرأسي' : 'تغيير الشاشة للوضع الأفقي'}
             aria-label="تبديل وضعية الشاشة"
           >
             <svg
-              className={`w-3.5 h-3.5 transition-transform duration-300 ${
-                isLandscapeMode ? 'rotate-90 text-emerald-300' : 'text-slate-200'
+              className={`w-4 h-4 transition-transform duration-300 ${
+                isLandscapeMode ? 'rotate-90 text-emerald-300' : 'text-amber-300'
               }`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.1"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
@@ -206,8 +214,9 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
 
           {/* Sound toggle button */}
           <button
+            type="button"
             onClick={onToggleSound}
-            className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs transition active:scale-95 shadow cursor-pointer border border-slate-700/60"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center text-slate-200 text-xs transition active:scale-90 shadow cursor-pointer border border-slate-700/60 touch-manipulation"
             title="الصوت"
           >
             {soundEnabled ? '🔊' : '🔇'}
@@ -215,8 +224,9 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
 
           {/* Exit game button */}
           <button
+            type="button"
             onClick={onExitGame}
-            className="w-6.5 h-6.5 xs:w-7 xs:h-7 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-400/70 hover:border-amber-300 flex items-center justify-center transition active:scale-90 shadow-md cursor-pointer group"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-400/70 hover:border-amber-300 flex items-center justify-center transition active:scale-90 shadow-md cursor-pointer group touch-manipulation"
             title="خروج من اللعبة"
           >
             <YellowDoorIcon className="w-3.5 h-3.5 group-hover:scale-105 transition" />

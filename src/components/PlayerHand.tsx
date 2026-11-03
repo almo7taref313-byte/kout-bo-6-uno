@@ -19,6 +19,7 @@ interface PlayerHandProps {
   onSendPhrase?: (phrase: string, emoji?: string) => void;
   dealerIdx?: number;
   isTimerDisabled?: boolean;
+  isLandscapeMode?: boolean;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
@@ -36,6 +37,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   onSendPhrase: _onSendPhrase,
   dealerIdx = 0,
   isTimerDisabled = false,
+  isLandscapeMode,
 }) => {
   const activePlayer: Player = player || {
     id: 0,
@@ -65,10 +67,16 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       const isForcedLandscape =
         typeof document !== 'undefined' &&
         document.body.classList.contains('forced-landscape-mode');
-      const effectiveWidth = isForcedLandscape
+      const isForcedPortrait =
+        typeof document !== 'undefined' &&
+        document.body.classList.contains('forced-portrait-mode');
+      const isLandscape =
+        isLandscapeMode !== undefined
+          ? isLandscapeMode
+          : isForcedLandscape || (!isForcedPortrait && window.innerWidth > window.innerHeight);
+      const effectiveWidth = isLandscape
         ? Math.max(window.innerWidth, window.innerHeight)
-        : window.innerWidth;
-      const isLandscape = isForcedLandscape || window.innerWidth > window.innerHeight;
+        : Math.min(window.innerWidth, window.innerHeight);
       const count = Math.max(1, sortedHand.length);
 
       if (isLandscape || effectiveWidth >= 520) {
@@ -94,8 +102,12 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
     updateSpacing();
     window.addEventListener('resize', updateSpacing);
-    return () => window.removeEventListener('resize', updateSpacing);
-  }, [sortedHand.length]);
+    window.addEventListener('kout-layout-refresh', updateSpacing);
+    return () => {
+      window.removeEventListener('resize', updateSpacing);
+      window.removeEventListener('kout-layout-refresh', updateSpacing);
+    };
+  }, [sortedHand.length, isLandscapeMode]);
 
   return (
     <footer

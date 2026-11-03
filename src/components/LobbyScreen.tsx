@@ -10,6 +10,7 @@ interface LobbyScreenProps {
   avatarId: string;
   customPhoto: string | null;
   soundEnabled: boolean;
+  isLandscapeMode?: boolean;
   targetScore: MatchTargetScore;
   onSelectTargetScore: (score: MatchTargetScore) => void;
   onFastPlay: (score?: MatchTargetScore) => void;
@@ -17,6 +18,7 @@ interface LobbyScreenProps {
   onJoinRoomCode: (code: string) => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
+  onToggleScreenOrientation?: () => void;
   onOpenInstallModal: () => void;
   onExitApp: () => void;
 }
@@ -38,6 +40,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   avatarId,
   customPhoto,
   soundEnabled: _soundEnabled,
+  isLandscapeMode = false,
   targetScore,
   onSelectTargetScore,
   onFastPlay,
@@ -45,6 +48,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   onJoinRoomCode,
   onOpenProfile,
   onOpenSettings,
+  onToggleScreenOrientation,
   onOpenInstallModal,
   onExitApp,
 }) => {
@@ -63,12 +67,13 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 lobby-bg flex flex-col justify-between items-center p-3 xs:p-4 sm:p-6 overflow-y-auto max-h-[100dvh] safe-top safe-bottom select-none">
+    <div className="fixed inset-0 z-50 lobby-bg flex flex-col justify-between items-center p-3 xs:p-4 sm:p-6 overflow-y-auto h-full max-h-full safe-top safe-bottom select-none">
       
-      {/* Top Header: الملف الشخصي وعلامة الترس */}
+      {/* Top Header: الملف الشخصي وزر تدوير الشاشة وعلامة الترس */}
       <header className="w-full max-w-sm sm:max-w-md flex items-center justify-between bg-slate-900/80 backdrop-blur-md border border-slate-800/90 rounded-2xl px-3 py-2 shadow-xl">
         {/* الملف الشخصي */}
         <button
+          type="button"
           onClick={onOpenProfile}
           className="flex items-center gap-2.5 px-1 py-0.5 rounded-xl hover:bg-slate-800/50 active:scale-95 transition cursor-pointer text-right group"
           title="الملف الشخصي"
@@ -86,14 +91,48 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
           </div>
         </button>
 
-        {/* علامة الترس */}
-        <button
-          onClick={onOpenSettings}
-          className="w-10 h-10 flex items-center justify-center bg-slate-800/90 hover:bg-slate-700/90 rounded-xl border border-slate-700/80 text-amber-400 hover:text-amber-300 text-xl transition active:scale-90 shadow-md cursor-pointer"
-          title="الإعدادات"
-        >
-          ⚙️
-        </button>
+        {/* أزرار تدوير الشاشة والإعدادات */}
+        <div className="flex items-center gap-2">
+          {onToggleScreenOrientation && (
+            <button
+              type="button"
+              onClick={onToggleScreenOrientation}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl border transition active:scale-90 shadow-md cursor-pointer touch-manipulation ${
+                isLandscapeMode
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/80 text-emerald-300'
+                  : 'bg-slate-800/90 hover:bg-slate-700/90 border-slate-700/80 text-amber-400 hover:text-amber-300'
+              }`}
+              title={isLandscapeMode ? 'تغيير الشاشة للوضع الرأسي' : 'تغيير الشاشة للوضع الأفقي'}
+              aria-label="تبديل وضعية الشاشة"
+            >
+              <svg
+                className={`w-5 h-5 transition-transform duration-300 ${
+                  isLandscapeMode ? 'rotate-90 text-emerald-300' : 'text-amber-400'
+                }`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="6" y="3" width="12" height="18" rx="2.5" />
+                <path d="M10 18h4" />
+                <path d="M2.5 9.5a8.5 8.5 0 0 1 3-4.5" />
+                <path d="M21.5 14.5a8.5 8.5 0 0 1-3 4.5" />
+              </svg>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="w-10 h-10 flex items-center justify-center bg-slate-800/90 hover:bg-slate-700/90 rounded-xl border border-slate-700/80 text-amber-400 hover:text-amber-300 text-xl transition active:scale-90 shadow-md cursor-pointer touch-manipulation"
+            title="الإعدادات"
+          >
+            ⚙️
+          </button>
+        </div>
       </header>
 
       {/* Center Hero: ورقة أونو خضراء رقم 1 مع العنوان المميز المريح للعين */}
