@@ -1321,6 +1321,7 @@ export default function App() {
 
       case 'PLAYER_BID': {
         if (msg.playerId !== undefined && msg.val !== undefined) {
+          if (phase !== 'BIDDING' || msg.playerId !== currentTurn) break;
           submitBid(msg.playerId, msg.val, msg.forced ?? false, true);
         }
         break;
@@ -1328,6 +1329,8 @@ export default function App() {
 
       case 'TRUMP_CHOSEN': {
         if (msg.color) {
+          if (phase !== 'CHOOSE_TRUMP') break;
+          if (msg.playerId !== undefined && bidWinner !== null && msg.playerId !== bidWinner) break;
           chooseTrumpColor(msg.color, msg.playerId, true);
         }
         break;
@@ -1335,7 +1338,19 @@ export default function App() {
 
       case 'CARD_PLAYED': {
         if (msg.playerId !== undefined && msg.card) {
-          handlePlayCard(msg.playerId, msg.card, true);
+          if (phase !== 'PLAYING' || msg.playerId !== currentTurn) break;
+          const remotePlayer = players[msg.playerId];
+          if (remotePlayer && remotePlayer.hand.length > 0) {
+            const actualCard = remotePlayer.hand.find((c) => c.id === msg.card!.id);
+            if (!actualCard) break;
+            const isRemoteBuyer = bidWinner === msg.playerId;
+            if (!isLegalMove(remotePlayer.hand, actualCard, currentTrick, highestBid, trumpColor, isRemoteBuyer)) {
+              break;
+            }
+            handlePlayCard(msg.playerId, actualCard, true);
+          } else {
+            handlePlayCard(msg.playerId, msg.card, true);
+          }
         }
         break;
       }

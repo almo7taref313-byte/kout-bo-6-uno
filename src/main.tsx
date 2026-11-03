@@ -1,6 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initClientSecurityShield } from './utils/securityShield';
+
+// تفعيل درع حماية الواجهة والمتصفح
+initClientSecurityShield();
 
 // Register lightweight Network-First Service Worker and clear any old caches immediately
 if (typeof window !== 'undefined') {
@@ -22,3 +26,4 @@ if (typeof window !== 'undefined') {
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
+

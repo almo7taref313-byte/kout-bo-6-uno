@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production';
   return {
     plugins: [
       react(),
@@ -14,7 +15,15 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    esbuild: isProd
+      ? {
+          drop: ['console', 'debugger'],
+          legalComments: 'none',
+        }
+      : undefined,
     build: {
+      sourcemap: false,
+      minify: 'esbuild',
       // إجبار المتصفحات على سحب الملفات الجديدة فوراً وتجاوز الكاش
       rollupOptions: {
         output: {
@@ -32,3 +41,4 @@ export default defineConfig(() => {
     },
   };
 });
+

@@ -1,5 +1,6 @@
 import mqtt, { MqttClient } from 'mqtt';
 import { BidRecord, Card, Player, SeatConfig, SuitColor, TrickPlay, WaitingPlayer } from '../types';
+import { sealRoomMessage, unsealRoomMessage } from './securityShield';
 
 export interface RoomSyncMessage {
   type:
@@ -125,7 +126,7 @@ class RoomSyncManager {
         if (evt.key && this.currentRoomCode && evt.key.startsWith(`kout_room_event_${this.currentRoomCode}`)) {
           try {
             if (evt.newValue) {
-              const data: RoomSyncMessage = JSON.parse(evt.newValue);
+              const data = unsealRoomMessage<RoomSyncMessage>(evt.newValue, this.currentRoomCode);
               if (data && data.senderId !== this.myClientId) {
                 this.notifyListeners(data);
               }
@@ -253,17 +254,17 @@ class RoomSyncManager {
               rawStr = payload.toString();
             }
 
-            const data: RoomSyncMessage = JSON.parse(rawStr);
+            const data = unsealRoomMessage<RoomSyncMessage>(rawStr, roomCode);
             if (data && data.senderId !== this.myClientId) {
               this.notifyListeners(data);
             }
-          } catch (err) {
-            console.error('[RoomSync] Payload parse error:', err);
+          } catch {
+            // تجاهل أي حزمة تالفة أو غير موقعة
           }
         }
       });
 
-      const handleError = (err?: any) => {
+      const handleError = () => {
         this.isConnecting = false;
         this.setConnection(false);
         this.failCount++;
@@ -306,7 +307,9 @@ class RoomSyncManager {
     } catch {}
 
     try {
-      localStorage.setItem(`kout_room_event_${targetRoom}`, JSON.stringify(fullMsg));
+      if (targetRoom) {
+        localStorage.setItem(`kout_room_event_${targetRoom}`, sealRoomMessage(fullMsg, targetRoom));
+      }
     } catch {}
 
     this.outboundQueue.push(fullMsg);
@@ -330,8 +333,9 @@ class RoomSyncManager {
       }
       const topic = `kout_bo6/room_${targetRoom}`;
       try {
-        // الإرسال بـ QoS 1 لضمان استلام الهواتف للأمر بدون فقدان
-        this.client.publish(topic, JSON.stringify(msg), { qos: 1 });
+        // تشفير وتوقيع الرسالة وإرسالها بـ QoS 1 لضمان الأمان والوصول الفوري
+        const sealedPayload = sealRoomMessage(msg, targetRoom);
+        this.client.publish(topic, sealedPayload, { qos: 1 });
         this.outboundQueue.shift();
       } catch {
         break;
