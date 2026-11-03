@@ -62,7 +62,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <footer
-      className={`relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-2 sm:pt-2.5 pb-2 sm:pb-3 px-2 xs:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
+      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-2 xs:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}
     >
@@ -71,7 +71,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         <div
           dir="ltr"
           style={{ direction: 'ltr' }}
-          className="w-full flex flex-row items-end justify-center min-h-[82px] xs:min-h-[88px] sm:min-h-[118px] md:min-h-[132px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-3 sm:pt-4 pb-1 no-scrollbar"
+          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[78px] xs:min-h-[84px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
         >
           {sortedHand.map((card, idx) => {
             const isLegal = isMyTurn

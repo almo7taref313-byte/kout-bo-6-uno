@@ -71,28 +71,55 @@
 }
 
 /* ==========================================================================
-   التحكم الحاسم في الوضع الأفقي للموبايل (Landscape Phones) والأجهزة اللوحية والمكتبية
-   يمسح الفراغ الأسود ويمدد الطاولة لتصبح فسيحة وأنيقة وتتسع لكافة الكروت
+   التحكم الحاسم في الوضع الأفقي للموبايل (Landscape Phones) والوضع الأفقي الإجباري
+   يمسح الفراغ الأسود حول كروت اليد ويمدد الطاولة لتصبح فسيحة وتتسع لكافة الكروت بدون تداخل
    ========================================================================== */
 @media (orientation: landscape) and (max-height: 500px) {
-  /* تمديد مسرح اللعب ليأخذ عرض الشاشة بالكامل على الهواتف بالوضع الأفقي */
+  .scoreboard-inner {
+    min-height: 34px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+
   .arena-center-stage {
-    padding: 2px 12px !important;
+    padding: 3px 10px !important;
     width: 100% !important;
     max-width: 100vw !important;
   }
 
   .jawaker-table-felt {
-    width: 88vw !important;
+    width: 90vw !important;
     max-width: 840px !important;
-    height: 95% !important;
-    max-height: 380px !important;
-    border-radius: 60px !important;
+    height: 96% !important;
+    max-height: 400px !important;
+    border-radius: 54px !important;
   }
 
-  footer.safe-bottom {
+  .player-hand-footer {
     padding-top: 2px !important;
-    padding-bottom: 4px !important;
+    padding-bottom: 3px !important;
+  }
+
+  .player-hand-row {
+    min-height: 68px !important;
+    padding-top: 3px !important;
+    padding-bottom: 1px !important;
+  }
+
+  .seat-avatar-ring {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .seat-avatar-inner {
+    width: 31px !important;
+    height: 31px !important;
+  }
+
+  .seat-name-pill {
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+    margin-top: 1px !important;
   }
 }
 
@@ -442,7 +469,7 @@
   box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5);
 }
 
-/* Forced landscape mode */
+/* Forced landscape mode (عند قفل تدوير الهاتف وتفعيل الوضع الأفقي من داخل اللعبة) */
 body.forced-landscape-mode {
   overflow: hidden;
 }
@@ -455,6 +482,55 @@ body.forced-landscape-mode #gameMainWrapper {
   transform: translate(-50%, -50%) rotate(90deg) !important;
   transform-origin: center center !important;
   z-index: 100;
+}
+body.forced-landscape-mode .scoreboard-inner {
+  min-height: 34px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+body.forced-landscape-mode .arena-center-stage {
+  padding: 3px 10px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+body.forced-landscape-mode .jawaker-table-felt {
+  width: 90dvh !important;
+  max-width: 840px !important;
+  height: 96% !important;
+  max-height: 400px !important;
+  border-radius: 54px !important;
+}
+body.forced-landscape-mode .player-hand-footer {
+  padding-top: 2px !important;
+  padding-bottom: 3px !important;
+}
+body.forced-landscape-mode .player-hand-row {
+  min-height: 68px !important;
+  padding-top: 3px !important;
+  padding-bottom: 1px !important;
+}
+body.forced-landscape-mode .uno-card-hand {
+  width: 44px !important;
+  height: 66px !important;
+  border-radius: 6px !important;
+  padding: 2px !important;
+}
+body.forced-landscape-mode .uno-card-table {
+  border-radius: 6px !important;
+  padding: 2px !important;
+}
+body.forced-landscape-mode .seat-avatar-ring {
+  width: 36px !important;
+  height: 36px !important;
+}
+body.forced-landscape-mode .seat-avatar-inner {
+  width: 31px !important;
+  height: 31px !important;
+}
+body.forced-landscape-mode .seat-name-pill {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  margin-top: 1px !important;
 }
 
 

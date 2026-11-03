@@ -39,19 +39,19 @@ interface TableGridLayout {
 
 // حساب حجم الكرت وإحداثيات الشبكة (3×2) رياضياً من أبعاد الطاولة الفعلية لضمان عدم التداخل نهائياً على الموبايل والتابلت والكمبيوتر
 const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGridLayout => {
-  const isCompactLandscape = tableH < 350 && tableW > tableH;
+  const isCompactLandscape = tableH < 360 && tableW > tableH;
   const isWideTable = tableW >= 560;
 
-  // المساحة المحجوزة للأفاتارات العلوية والسفلية والجانبية مع هامش أمان مريح
-  const verticalAvatarClearance = isCompactLandscape ? 136 : isWideTable ? 190 : 164;
-  const horizontalAvatarClearance = isWideTable ? 190 : 146;
+  // المساحة المحجوزة للأفاتارات العلوية والسفلية والجانبية مع هامش أمان مريح يمنع ملامسة الكروت لأسماء أو صور اللاعبين
+  const verticalAvatarClearance = isCompactLandscape ? 132 : isWideTable ? 190 : 164;
+  const horizontalAvatarClearance = isCompactLandscape ? 160 : isWideTable ? 190 : 146;
 
-  const availH = Math.max(120, tableH - verticalAvatarClearance);
-  const availW = Math.max(150, tableW - horizontalAvatarClearance);
+  const availH = Math.max(76, tableH - verticalAvatarClearance);
+  const availW = Math.max(140, tableW - horizontalAvatarClearance);
 
   // المسافات الفاصلة بين الصفين وبين الأعمدة الثلاثة
-  const vGap = isCompactLandscape ? 8 : tableH < 410 ? 10 : 14;
-  const hGap = tableW < 400 ? 10 : tableW < 560 ? 14 : 22;
+  const vGap = isCompactLandscape ? 6 : tableH < 410 ? 10 : 14;
+  const hGap = isCompactLandscape ? 12 : tableW < 400 ? 10 : tableW < 560 ? 14 : 22;
 
   const maxH = Math.floor((availH - vGap) / 2);
   const maxW = Math.floor((availW - 2 * hGap) / 3);
@@ -66,7 +66,8 @@ const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGrid
     ? 56
     : 52;
 
-  const cardW = Math.max(40, Math.min(targetW, maxW, Math.floor(maxH * (2 / 3))));
+  const minCardW = isCompactLandscape ? 32 : 38;
+  const cardW = Math.max(minCardW, Math.min(targetW, maxW, Math.floor(maxH * (2 / 3))));
   const cardH = Math.round(cardW * 1.5);
 
   const colX = cardW + hGap;
@@ -77,11 +78,11 @@ const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGrid
     cardH,
     slots: {
       0: { x: 0, y: rowY, rotate: 0 },        // ورقة اللاعب (أنت - وسط الصف السفلي)
-      1: { x: colX, y: rowY, rotate: 0 },     // ورقة عبود (يمين الصف السفلي)
-      2: { x: colX, y: -rowY, rotate: 0 },    // ورقة مشاري (يمين الصف العلوي)
-      3: { x: 0, y: -rowY, rotate: 0 },       // ورقة طارق (وسط الصف العلوي)
-      4: { x: -colX, y: -rowY, rotate: 0 },   // ورقة بندر (يسار الصف العلوي)
-      5: { x: -colX, y: rowY, rotate: 0 },    // ورقة سعود (يسار الصف السفلي)
+      1: { x: colX, y: rowY, rotate: 0 },     // ورقة المقعد 1 (يمين الصف السفلي)
+      2: { x: colX, y: -rowY, rotate: 0 },    // ورقة المقعد 2 (يمين الصف العلوي)
+      3: { x: 0, y: -rowY, rotate: 0 },       // ورقة المقعد 3 (وسط الصف العلوي)
+      4: { x: -colX, y: -rowY, rotate: 0 },   // ورقة المقعد 4 (يسار الصف العلوي)
+      5: { x: -colX, y: rowY, rotate: 0 },    // ورقة المقعد 5 (يسار الصف السفلي)
     },
   };
 };
@@ -89,11 +90,11 @@ const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGrid
 // إحداثيات مركز صور اللاعبين كمرجع احتياطي
 const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
   0: { x: 0, y: 170, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) بأسفل الطاولة
-  1: { x: 165, y: 95, rotate: 10 },      // إلى مركز صورة عبود (يمين أسفل)
-  2: { x: 165, y: -95, rotate: 10 },     // إلى مركز صورة مشاري (يمين أعلى)
-  3: { x: 0, y: -170, rotate: 0 },       // إلى مركز صورة طارق (أعلى المنتصف)
-  4: { x: -165, y: -95, rotate: -10 },   // إلى مركز صورة بندر (يسار أعلى)
-  5: { x: -165, y: 95, rotate: -10 },    // إلى مركز صورة سعود (يسار أسفل)
+  1: { x: 165, y: 95, rotate: 10 },      // إلى مركز صورة المقعد 1 (يمين أسفل)
+  2: { x: 165, y: -95, rotate: 10 },     // إلى مركز صورة المقعد 2 (يمين أعلى)
+  3: { x: 0, y: -170, rotate: 0 },       // إلى مركز صورة المقعد 3 (أعلى المنتصف)
+  4: { x: -165, y: -95, rotate: -10 },   // إلى مركز صورة المقعد 4 (يسار أعلى)
+  5: { x: -165, y: 95, rotate: -10 },    // إلى مركز صورة المقعد 5 (يسار أسفل)
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -131,9 +132,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
     const el = tableFeltRef.current;
     if (!el) return;
     const updateDimensions = () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setTableSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      // استخدام offsetWidth / offsetHeight بدلاً من getBoundingClientRect لأن التدوير 90 درجة في الوضع الأفقي الإجباري يعكس الطول والعرض في getBoundingClientRect
+      const localW = el.offsetWidth || el.clientWidth;
+      const localH = el.offsetHeight || el.clientHeight;
+      if (localW > 0 && localH > 0) {
+        setTableSize({ w: Math.round(localW), h: Math.round(localH) });
       }
     };
     updateDimensions();
@@ -199,9 +202,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
           const avatarCenterX = avatarRect.left + avatarRect.width / 2;
           const avatarCenterY = avatarRect.top + avatarRect.height / 2;
 
+          const screenDX = avatarCenterX - tableCenterX;
+          const screenDY = avatarCenterY - tableCenterY;
+          const isRotated90 = typeof document !== 'undefined' && document.body.classList.contains('forced-landscape-mode');
+
           setCollectOffset({
-            x: Math.round(avatarCenterX - tableCenterX),
-            y: Math.round(avatarCenterY - tableCenterY),
+            x: Math.round(isRotated90 ? screenDY : screenDX),
+            y: Math.round(isRotated90 ? -screenDX : screenDY),
           });
         }
       };
@@ -247,7 +254,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
         {/* علامة الطاولة المائية في منتصف اللباد الأخضر */}
         <div className="table-felt-watermark">
-          <span className="text-base sm:text-2xl font-black tracking-widest opacity-80">
+          <span className="text-xs xs:text-sm sm:text-xl font-black tracking-widest opacity-60">
             كوت بو ٦ أونو
           </span>
         </div>
@@ -288,8 +295,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 if (tableEl && avatarEl) {
                   const tableRect = tableEl.getBoundingClientRect();
                   const avatarRect = avatarEl.getBoundingClientRect();
-                  measuredX = Math.round((avatarRect.left + avatarRect.width / 2) - (tableRect.left + tableRect.width / 2));
-                  measuredY = Math.round((avatarRect.top + avatarRect.height / 2) - (tableRect.top + tableRect.height / 2));
+                  const screenDX = (avatarRect.left + avatarRect.width / 2) - (tableRect.left + tableRect.width / 2);
+                  const screenDY = (avatarRect.top + avatarRect.height / 2) - (tableRect.top + tableRect.height / 2);
+                  const isRotated90 = typeof document !== 'undefined' && document.body.classList.contains('forced-landscape-mode');
+                  measuredX = Math.round(isRotated90 ? screenDY : screenDX);
+                  measuredY = Math.round(isRotated90 ? -screenDX : screenDY);
                 }
               }
 
@@ -358,7 +368,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             isHuman: idx === humanSeatIndex,
             hand: [],
             tricksWon: 0,
-            avatarId: 'kuwaiti_shemagh_red',
+            avatarId: 'kuwaiti_ghutra_white',
             customPhoto: null,
           };
 
@@ -374,20 +384,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
             // اللاعب (أنت): أسفل المنتصف على حافة الطاولة
             posClass = 'bottom-1 sm:bottom-1.5 left-1/2 -translate-x-1/2';
           } else if (relPos === 1) {
-            // اللاعب 1 (عبود): يمين أسفل
-            posClass = 'bottom-[23%] right-1.5 xs:right-2.5 sm:right-4';
+            // المقعد 1: يمين أسفل
+            posClass = 'bottom-[22%] right-1.5 xs:right-2.5 sm:right-4';
           } else if (relPos === 2) {
-            // اللاعب 2 (مشاري): يمين أعلى
-            posClass = 'top-[19%] right-1.5 xs:right-2.5 sm:right-4';
+            // المقعد 2: يمين أعلى
+            posClass = 'top-[18%] right-1.5 xs:right-2.5 sm:right-4';
           } else if (relPos === 3) {
-            // اللاعب 3 (طارق): أعلى المنتصف
-            posClass = 'top-1.5 sm:top-2 left-1/2 -translate-x-1/2';
+            // المقعد 3: أعلى المنتصف
+            posClass = 'top-1 sm:top-2 left-1/2 -translate-x-1/2';
           } else if (relPos === 4) {
-            // اللاعب 4 (بندر): يسار أعلى
-            posClass = 'top-[19%] left-1.5 xs:left-2.5 sm:left-4';
+            // المقعد 4: يسار أعلى
+            posClass = 'top-[18%] left-1.5 xs:left-2.5 sm:left-4';
           } else if (relPos === 5) {
-            // اللاعب 5 (سعود): يسار أسفل
-            posClass = 'bottom-[23%] left-1.5 xs:left-2.5 sm:left-4';
+            // المقعد 5: يسار أسفل
+            posClass = 'bottom-[22%] left-1.5 xs:left-2.5 sm:left-4';
           }
 
           let bubblePosClass = '';
@@ -413,14 +423,10 @@ export const TableArena: React.FC<TableArenaProps> = ({
             bubbleSeatPos = 'bottom-left';
           }
 
-          let targetBadgePosClass = '';
-          if (relPos === 0) {
-            targetBadgePosClass = '-top-2 -right-2';
-          } else if (relPos === 1 || relPos === 2 || relPos === 3) {
-            targetBadgePosClass = '-right-7 top-1/2 -translate-y-1/2';
-          } else {
-            targetBadgePosClass = '-left-7 top-1/2 -translate-y-1/2';
-          }
+          // وضع شارة المشتري / الملزوم بعيداً تماماً عن ملامح الوجه وعن اسم اللاعب
+          const targetBadgePosClass = isForcedBid
+            ? '-top-3.5 left-1/2 -translate-x-1/2'
+            : '-top-2 -right-2';
 
           const isDealer = dealerIdx === idx;
 
@@ -464,32 +470,32 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 {/* الحاوية الدائرية للأفاتار مع المعرّف الخاص بحساب مسار الأكلة بدقة متناهية */}
                 <div 
                   id={`avatar-player-${idx}`}
-                  className="relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center"
+                  className="seat-avatar-ring relative w-10 h-10 xs:w-11 xs:h-11 sm:w-13 sm:h-13 flex items-center justify-center"
                 >
                   
                   {isBuyer && (
                     <div className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none animate-bounce`}>
                       {isForcedBid ? (
                         <div
-                          className={`px-2 py-0.5 rounded-full bg-white flex items-center justify-center shadow-xl whitespace-nowrap ${
+                          className={`px-1.5 py-0.5 rounded-full bg-white flex items-center justify-center shadow-xl whitespace-nowrap ${
                             player.team === 'A'
                               ? 'border-2 border-[#0063B0] ring-1 ring-blue-500/40'
                               : 'border-2 border-[#EA1D2D] ring-1 ring-red-500/40'
                           }`}
                         >
-                          <span className="font-black text-black text-[8px] xs:text-[9px] leading-none">
+                          <span className="font-black text-black text-[7.5px] xs:text-[8.5px] leading-none">
                             ملزوم ⚡
                           </span>
                         </div>
                       ) : (
                         <div
-                          className={`w-6 h-6 xs:w-7 xs:h-7 rounded-full bg-white flex items-center justify-center shadow-xl ${
+                          className={`w-5.5 h-5.5 xs:w-6.5 xs:h-6.5 rounded-full bg-white flex items-center justify-center shadow-xl ${
                             player.team === 'A'
                               ? 'border-2 border-[#0063B0] ring-1 ring-blue-500/40'
                               : 'border-2 border-[#EA1D2D] ring-1 ring-red-500/40'
                           }`}
                         >
-                          <span className="font-mono font-black text-black text-[11px] leading-none">
+                          <span className="font-mono font-black text-black text-[10px] xs:text-[11px] leading-none">
                             {highestBid === 9 ? '👑' : highestBid}
                           </span>
                         </div>
@@ -499,7 +505,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
 
                   {isDealer && (
                     <span
-                      className="absolute -bottom-1.5 -left-1.5 z-40 text-amber-300 font-black text-sm xs:text-base sm:text-lg leading-none select-none drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter drop-shadow-[0_0_2px_#000]"
+                      className="absolute -bottom-1 -right-1.5 z-40 w-4 h-4 xs:w-4.5 xs:h-4.5 rounded-full bg-slate-950/90 border border-amber-400/80 flex items-center justify-center text-amber-300 font-black text-[10px] xs:text-[11px] leading-none select-none shadow-md"
                       title="الموزع (Dealer)"
                     >
                       D
@@ -566,7 +572,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   </svg>
 
                   <div
-                    className={`rounded-full overflow-hidden border bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11 ${
+                    className={`seat-avatar-inner rounded-full overflow-hidden border bg-slate-950 shadow-inner relative transition-all duration-300 w-8.5 h-8.5 xs:w-9.5 xs:h-9.5 sm:w-11 sm:h-11 ${
                       isCritical
                         ? 'border-amber-400 ring-2 ring-red-500/80 scale-105'
                         : 'border-slate-700'
@@ -577,7 +583,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                 </div>
 
                 <div
-                  className={`px-2 py-0.5 mt-0.5 rounded-full text-center flex items-center justify-center min-w-[58px] max-w-[85px] xs:max-w-[95px] shadow-lg border backdrop-blur-sm ${
+                  className={`seat-name-pill px-2 py-0.5 mt-0.5 rounded-full text-center flex items-center justify-center min-w-[54px] max-w-[85px] xs:max-w-[95px] shadow-lg border backdrop-blur-sm ${
                     isTeamA
                       ? 'bg-blue-950/95 border-cyan-400/60 text-cyan-100 shadow-blue-900/30'
                       : 'bg-rose-950/95 border-rose-400/60 text-rose-100 shadow-rose-900/30'

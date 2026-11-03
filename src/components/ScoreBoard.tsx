@@ -153,9 +153,9 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   };
 
   return (
-    <header className="w-full bg-[#171a22]/98 backdrop-blur-md z-30 select-none flex-shrink-0 border-b border-[#2d323b] shadow-md">
+    <header className="scoreboard-header w-full bg-[#171a22]/98 backdrop-blur-md z-30 select-none flex-shrink-0 border-b border-[#2d323b] shadow-md">
       {/* Unified Single Row: Tricks on Right, Score in Center, Trump & Actions on Left */}
-      <div className="w-full px-1 xs:px-2 sm:px-3 py-1 flex items-center justify-between min-h-[40px] xs:min-h-[44px] gap-1 overflow-x-hidden">
+      <div className="scoreboard-inner w-full px-1 xs:px-2 sm:px-3 py-1 flex items-center justify-between min-h-[40px] xs:min-h-[44px] gap-1 overflow-x-hidden">
         
         {/* Right Section (in RTL): Tricks Panel (عداد الأكلات) */}
         <div className="flex items-center flex-shrink-0">

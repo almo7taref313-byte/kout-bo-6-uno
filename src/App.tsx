@@ -1838,6 +1838,7 @@ export default function App() {
   const handleSetAutoScreen = () => {
     document.body.classList.remove('forced-landscape-mode');
     setShowScreenModal(false);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -1851,6 +1852,7 @@ export default function App() {
     } else {
       document.body.classList.remove('forced-landscape-mode');
     }
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   };
 
   const handleToggleFullscreen = () => {
