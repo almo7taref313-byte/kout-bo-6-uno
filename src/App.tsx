@@ -183,8 +183,8 @@ export default function App() {
     }, 4200);
   }, []);
 
-  // Settings
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  // Settings (persisted in localStorage & synced with device silent/mute switch)
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => soundEngine.enabled);
 
   // Seats & Players
   const [seats, setSeats] = useState<SeatConfig[]>(() => {
@@ -346,7 +346,7 @@ export default function App() {
   const toggleSound = () => {
     const next = !soundEnabled;
     setSoundEnabled(next);
-    soundEngine.enabled = next;
+    soundEngine.setEnabled(next);
   };
 
   const stopTimer = useCallback(() => {

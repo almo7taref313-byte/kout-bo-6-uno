@@ -8,6 +8,7 @@ import {
 } from './customVoicesData';
 
 const CUSTOM_SKIP_VOICES_STORAGE_KEY = 'kout_custom_skip_voices_v1';
+const SOUND_ENABLED_STORAGE_KEY = 'kout_sound_enabled';
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const cleanB64 = base64.includes(',') ? base64.split(',')[1] : base64;
@@ -20,35 +21,15 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-function toAudioDataUrl(b64: string): string {
-  if (b64.startsWith('data:')) return b64;
-  const mime = b64.startsWith('UklGR') ? 'audio/wav' : 'audio/mpeg';
-  return `data:${mime};base64,${b64}`;
-}
-
-const JOKER_AUDIO_URL = '/nezal_alwahsh.mp3?v=11';
-const MAKER_AUDIO_URL = '/yakom_almaikar.mp3?v=3';
-
 class SoundEngineClass {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
   private lastSlideTime: number = 0;
   private lastJokerVoiceTime: number = 0;
   private lastMakerVoiceTime: number = 0;
-  private applauseAudio: HTMLAudioElement | null = null;
-  private matchWinAudio: HTMLAudioElement | null = null;
-
-  // عناصر الصوت عبر HTMLAudioElement (محمّلة مباشرة من الذاكرة Base64 + مسار الملف العام لضمان سرعة 0ms)
-  private skipAudios: HTMLAudioElement[] = [];
   private lastSkipIndex: number = -1;
-  private baoonLossAudio: HTMLAudioElement | null = null;
-  private throwPaperAudio: HTMLAudioElement | null = null;
-  private jokerVoiceAudio: HTMLAudioElement | null = null;
-  private jokerVoiceLoadedOnGesture: boolean = false;
-  private makerVoiceAudio: HTMLAudioElement | null = null;
-  private makerVoiceLoadedOnGesture: boolean = false;
 
-  // مخازن Web Audio API (AudioBuffer) لضمان عمل جميع الأصوات 100% في أدوار البوتات (setTimeout) واللاعبين على جميع الهواتف
+  // مخازن Web Audio API (AudioBuffer) لضمان عمل جميع الأصوات 100% عبر قناة Ambient التي تحترم وضع الصامت في الآيفون وجميع الأجهزة
   private jokerVoiceBuffer: AudioBuffer | null = null;
   private isDecodingJokerVoice: boolean = false;
   private activeJokerSource: AudioBufferSourceNode | null = null;
@@ -60,6 +41,10 @@ class SoundEngineClass {
   private applauseBuffer: AudioBuffer | null = null;
   private isDecodingApplause: boolean = false;
   private activeApplauseSource: AudioBufferSourceNode | null = null;
+
+  private matchWinBuffer: AudioBuffer | null = null;
+  private isDecodingMatchWin: boolean = false;
+  private activeMatchWinSource: AudioBufferSourceNode | null = null;
 
   private skipBuffers: (AudioBuffer | null)[] = [];
   private isDecodingSkip: boolean[] = [];
@@ -74,21 +59,83 @@ class SoundEngineClass {
   private activeBaoonLossSource: AudioBufferSourceNode | null = null;
 
   private applauseTimer: ReturnType<typeof setTimeout> | null = null;
-  private applauseFadeInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(CUSTOM_SKIP_VOICES_STORAGE_KEY);
+        const savedSound = localStorage.getItem(SOUND_ENABLED_STORAGE_KEY);
+        if (savedSound !== null) {
+          this.enabled = savedSound !== 'false';
+        }
       } catch {}
 
+      this.applyAmbientAudioSession();
+
       const unlockOnGesture = () => {
-        this.init(true);
+        this.applyAmbientAudioSession();
+        if (this.enabled) {
+          this.init(true);
+        }
       };
       window.addEventListener('touchend', unlockOnGesture, { passive: true });
       window.addEventListener('click', unlockOnGesture, { passive: true });
       window.addEventListener('pointerup', unlockOnGesture, { passive: true });
       window.addEventListener('keydown', unlockOnGesture, { passive: true });
+
+      const handleVisibilityOrHide = () => {
+        if (typeof document !== 'undefined' && document.hidden) {
+          this.stopAllActiveSounds();
+          if (this.ctx && (this.ctx.state as string) === 'running') {
+            this.ctx.suspend().catch(() => {});
+          }
+        } else {
+          this.applyAmbientAudioSession();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityOrHide);
+      window.addEventListener('pagehide', handleVisibilityOrHide);
+    }
+  }
+
+  // ضبط جلسة الصوت في المتصفح والنظام على "ambient" لكي يكتم الجهاز صوت اللعبة تلقائياً عند تفعيل زر الصامت أو كتم صوت الجهاز
+  private applyAmbientAudioSession() {
+    if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
+      try {
+        (navigator as unknown as { audioSession: { type: string } }).audioSession.type = 'ambient';
+      } catch {}
+    }
+  }
+
+  public setEnabled(val: boolean) {
+    this.enabled = val;
+    try {
+      localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, String(val));
+    } catch {}
+    if (!val) {
+      this.stopAllActiveSounds();
+      if (this.ctx && (this.ctx.state as string) === 'running') {
+        this.ctx.suspend().catch(() => {});
+      }
+    } else {
+      this.init(true);
+    }
+  }
+
+  public stopAllActiveSounds() {
+    this.stopSkipVoices();
+    this.stopApplause();
+    if (this.activeJokerSource) {
+      try {
+        this.activeJokerSource.stop();
+      } catch {}
+      this.activeJokerSource = null;
+    }
+    if (this.activeMakerSource) {
+      try {
+        this.activeMakerSource.stop();
+      } catch {}
+      this.activeMakerSource = null;
     }
   }
 
@@ -229,122 +276,68 @@ class SoundEngineClass {
     );
   }
 
-  init(fromUserGesture: boolean = false) {
+  private decodeMatchWinBuffer(onReady?: (buf: AudioBuffer) => void) {
+    if (!this.ctx || typeof window === 'undefined') return;
+    if (this.matchWinBuffer) {
+      if (onReady) onReady(this.matchWinBuffer);
+      return;
+    }
+    if (this.isDecodingMatchWin && !onReady) return;
+    this.isDecodingMatchWin = true;
+    fetch('/winners_celebration.mp3')
+      .then((res) => res.arrayBuffer())
+      .then((arrayBuf) => {
+        if (!this.ctx) {
+          this.isDecodingMatchWin = false;
+          return;
+        }
+        this.ctx.decodeAudioData(
+          arrayBuf,
+          (decoded) => {
+            this.matchWinBuffer = decoded;
+            this.isDecodingMatchWin = false;
+            if (onReady) onReady(decoded);
+          },
+          () => {
+            this.isDecodingMatchWin = false;
+          }
+        );
+      })
+      .catch(() => {
+        this.isDecodingMatchWin = false;
+      });
+  }
+
+  init(_fromUserGesture: boolean = false) {
+    this.applyAmbientAudioSession();
+
     if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
     }
-    if (this.ctx && (this.ctx.state as string) !== 'running') {
+    if (this.ctx && this.enabled && (this.ctx.state as string) !== 'running') {
       this.ctx.resume().catch(() => {});
     }
 
-    if (fromUserGesture && typeof navigator !== 'undefined' && 'audioSession' in navigator) {
-      try {
-        (navigator as unknown as { audioSession: { type: string } }).audioSession.type = 'playback';
-      } catch {}
-    }
-
-    // فك تشفير جميع الأصوات المخصصة مسبقاً في ذاكرة AudioContext لتعمل فوراً حتى في أدوار البوتات (setTimeout)
+    // فك تشفير جميع الأصوات مسبقاً في ذاكرة Web Audio API لتعمل فوراً وتلتزم بوضع الصامت في الجهاز 100%
     this.decodeJokerBuffer();
     this.decodeMakerBuffer();
     this.decodeApplauseBuffer();
+    this.decodeMatchWinBuffer();
     const activeSkipList = this.getActiveSkipVoices();
     for (let i = 0; i < activeSkipList.length; i++) {
       this.decodeSkipBuffer(i);
     }
     this.decodeBaoonLossBuffer();
     this.decodeThrowPaperBuffer();
-
-    // تحميل ملف التصفيق مسبقاً من الذاكرة Base64 ليعمل فوراً (0ms) بالتزامن مع ظهور واختفاء "كفو شباب"
-    if (!this.applauseAudio && typeof window !== 'undefined') {
-      try {
-        this.applauseAudio = new Audio(`data:audio/mpeg;base64,${APPLAUSE_BASE64}`);
-        this.applauseAudio.preload = 'auto';
-        this.applauseAudio.load();
-      } catch {}
-    }
-
-    // تحميل ملف احتفال الفوز بالمباراة الكاملة مسبقاً ليعمل فوراً عند ظهور النتيجة النهائية
-    if (!this.matchWinAudio && typeof window !== 'undefined') {
-      try {
-        this.matchWinAudio = new Audio('/winners_celebration.mp3');
-        this.matchWinAudio.preload = 'auto';
-        this.matchWinAudio.load();
-      } catch {}
-    }
-
-    // تهيئة عناصر الصوت لزر "طاف" وخسارة الباون ورمي الورقة عبر البيانات المدمجة في الذاكرة لتجنب أي تأخير بالشبكة
-    if (this.skipAudios.length === 0 && activeSkipList.length > 0 && typeof window !== 'undefined') {
-      try {
-        this.skipAudios = activeSkipList.map((b64) => {
-          const a = new Audio(toAudioDataUrl(b64));
-          a.preload = 'auto';
-          return a;
-        });
-      } catch {}
-    }
-
-    if (!this.baoonLossAudio && typeof window !== 'undefined') {
-      try {
-        this.baoonLossAudio = new Audio(`data:audio/mpeg;base64,${BAOON_LOSS_BASE64}`);
-        this.baoonLossAudio.preload = 'auto';
-      } catch {}
-    }
-
-    if (!this.throwPaperAudio && typeof window !== 'undefined') {
-      try {
-        this.throwPaperAudio = new Audio(`data:audio/wav;base64,${THROW_PAPER_BASE64}`);
-        this.throwPaperAudio.preload = 'auto';
-      } catch {}
-    }
-
-    // تحميل ملف صوت الجيكر مباشرة من الذاكرة Base64 لضمان استجابة فورية 0ms دون أي تأخير شبكة
-    if (!this.jokerVoiceAudio && typeof window !== 'undefined') {
-      try {
-        this.jokerVoiceAudio = new Audio(`data:audio/mpeg;base64,${JOKER_VOICE_BASE64}`);
-        this.jokerVoiceAudio.preload = 'auto';
-        this.jokerVoiceAudio.load();
-      } catch {}
-    }
-
-    if (
-      fromUserGesture &&
-      !this.jokerVoiceLoadedOnGesture &&
-      this.jokerVoiceAudio &&
-      Date.now() - this.lastJokerVoiceTime > 1200
-    ) {
-      try {
-        this.jokerVoiceAudio.load();
-        this.jokerVoiceLoadedOnGesture = true;
-      } catch {}
-    }
-
-    // تحميل ملف صوت الميكر ("ياكم الميكر") مباشرة من الذاكرة Base64 لضمان استجابة فورية 0ms
-    if (!this.makerVoiceAudio && typeof window !== 'undefined') {
-      try {
-        this.makerVoiceAudio = new Audio(`data:audio/mpeg;base64,${MAKER_VOICE_BASE64}`);
-        this.makerVoiceAudio.preload = 'auto';
-        this.makerVoiceAudio.load();
-      } catch {}
-    }
-
-    if (
-      fromUserGesture &&
-      !this.makerVoiceLoadedOnGesture &&
-      this.makerVoiceAudio &&
-      Date.now() - this.lastMakerVoiceTime > 1200
-    ) {
-      try {
-        this.makerVoiceAudio.load();
-        this.makerVoiceLoadedOnGesture = true;
-      } catch {}
-    }
   }
 
   private playDecodedThrowPaperBuffer(buf: AudioBuffer) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -361,7 +354,7 @@ class SoundEngineClass {
     } catch {}
   }
 
-  // تشغيل صوت رمي الورقة الجديد على الطاولة (throwpaper7.wav) مرة واحدة فقط لكل ورقة
+  // تشغيل صوت رمي الورقة على الطاولة عبر Web Audio API حصراً ليحترم وضع الصامت في الجهاز
   private lastThrowTime: number = 0;
 
   playCardThrow() {
@@ -371,51 +364,13 @@ class SoundEngineClass {
     this.lastThrowTime = nowMs;
 
     this.init();
+    if (!this.ctx) return;
 
-    const playWebAudio = () => {
-      if (!this.ctx) return;
-      if (this.throwPaperBuffer) {
-        this.playDecodedThrowPaperBuffer(this.throwPaperBuffer);
-      } else {
-        this.decodeThrowPaperBuffer((buf) => this.playDecodedThrowPaperBuffer(buf));
-      }
-    };
-
-    if (this.ctx && this.throwPaperBuffer && (this.ctx.state as string) === 'running') {
+    if (this.throwPaperBuffer) {
       this.playDecodedThrowPaperBuffer(this.throwPaperBuffer);
-      return;
+    } else {
+      this.decodeThrowPaperBuffer((buf) => this.playDecodedThrowPaperBuffer(buf));
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.throwPaperAudio) {
-          this.throwPaperAudio = new Audio(`data:audio/wav;base64,${THROW_PAPER_BASE64}`);
-          this.throwPaperAudio.preload = 'auto';
-        }
-        const audio = this.throwPaperAudio;
-        if (!audio.paused) {
-          audio.pause();
-        }
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err && err.name !== 'AbortError') {
-              playWebAudio();
-            }
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    playWebAudio();
   }
 
   playCardSlide() {
@@ -491,7 +446,7 @@ class SoundEngineClass {
   }
 
   private playDecodedJokerBuffer(buf: AudioBuffer) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -513,19 +468,8 @@ class SoundEngineClass {
     } catch {}
   }
 
-  private playJokerWebAudioFallback() {
-    if (!this.ctx) return;
-    if (this.jokerVoiceBuffer) {
-      this.playDecodedJokerBuffer(this.jokerVoiceBuffer);
-      return;
-    }
-    this.decodeJokerBuffer((buf) => {
-      this.playDecodedJokerBuffer(buf);
-    });
-  }
-
   private playDecodedMakerBuffer(buf: AudioBuffer) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -547,19 +491,8 @@ class SoundEngineClass {
     } catch {}
   }
 
-  private playMakerWebAudioFallback() {
-    if (!this.ctx) return;
-    if (this.makerVoiceBuffer) {
-      this.playDecodedMakerBuffer(this.makerVoiceBuffer);
-      return;
-    }
-    this.decodeMakerBuffer((buf) => {
-      this.playDecodedMakerBuffer(buf);
-    });
-  }
-
   private playDecodedSkipBuffer(buf: AudioBuffer) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -582,7 +515,7 @@ class SoundEngineClass {
   }
 
   private playDecodedBaoonLossBuffer(buf: AudioBuffer) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -611,51 +544,13 @@ class SoundEngineClass {
     this.lastJokerVoiceTime = nowMs;
 
     this.init();
+    if (!this.ctx) return;
 
-    // أولوية قصوى (0ms Latency): التشغيل الفوري من مخزن WebAudio المفكوك مسبقاً بالتزامن اللحظي مع حركة الكرت
-    if (this.ctx && this.jokerVoiceBuffer && (this.ctx.state as string) === 'running') {
+    if (this.jokerVoiceBuffer) {
       this.playDecodedJokerBuffer(this.jokerVoiceBuffer);
-      return;
+    } else {
+      this.decodeJokerBuffer((buf) => this.playDecodedJokerBuffer(buf));
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.jokerVoiceAudio) {
-          this.jokerVoiceAudio = new Audio(`data:audio/mpeg;base64,${JOKER_VOICE_BASE64}`);
-          this.jokerVoiceAudio.preload = 'auto';
-        }
-        const audio = this.jokerVoiceAudio;
-        if (!audio.paused) {
-          audio.pause();
-        }
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err && err.name !== 'AbortError') {
-              try {
-                const urlAudio = new Audio(JOKER_AUDIO_URL);
-                urlAudio.volume = 1.0;
-                urlAudio.play().catch(() => {
-                  this.playJokerWebAudioFallback();
-                });
-              } catch {
-                this.playJokerWebAudioFallback();
-              }
-            }
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    this.playJokerWebAudioFallback();
   }
 
   playMakerVoice() {
@@ -665,51 +560,13 @@ class SoundEngineClass {
     this.lastMakerVoiceTime = nowMs;
 
     this.init();
+    if (!this.ctx) return;
 
-    // أولوية قصوى (0ms Latency): التشغيل الفوري من مخزن WebAudio المفكوك مسبقاً بالتزامن اللحظي مع حركة كرت الميكر
-    if (this.ctx && this.makerVoiceBuffer && (this.ctx.state as string) === 'running') {
+    if (this.makerVoiceBuffer) {
       this.playDecodedMakerBuffer(this.makerVoiceBuffer);
-      return;
+    } else {
+      this.decodeMakerBuffer((buf) => this.playDecodedMakerBuffer(buf));
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.makerVoiceAudio) {
-          this.makerVoiceAudio = new Audio(`data:audio/mpeg;base64,${MAKER_VOICE_BASE64}`);
-          this.makerVoiceAudio.preload = 'auto';
-        }
-        const audio = this.makerVoiceAudio;
-        if (!audio.paused) {
-          audio.pause();
-        }
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err && err.name !== 'AbortError') {
-              try {
-                const urlAudio = new Audio(MAKER_AUDIO_URL);
-                urlAudio.volume = 1.0;
-                urlAudio.play().catch(() => {
-                  this.playMakerWebAudioFallback();
-                });
-              } catch {
-                this.playMakerWebAudioFallback();
-              }
-            }
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    this.playMakerWebAudioFallback();
   }
 
   playTrickSweep() {
@@ -800,7 +657,6 @@ class SoundEngineClass {
 
     const now = this.ctx.currentTime;
 
-    // آخر 5 ثوانٍ: نغمة تنبيه مزدوجة سريعة وواضحة تتصاعد حدتها مع كل ثانية (5 -> 1)
     const urgentFreqMap: Record<number, number> = {
       5: 880.0,     // A5
       4: 932.33,    // Bb5
@@ -811,7 +667,6 @@ class SoundEngineClass {
     const baseFreq = urgentFreqMap[sec] || 987.77;
     const peakGain = 0.115;
 
-    // نبضتان متتاليتان (Double-Beep) لتمييز آخر 5 ثوانٍ بوضوح تام
     const pulses = [
       { offset: 0, freq: baseFreq, dur: 0.075 },
       { offset: 0.09, freq: baseFreq * 1.2, dur: 0.085 },
@@ -864,19 +719,9 @@ class SoundEngineClass {
       } catch {}
       this.activeSkipSource = null;
     }
-    if (this.skipAudios.length > 0) {
-      this.skipAudios.forEach((a) => {
-        try {
-          a.pause();
-          if (a.readyState >= 1) {
-            a.currentTime = 0;
-          }
-        } catch {}
-      });
-    }
   }
 
-  // تشغيل صوت "طاف" بتوزيع عشوائي من الأصوات المخصصة بدون تكرار نفس الصوت مرتين متتاليتين
+  // تشغيل صوت "طاف" بتوزيع عشوائي من الأصوات المخصصة عبر Web Audio API
   playRandomSkipVoice(specificIndex?: number): number {
     if (!this.enabled) return 0;
     this.init();
@@ -901,52 +746,13 @@ class SoundEngineClass {
     }
     this.lastSkipIndex = idx;
 
-    const playWebAudio = () => {
-      if (!this.ctx) return;
-      const existing = this.skipBuffers[idx];
-      if (existing) {
-        this.playDecodedSkipBuffer(existing);
-      } else {
-        this.decodeSkipBuffer(idx, (buf) => this.playDecodedSkipBuffer(buf));
-      }
-    };
-
-    if (this.ctx && this.skipBuffers[idx] && (this.ctx.state as string) === 'running') {
-      this.playDecodedSkipBuffer(this.skipBuffers[idx]!);
-      return idx;
+    if (!this.ctx) return idx;
+    const existing = this.skipBuffers[idx];
+    if (existing) {
+      this.playDecodedSkipBuffer(existing);
+    } else {
+      this.decodeSkipBuffer(idx, (buf) => this.playDecodedSkipBuffer(buf));
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (this.skipAudios.length === 0) {
-          this.skipAudios = activeSkipList.map((b64) => {
-            const a = new Audio(toAudioDataUrl(b64));
-            a.preload = 'auto';
-            return a;
-          });
-        }
-        const audio = this.skipAudios[idx];
-        if (audio) {
-          audio.pause();
-          if (audio.readyState >= 1) {
-            try {
-              audio.currentTime = 0;
-            } catch {}
-          }
-          audio.muted = false;
-          audio.volume = 1.0;
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(() => {
-              playWebAudio();
-            });
-            return idx;
-          }
-        }
-      } catch {}
-    }
-
-    playWebAudio();
     return idx;
   }
 
@@ -1006,15 +812,11 @@ class SoundEngineClass {
     });
   }
 
-  // إيقاف صوت التصفيق فوراً وبشكل قاطع ومسح أي مؤقتات خفوت نشطة
+  // إيقاف صوت التصفيق فوراً وبشكل قاطع ومسح أي مؤقتات نشطة
   stopApplause() {
     if (this.applauseTimer) {
       clearTimeout(this.applauseTimer);
       this.applauseTimer = null;
-    }
-    if (this.applauseFadeInterval) {
-      clearInterval(this.applauseFadeInterval);
-      this.applauseFadeInterval = null;
     }
     if (this.activeApplauseSource) {
       try {
@@ -1022,43 +824,22 @@ class SoundEngineClass {
       } catch {}
       this.activeApplauseSource = null;
     }
+    if (this.activeMatchWinSource) {
+      try {
+        this.activeMatchWinSource.stop();
+      } catch {}
+      this.activeMatchWinSource = null;
+    }
     if (this.activeBaoonLossSource) {
       try {
         this.activeBaoonLossSource.stop();
       } catch {}
       this.activeBaoonLossSource = null;
     }
-    if (this.applauseAudio) {
-      try {
-        this.applauseAudio.pause();
-        if (this.applauseAudio.readyState >= 1) {
-          this.applauseAudio.currentTime = 0;
-        }
-        this.applauseAudio.volume = 0.95;
-      } catch {}
-    }
-    if (this.matchWinAudio) {
-      try {
-        this.matchWinAudio.pause();
-        if (this.matchWinAudio.readyState >= 1) {
-          this.matchWinAudio.currentTime = 0;
-        }
-        this.matchWinAudio.volume = 1.0;
-      } catch {}
-    }
-    if (this.baoonLossAudio) {
-      try {
-        this.baoonLossAudio.pause();
-        if (this.baoonLossAudio.readyState >= 1) {
-          this.baoonLossAudio.currentTime = 0;
-        }
-        this.baoonLossAudio.volume = 1.0;
-      } catch {}
-    }
   }
 
   private playDecodedApplauseBuffer(buf: AudioBuffer, durationMs: number) {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.enabled) return;
     try {
       if ((this.ctx.state as string) !== 'running') {
         this.ctx.resume().catch(() => {});
@@ -1093,137 +874,70 @@ class SoundEngineClass {
     } catch {}
   }
 
-  // تشغيل الصوت المخصص عند خسارة الباون لأي فريق بدلاً من الصوت العادي
+  private playDecodedMatchWinBuffer(buf: AudioBuffer) {
+    if (!this.ctx || !this.enabled) return;
+    try {
+      if ((this.ctx.state as string) !== 'running') {
+        this.ctx.resume().catch(() => {});
+      }
+      if (this.activeMatchWinSource) {
+        try {
+          this.activeMatchWinSource.stop();
+        } catch {}
+        this.activeMatchWinSource = null;
+      }
+      const source = this.ctx.createBufferSource();
+      source.buffer = buf;
+
+      const gainNode = this.ctx.createGain();
+      gainNode.gain.setValueAtTime(1.0, this.ctx.currentTime);
+
+      source.connect(gainNode);
+      gainNode.connect(this.ctx.destination);
+      source.start(0);
+      this.activeMatchWinSource = source;
+    } catch {}
+  }
+
+  // تشغيل الصوت المخصص عند خسارة الباون لأي فريق عبر Web Audio API
   playBaoonLossVoice() {
     if (!this.enabled) return;
     this.init();
     this.stopApplause();
+    if (!this.ctx) return;
 
-    const playWebAudio = () => {
-      if (!this.ctx) return;
-      if (this.baoonLossBuffer) {
-        this.playDecodedBaoonLossBuffer(this.baoonLossBuffer);
-      } else {
-        this.decodeBaoonLossBuffer((buf) => this.playDecodedBaoonLossBuffer(buf));
-      }
-    };
-
-    if (this.ctx && this.baoonLossBuffer && (this.ctx.state as string) === 'running') {
+    if (this.baoonLossBuffer) {
       this.playDecodedBaoonLossBuffer(this.baoonLossBuffer);
-      return;
+    } else {
+      this.decodeBaoonLossBuffer((buf) => this.playDecodedBaoonLossBuffer(buf));
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        if (!this.baoonLossAudio) {
-          this.baoonLossAudio = new Audio(`data:audio/mpeg;base64,${BAOON_LOSS_BASE64}`);
-          this.baoonLossAudio.preload = 'auto';
-        }
-        const audio = this.baoonLossAudio;
-        audio.pause();
-        if (audio.readyState >= 1) {
-          try {
-            audio.currentTime = 0;
-          } catch {}
-        }
-        audio.muted = false;
-        audio.volume = 1.0;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            playWebAudio();
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    playWebAudio();
   }
 
-  // تشغيل صوت تصفيق واحتفال الفوز بالمباراة الكاملة عند ظهور النتيجة النهائية
+  // تشغيل صوت تصفيق واحتفال الفوز بالمباراة الكاملة عبر Web Audio API ليحترم وضع الصامت في الجهاز
   playMatchWinCelebration() {
     if (!this.enabled) return;
-    try {
-      this.stopApplause();
-      if (!this.matchWinAudio && typeof window !== 'undefined') {
-        this.matchWinAudio = new Audio('/winners_celebration.mp3');
-        this.matchWinAudio.preload = 'auto';
-      }
-      if (!this.matchWinAudio) return;
+    this.init();
+    this.stopApplause();
+    if (!this.ctx) return;
 
-      const audio = this.matchWinAudio;
-      if (audio.readyState >= 1) {
-        try {
-          audio.currentTime = 0;
-        } catch {}
-      }
-      audio.volume = 1.0;
-      audio.play().catch(() => {});
-    } catch {}
+    if (this.matchWinBuffer) {
+      this.playDecodedMatchWinBuffer(this.matchWinBuffer);
+    } else {
+      this.decodeMatchWinBuffer((buf) => this.playDecodedMatchWinBuffer(buf));
+    }
   }
 
-  // تشغيل فوري (0ms) ومضبوط زمنياً لصوت التصفيق يبدأ لحظة ظهور "كفو شباب" ويتوقف لحظة اختفائها بالضبط
+  // تشغيل فوري ومضبوط زمنياً لصوت التصفيق عبر Web Audio API
   playCheeringAndWhistle(durationMs: number = 2400) {
     if (!this.enabled) return;
     this.init();
     this.stopApplause();
+    if (!this.ctx) return;
 
-    // أولوية قصوى (0ms Latency): التشغيل من WebAudio Buffer المفكوك مسبقاً بالتزامن اللحظي مع ظهور واختفاء "كفو شباب"
-    if (this.ctx && this.applauseBuffer && (this.ctx.state as string) === 'running') {
+    if (this.applauseBuffer) {
       this.playDecodedApplauseBuffer(this.applauseBuffer, durationMs);
-      return;
-    }
-
-    const playWebAudioFallback = () => {
-      if (!this.ctx) return;
-      if (this.applauseBuffer) {
-        this.playDecodedApplauseBuffer(this.applauseBuffer, durationMs);
-      } else {
-        this.decodeApplauseBuffer((buf) => this.playDecodedApplauseBuffer(buf, durationMs));
-      }
-    };
-
-    try {
-      if (!this.applauseAudio && typeof window !== 'undefined') {
-        this.applauseAudio = new Audio(`data:audio/mpeg;base64,${APPLAUSE_BASE64}`);
-        this.applauseAudio.preload = 'auto';
-      }
-      if (!this.applauseAudio) {
-        playWebAudioFallback();
-        return;
-      }
-
-      const audio = this.applauseAudio;
-      if (!audio.paused) {
-        audio.pause();
-      }
-      if (audio.readyState >= 1) {
-        try {
-          audio.currentTime = 0;
-        } catch {}
-      }
-      audio.muted = false;
-      audio.volume = 0.95;
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          playWebAudioFallback();
-        });
-      }
-
-      const fadeStartMs = Math.max(400, durationMs - 220);
-      this.applauseTimer = setTimeout(() => {
-        this.applauseFadeInterval = setInterval(() => {
-          if (audio.volume > 0.15) {
-            audio.volume = Math.max(0, audio.volume - 0.22);
-          } else {
-            this.stopApplause();
-          }
-        }, 35);
-      }, fadeStartMs);
-    } catch {
-      playWebAudioFallback();
+    } else {
+      this.decodeApplauseBuffer((buf) => this.playDecodedApplauseBuffer(buf, durationMs));
     }
   }
 
