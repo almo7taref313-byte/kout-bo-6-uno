@@ -373,82 +373,151 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
               isLandscapeMode ? 'col-span-7' : ''
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                <span className="text-[10px] xs:text-[11px] font-black text-emerald-800">
-                  المتواجدون في اللعبة ({onlinePlayers.length})
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] text-slate-600 font-bold hidden xs:inline">
-                  {isAssigned
-                    ? `مقعدك: #${assignedSeatIdx + 1} (${assignedSeatIdx % 2 === 0 ? 'الأزرق 🔵' : 'الأحمر 🔴'})`
-                    : 'اضغط على أي مقعد فارغ للجلوس 💺'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRefreshOnlineAndRoom}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-xs ${
-                    refreshDone
-                      ? 'bg-emerald-600 text-white border-emerald-500'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
-                  }`}
-                  title="تحديث قائمة المتواجدين وحالة الطاولة"
-                >
-                  <span className={`inline-block ${isRefreshingOnline ? 'animate-spin' : ''}`}>🔄</span>
-                  <span>
-                    {isRefreshingOnline ? 'جاري التحديث...' : refreshDone ? 'تم التحديث ✓' : 'تحديث'}
-                  </span>
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const activeMyId = myClientId || roomSync.myClientId;
+              const map = new Map<string, OnlinePlayer>();
 
-            {onlinePlayers.length > 0 ? (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {onlinePlayers.map((op) => {
-                  const isInMyRoom =
-                    seats.some((s) => !s.isVacant && s.clientId === op.clientId) ||
-                    waitingPlayers.some((w) => w.clientId === op.clientId) ||
-                    op.roomCode === roomCode;
-                  const isInvited = invitedMap[op.clientId];
+              // 1. اللاعب نفسه (أنت)
+              map.set(activeMyId, {
+                clientId: activeMyId,
+                name: myName || 'أنت',
+                avatarId: myAvatarId || 'kuwaiti_avatar_1',
+                customPhoto: myCustomPhoto ?? null,
+                status: 'private_table',
+                roomCode,
+                lastSeen: Date.now(),
+              });
 
-                  return (
-                    <div
-                      key={op.clientId}
-                      className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2 py-1 shrink-0"
-                    >
-                      <div className="w-5 h-5 rounded-full overflow-hidden border border-emerald-500/60 bg-white shrink-0">
-                        <AvatarView avatarId={op.avatarId} customPhoto={op.customPhoto} />
-                      </div>
-                      <span className="text-[9.5px] font-black text-slate-800 max-w-[70px] truncate">
-                        {op.name}
+              // 2. اللاعبون البشريون الجالسون في الطاولة أو في قائمة الانتظار
+              seats.forEach((s, idx) => {
+                if (!s.isVacant && s.isHuman && s.name) {
+                  const cid = s.clientId || `seat_${idx}`;
+                  if (cid !== activeMyId && cid !== roomSync.myClientId && !map.has(cid)) {
+                    map.set(cid, {
+                      clientId: cid,
+                      name: s.name,
+                      avatarId: s.avatarId,
+                      customPhoto: s.customPhoto,
+                      status: 'private_table',
+                      roomCode,
+                      lastSeen: Date.now(),
+                    });
+                  }
+                }
+              });
+
+              waitingPlayers.forEach((wp) => {
+                if (wp.clientId && wp.clientId !== activeMyId && wp.clientId !== roomSync.myClientId && !map.has(wp.clientId)) {
+                  map.set(wp.clientId, {
+                    clientId: wp.clientId,
+                    name: wp.name,
+                    avatarId: wp.avatarId || 'kuwaiti_avatar_1',
+                    customPhoto: wp.customPhoto || null,
+                    status: 'private_table',
+                    roomCode,
+                    lastSeen: Date.now(),
+                  });
+                }
+              });
+
+              // 3. بقية المتواجدين أونلاين في اللعبة
+              onlinePlayers.forEach((op) => {
+                if (op.clientId && op.clientId !== activeMyId && op.clientId !== roomSync.myClientId && !map.has(op.clientId)) {
+                  map.set(op.clientId, op);
+                }
+              });
+
+              const displayOnlinePlayers = Array.from(map.values());
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="text-[10px] xs:text-[11px] font-black text-emerald-800">
+                        المتواجدون في اللعبة ({displayOnlinePlayers.length})
                       </span>
-                      {isInMyRoom ? (
-                        <span className="text-[8px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-lg font-bold">
-                          بالطاولة ✓
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-slate-600 font-bold hidden xs:inline">
+                        {isAssigned
+                          ? `مقعدك: #${assignedSeatIdx + 1} (${assignedSeatIdx % 2 === 0 ? 'الأزرق 🔵' : 'الأحمر 🔴'})`
+                          : 'اضغط على أي مقعد فارغ للجلوس 💺'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRefreshOnlineAndRoom}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-xs ${
+                          refreshDone
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                        }`}
+                        title="تحديث قائمة المتواجدين وحالة الطاولة"
+                      >
+                        <span className={`inline-block ${isRefreshingOnline ? 'animate-spin' : ''}`}>🔄</span>
+                        <span>
+                          {isRefreshingOnline ? 'جاري التحديث...' : refreshDone ? 'تم التحديث ✓' : 'تحديث'}
                         </span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isInvited}
-                          onClick={() => handleInviteOnlinePlayer(op)}
-                          className={`px-2 py-0.5 rounded-lg text-[8.5px] font-black transition active:scale-95 cursor-pointer ${
-                            isInvited ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-600 text-white'
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    {displayOnlinePlayers.map((op) => {
+                      const isSelf = op.clientId === activeMyId || op.clientId === roomSync.myClientId;
+                      const isInMyRoom =
+                        isSelf ||
+                        seats.some((s) => !s.isVacant && s.clientId === op.clientId) ||
+                        waitingPlayers.some((w) => w.clientId === op.clientId) ||
+                        op.roomCode === roomCode;
+                      const isInvited = invitedMap[op.clientId];
+
+                      return (
+                        <div
+                          key={op.clientId}
+                          className={`flex items-center gap-1.5 rounded-xl px-2 py-1 shrink-0 border ${
+                            isSelf
+                              ? 'bg-amber-50/90 border-amber-300'
+                              : 'bg-slate-100 border-slate-200'
                           }`}
                         >
-                          {isInvited ? 'تمت الدعوة ✅' : '+ دعوة'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-[9.5px] text-slate-500 py-0.5 font-semibold">
-                اختر مقعدك وفريقك بالضغط على أي كرسي متاح بالأسفل
-              </div>
-            )}
+                          <div
+                            className={`w-5 h-5 rounded-full overflow-hidden border bg-white shrink-0 ${
+                              isSelf ? 'border-amber-500' : 'border-emerald-500/60'
+                            }`}
+                          >
+                            <AvatarView avatarId={op.avatarId} customPhoto={op.customPhoto} />
+                          </div>
+                          <span className="text-[9.5px] font-black text-slate-800 max-w-[70px] truncate">
+                            {op.name}
+                          </span>
+                          {isSelf ? (
+                            <span className="text-[8px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-lg font-bold">
+                              أنت ✓
+                            </span>
+                          ) : isInMyRoom ? (
+                            <span className="text-[8px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-lg font-bold">
+                              بالطاولة ✓
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isInvited}
+                              onClick={() => handleInviteOnlinePlayer(op)}
+                              className={`px-2 py-0.5 rounded-lg text-[8.5px] font-black transition active:scale-95 cursor-pointer ${
+                                isInvited ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-600 text-white'
+                              }`}
+                            >
+                              {isInvited ? 'تمت الدعوة ✅' : '+ دعوة'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

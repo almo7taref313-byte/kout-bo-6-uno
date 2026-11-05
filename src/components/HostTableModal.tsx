@@ -147,6 +147,73 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
   const filledSeats = seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '');
   const vacantCount = 6 - filledSeats.length;
 
+  const myEffectiveClientId = hostClientId || roomSync.myClientId;
+  const displayOnlinePlayers = React.useMemo(() => {
+    const map = new Map<string, OnlinePlayer>();
+    // 1. المضيف نفسه (أنت)
+    const mySeat = seats[currentHumanSeatIndex];
+    map.set(myEffectiveClientId, {
+      clientId: myEffectiveClientId,
+      name: hostName || mySeat?.name || 'أنت',
+      avatarId: hostAvatarId || mySeat?.avatarId || 'kuwaiti_avatar_1',
+      customPhoto: hostCustomPhoto ?? mySeat?.customPhoto ?? null,
+      status: 'private_table',
+      roomCode,
+      lastSeen: Date.now(),
+    });
+
+    // 2. أي لاعب بشري متواجد حالياً في مقاعد الطاولة أو قائمة الانتظار
+    seats.forEach((s, idx) => {
+      if (!s.isVacant && s.isHuman && s.name && idx !== currentHumanSeatIndex) {
+        const cid = s.clientId || `seat_${idx}`;
+        if (!map.has(cid)) {
+          map.set(cid, {
+            clientId: cid,
+            name: s.name,
+            avatarId: s.avatarId,
+            customPhoto: s.customPhoto,
+            status: 'private_table',
+            roomCode,
+            lastSeen: Date.now(),
+          });
+        }
+      }
+    });
+
+    waitingPlayers.forEach((wp) => {
+      if (wp.clientId && !map.has(wp.clientId)) {
+        map.set(wp.clientId, {
+          clientId: wp.clientId,
+          name: wp.name,
+          avatarId: wp.avatarId || 'kuwaiti_avatar_1',
+          customPhoto: wp.customPhoto || null,
+          status: 'private_table',
+          roomCode,
+          lastSeen: Date.now(),
+        });
+      }
+    });
+
+    // 3. بقية المتواجدين أونلاين في اللعبة
+    onlinePlayers.forEach((op) => {
+      if (op.clientId && !map.has(op.clientId) && op.clientId !== roomSync.myClientId) {
+        map.set(op.clientId, op);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [
+    myEffectiveClientId,
+    hostName,
+    hostAvatarId,
+    hostCustomPhoto,
+    seats,
+    currentHumanSeatIndex,
+    waitingPlayers,
+    onlinePlayers,
+    roomCode,
+  ]);
+
   const shareLink =
     typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}?room=${roomCode}` : '';
   const whatsappHref = `https://api.whatsapp.com/send?text=${encodeURIComponent(
@@ -562,7 +629,7 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                 <span className="text-[10px] xs:text-[11px] font-black text-emerald-800">
-                  المتواجدون في اللعبة الآن ({onlinePlayers.length})
+                  المتواجدون في اللعبة الآن ({displayOnlinePlayers.length})
                 </span>
               </div>
               <button
@@ -588,60 +655,69 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
               </div>
             )}
 
-            {onlinePlayers.length === 0 ? (
-              <div className="text-[9.5px] text-slate-500 py-1 text-center font-semibold">
-                أي لاعب يفتح اللعبة سيظهر اسمه هنا فوراً لدعوته بضغطة زر
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {onlinePlayers.map((op) => {
-                  const isAlreadySeated = seats.some(
-                    (s) => !s.isVacant && s.clientId === op.clientId
-                  );
-                  const isInWaiting = waitingPlayers.some((w) => w.clientId === op.clientId);
-                  const isInMyRoom = isAlreadySeated || isInWaiting || op.roomCode === roomCode;
-                  const invStatus = invitedMap[op.clientId];
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {displayOnlinePlayers.map((op) => {
+                const isSelf =
+                  op.clientId === myEffectiveClientId || op.clientId === roomSync.myClientId;
+                const isAlreadySeated = seats.some(
+                  (s) => !s.isVacant && s.clientId === op.clientId
+                );
+                const isInWaiting = waitingPlayers.some((w) => w.clientId === op.clientId);
+                const isInMyRoom =
+                  isSelf || isAlreadySeated || isInWaiting || op.roomCode === roomCode;
+                const invStatus = invitedMap[op.clientId];
 
-                  return (
+                return (
+                  <div
+                    key={op.clientId}
+                    className={`flex items-center gap-1.5 rounded-xl px-2 py-1 shrink-0 border ${
+                      isSelf
+                        ? 'bg-amber-50/90 border-amber-300'
+                        : 'bg-slate-100 border-slate-200'
+                    }`}
+                  >
                     <div
-                      key={op.clientId}
-                      className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2 py-1 shrink-0"
+                      className={`w-6 h-6 rounded-full overflow-hidden border bg-white shrink-0 ${
+                        isSelf ? 'border-amber-500' : 'border-emerald-500/60'
+                      }`}
                     >
-                      <div className="w-6 h-6 rounded-full overflow-hidden border border-emerald-500/60 bg-white shrink-0">
-                        <AvatarView avatarId={op.avatarId} customPhoto={op.customPhoto} />
-                      </div>
-                      <span className="text-[10px] font-black text-slate-800 max-w-[75px] truncate">
-                        {op.name}
-                      </span>
-                      {isInMyRoom ? (
-                        <span className="text-[8.5px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-lg font-bold">
-                          بالطاولة ✓
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={invStatus === 'sent'}
-                          onClick={() => handleInviteOnlinePlayer(op)}
-                          className={`px-2 py-0.5 rounded-lg text-[9px] font-black transition active:scale-95 cursor-pointer ${
-                            invStatus === 'sent'
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : invStatus === 'accepted'
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
-                          }`}
-                        >
-                          {invStatus === 'sent'
-                            ? 'أُرسلت ⏳'
-                            : invStatus === 'accepted'
-                            ? 'انضم ✅'
-                            : '+ دعوة'}
-                        </button>
-                      )}
+                      <AvatarView avatarId={op.avatarId} customPhoto={op.customPhoto} />
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <span className="text-[10px] font-black text-slate-800 max-w-[75px] truncate">
+                      {op.name}
+                    </span>
+                    {isSelf ? (
+                      <span className="text-[8.5px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-lg font-bold">
+                        أنت ✓
+                      </span>
+                    ) : isInMyRoom ? (
+                      <span className="text-[8.5px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-lg font-bold">
+                        بالطاولة ✓
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={invStatus === 'sent'}
+                        onClick={() => handleInviteOnlinePlayer(op)}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-black transition active:scale-95 cursor-pointer ${
+                          invStatus === 'sent'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : invStatus === 'accepted'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+                        }`}
+                      >
+                        {invStatus === 'sent'
+                          ? 'أُرسلت ⏳'
+                          : invStatus === 'accepted'
+                          ? 'انضم ✅'
+                          : '+ دعوة'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
