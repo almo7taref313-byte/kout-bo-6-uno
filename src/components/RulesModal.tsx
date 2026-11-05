@@ -98,58 +98,42 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                 </p>
               </div>
 
-              {/* 2. شارة المشتري ولون الحكم */}
+              {/* 2. رموز اللاعب والمزاد ولون الحكم */}
               <div className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-xs">
-                <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                   <h4 className="font-black text-slate-800 text-xs">
-                    2. شارة المشتري ولون الحكم (عند صورة اللاعب)
+                    2. شارة الحكم، الموزع (D)، وفقاعات المزاد
                   </h4>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="min-w-[26px] h-[18px] px-1.5 rounded-full bg-[#ea1d2d] border-2 border-white shadow text-white font-black text-[10px] flex items-center justify-center font-mono">
+                    <span className="w-6 h-6 rounded-full bg-slate-900 border border-slate-400 text-amber-300 font-black text-xs flex items-center justify-center shadow-xs">
+                      D
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-lg bg-white text-slate-900 font-black text-[9px] border-2 border-slate-900 shadow-xs">
+                      طوف
+                    </span>
+                    <span className="min-w-[24px] h-[18px] px-1 rounded-full bg-[#ea1d2d] border-2 border-white shadow text-white font-black text-[10px] flex items-center justify-center font-mono">
                       6
                     </span>
-                    <span className="min-w-[34px] h-[18px] px-1.5 rounded-full bg-[#0082c8] border-2 border-white shadow text-white font-black text-[8.5px] flex items-center justify-center">
+                    <span className="min-w-[32px] h-[18px] px-1.5 rounded-full bg-[#0082c8] border-2 border-white shadow text-white font-black text-[8.5px] flex items-center justify-center">
                       ملزوم
                     </span>
-                    <span className="min-w-[26px] h-[18px] px-1 rounded-full bg-[#009e49] border-2 border-white shadow text-white font-black text-[10px] flex items-center justify-center">
+                    <span className="min-w-[24px] h-[18px] px-1 rounded-full bg-[#009e49] border-2 border-white shadow text-white font-black text-[10px] flex items-center justify-center">
                       👑
                     </span>
                   </div>
                 </div>
                 <p className="text-slate-600 text-[10.5px] font-medium">
-                  شارة بيضاوية <b>يتحول لونها إلى لون الحكم المختار</b>، وتظهر عند صورة المشتري وبداخلها <b>رقم الشراء (5–8)</b> أو كلمة <b>«ملزوم»</b> أو <b>التاج (👑)</b> للباون.
+                  • <b>حرف D:</b> موزع الورق (وآخر من يزايد)، وينتقل التوزيع للفريق الأقل نقاطاً.
+                  <br />• <b>الفقاعات:</b> تعرض قرار اللاعب أثناء المزاد (طوف، 5–8، باون، ملزوم).
+                  <br />• <b>الشارة البيضاوية:</b> تلون <b>بلون الحكم</b> عند المشتري وبداخلها رقم الشراء (<b>5–8</b>) أو <b>«ملزوم»</b> أو <b>👑</b> للباون.
                 </p>
               </div>
 
-              {/* 3. علامة الموزع (D) وفقاعات المزاد */}
+              {/* 3. رموز أوراق اللعب */}
               <div className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-xs">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <h4 className="font-black text-slate-800 text-xs">
-                    3. رمز الموزع (D) وفقاعات المزاد
-                  </h4>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="w-6 h-6 rounded-full bg-slate-900 border border-slate-400 text-amber-300 font-black text-xs flex items-center justify-center shadow-xs">
-                      D
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-white text-slate-900 font-black text-[9.5px] border-2 border-slate-900 shadow-xs">
-                      طوف
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-white text-blue-700 font-black text-[9.5px] border-2 border-slate-900 shadow-xs">
-                      7
-                    </span>
-                  </div>
-                </div>
-                <p className="text-slate-600 text-[10.5px] font-medium">
-                  • <b>حرف D:</b> يحدد موزع الورق (وآخر من يزايد)، وينتقل التوزيع للفريق الأقل نقاطاً.
-                  <br />• <b>الفقاعات:</b> تعرض قرار كل لاعب أثناء المزايدة (طوف، 5–8، باون، ملزوم).
-                </p>
-              </div>
-
-              {/* 4. رموز أوراق اللعب */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-xs">
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <h4 className="font-black text-slate-800 text-xs">
-                    4. رموز أوراق اللعب الخاصة
+                    3. رموز أوراق اللعب الخاصة
                   </h4>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="bg-slate-900 text-white font-black text-[8.5px] px-1.5 py-0.5 rounded-md">
@@ -169,11 +153,11 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                 </p>
               </div>
 
-              {/* 5. شريط أهداف المباراة ورموز التحكم */}
+              {/* 4. شريط أهداف المباراة ورموز التحكم */}
               <div className="bg-white p-2.5 rounded-xl border border-slate-200/90 shadow-xs">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <h4 className="font-black text-slate-800 text-xs">
-                    5. شريط النقاط ورموز التحكم
+                    4. شريط النقاط ورموز التحكم
                   </h4>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-mono font-black text-[9px]">
