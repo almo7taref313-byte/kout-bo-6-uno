@@ -565,12 +565,15 @@ export function selectBotMove(
   const isBotBuyer = buyerId !== null && buyerId !== undefined && bot.id === buyerId;
   const rawLegalMoves = bot.hand.filter((c) => isLegalMove(bot.hand, c, trick, highestBid, trumpColor, isBotBuyer));
   let legalMoves = filterBotWildMoves(rawLegalMoves, bot.hand, trick, highestBid, trumpColor, isBotBuyer, playedTricks);
-  if (legalMoves.length === 0) return bot.hand[0];
-  if (legalMoves.length === 1) return legalMoves[0];
+  if (legalMoves.length === 0) return rawLegalMoves[0] || bot.hand[0];
+  if (rawLegalMoves.length === 1) return rawLegalMoves[0];
 
   // Check past fallen supreme cards in this round
   const hasTrumpKingFallen = playedTricks.some((t) =>
     t.some((p) => trumpColor && p.card.color === trumpColor && p.card.rank === '1')
+  );
+  const hasTrumpKingInCurrentTrick = Boolean(
+    trumpColor && trick.some((p) => p.card.color === trumpColor && p.card.rank === '1')
   );
   const hasJokerFallen = playedTricks.some((t) => t.some((p) => p.card.isJoker));
 
@@ -632,6 +635,9 @@ export function selectBotMove(
         0
       )
     : 0;
+  const currentTrickSuitedTrumpCount = trumpColor
+    ? trick.filter((p) => p.card.color === trumpColor && !p.card.isJoker && !p.card.isMaker).length
+    : 0;
   const mySuitedTrumpCount = trumpColor
     ? bot.hand.filter((c) => c.color === trumpColor && !c.isJoker && !c.isMaker).length
     : 0;
@@ -654,6 +660,22 @@ export function selectBotMove(
         });
       }
     });
+
+    // أيضاً فحص الأكلة الحالية إذا كانت النزلة حكماً ولم يتبع الخصم الحكم
+    const currentTrickLead = getEffectiveLeadColor(trick, highestBid, trumpColor);
+    if (currentTrickLead === trumpColor) {
+      trick.forEach((p) => {
+        const pPlayer = context?.players
+          ? context.players.find((pl) => pl.id === p.playerId) || context.players[p.playerId]
+          : null;
+        const isSameTeam = pPlayer
+          ? pPlayer.team === bot.team
+          : p.playerId % 2 === bot.id % 2;
+        if (!isSameTeam && p.card.color !== trumpColor && !p.card.isJoker && !p.card.isMaker) {
+          opponentsVoidInTrump.add(p.playerId);
+        }
+      });
+    }
   }
 
   const opponentSeatIds = [0, 1, 2, 3, 4, 5].filter((pid) => {
@@ -674,11 +696,24 @@ export function selectBotMove(
       )
   );
 
+  const opponentPlayedSuitedTrumpInCurrentTrick = Boolean(
+    trumpColor &&
+      trick.some(
+        (p) =>
+          !isTeammate(p.playerId) &&
+          p.playerId !== bot.id &&
+          p.card.color === trumpColor &&
+          !p.card.isJoker &&
+          !p.card.isMaker
+      )
+  );
+
   // هل كروت الحكم محصورة فقط عند فريق البوت (الخصم لا يملك أي حكم في يده)؟
   const opponentsExhaustedTrumps = Boolean(
     trumpColor &&
+      !opponentPlayedSuitedTrumpInCurrentTrick &&
       ((context?.players && context.players.length > 0 && !opponentsHoldAnySuitedTrump) ||
-        playedSuitedTrumpCount + mySuitedTrumpCount >= 13 ||
+        playedSuitedTrumpCount + currentTrickSuitedTrumpCount + mySuitedTrumpCount >= 13 ||
         (opponentSeatIds.length > 0 && opponentSeatIds.every((id) => opponentsVoidInTrump.has(id))))
   );
 
@@ -688,9 +723,49 @@ export function selectBotMove(
     return !isTeammate(wId) && wId !== bot.id ? count + 1 : count;
   }, 0);
 
+  const buyerPlayInTrick =
+    buyerId !== null && buyerId !== undefined
+      ? trick.find((p) => p.playerId === buyerId)
+      : null;
+
+  const isSmallTrumpPlayedByBuyer = Boolean(
+    buyerPlayInTrick &&
+      trumpColor &&
+      buyerPlayInTrick.card.color === trumpColor &&
+      !buyerPlayInTrick.card.isJoker &&
+      !buyerPlayInTrick.card.isMaker &&
+      ['2', '3', '4', '5', '6', '7', '8', '9'].includes(buyerPlayInTrick.card.rank)
+  );
+
+  // البند الجديد:
+  // "اذا كان فريق الخصم لا يملك حكم وخال الحكم لم ينزل بعد ولعب الحاكم حكما صغيرا لا يلعب البوت الجيكر لان الحكام عند زملائه في الفريق"
+  const shouldForbidJokerOnBuyerSmallTrump = Boolean(
+    !isLead &&
+      trumpColor &&
+      buyerTeam &&
+      bot.team === buyerTeam &&
+      isSmallTrumpPlayedByBuyer &&
+      opponentsExhaustedTrumps &&
+      !hasTrumpKingFallen &&
+      !hasTrumpKingInCurrentTrick
+  );
+
+  if (shouldForbidJokerOnBuyerSmallTrump) {
+    const nonJokerLegal = legalMoves.filter((c) => !c.isJoker && c.rank !== 'wild_draw4');
+    if (nonJokerLegal.length > 0) {
+      legalMoves = nonJokerLegal;
+    } else {
+      const nonJokerRaw = rawLegalMoves.filter((c) => !c.isJoker && c.rank !== 'wild_draw4');
+      if (nonJokerRaw.length > 0) {
+        legalMoves = nonJokerRaw;
+      }
+    }
+  }
+
   // قاعدة فورية ملزمة:
-  // "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
-  if (!isLead && trumpColor) {
+  // 1) "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
+  // 2) "في حال كان الفريق حاكما والحاكم لعب حكما صغيرا وخال الحكم لعب من قبل الخصم يجب لعب الجيكر من فريق الحاكم مباشرة."
+  if (!isLead && trumpColor && !shouldForbidJokerOnBuyerSmallTrump) {
     const teammatePlayedSmallTrump = trick.some(
       (p) =>
         isTeammate(p.playerId) &&
@@ -699,15 +774,37 @@ export function selectBotMove(
         !p.card.isMaker &&
         p.card.rank !== '1'
     );
-    const opponentPlayedTrumpKhale = trick.some(
+    const opponentPlayedTrumpKhaleInCurrentTrick = trick.some(
       (p) =>
         !isTeammate(p.playerId) &&
         p.playerId !== bot.id &&
         p.card.color === trumpColor &&
         p.card.rank === '1'
     );
+    const opponentPlayedTrumpKhaleInPast = playedTricks.some((t) =>
+      t.some(
+        (p) =>
+          !isTeammate(p.playerId) &&
+          p.playerId !== bot.id &&
+          p.card.color === trumpColor &&
+          p.card.rank === '1'
+      )
+    );
+    const opponentPlayedTrumpKhale =
+      opponentPlayedTrumpKhaleInCurrentTrick || opponentPlayedTrumpKhaleInPast;
 
-    if (teammatePlayedSmallTrump && opponentPlayedTrumpKhale) {
+    const isBuyerTeamBotRespondingToBuyerSmallTrump = Boolean(
+      buyerTeam &&
+        bot.team === buyerTeam &&
+        bot.id !== buyerId &&
+        isSmallTrumpPlayedByBuyer &&
+        opponentPlayedTrumpKhale
+    );
+
+    if (
+      (teammatePlayedSmallTrump && opponentPlayedTrumpKhaleInCurrentTrick) ||
+      isBuyerTeamBotRespondingToBuyerSmallTrump
+    ) {
       const jokerInHand =
         rawLegalMoves.find((c) => c.isJoker || c.rank === 'wild_draw4') ||
         bot.hand.find((c) => c.isJoker || c.rank === 'wild_draw4');
@@ -717,15 +814,21 @@ export function selectBotMove(
     }
   }
 
+  if (legalMoves.length === 1) return legalMoves[0];
+
   // ============================================================================
   // TERMINOLOGY & CRITICAL RULE (مفردات معتمدة):
   // "الجيكر/الميكر يخيس = أن يبدأ اللاعب به اللعب (في بداية الأكلة فيفقد قوته)"
   // "لا يسمح للبوت أن يجعل الجيكر أو الميكر يخيس، ويُسمح ببقائه آخر كرت للأكلة الثامنة فقط إذا ضمن 100% ألا يبدأ به اللعب"
   // "البوت لا يضرب بالميكر والأكلة لنا خصوصاً أنه اللاعب الأخير"
   // ============================================================================
-  const wildCardsInHand = bot.hand.filter((c) => c.isJoker || c.isMaker);
+  const wildCardsInHand = bot.hand.filter(
+    (c) => (c.isJoker || c.isMaker) && !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker)
+  );
   const nonWildCardsInHand = bot.hand.filter((c) => !c.isJoker && !c.isMaker);
-  const legalWildMoves = legalMoves.filter((c) => c.isJoker || c.isMaker);
+  const legalWildMoves = legalMoves.filter(
+    (c) => (c.isJoker || c.isMaker) && !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker)
+  );
 
   if (!isLead && legalWildMoves.length > 0) {
     // 1. في حال الباون: إذا كان الجيكر عند الخصم يرميه فوراً وتنتهي الجولة من أول دورة
@@ -917,11 +1020,6 @@ export function selectBotMove(
   // Check if the teammate buyer (الحاكم صاحبه) played a high card (خال=1, باش=draw2, ميم=skip, غلام=reverse, عشرة=0) in this trick
   // and is currently winning the trick:
   // Rule: "الجيكر والمكر لا يستعملهم البوت في حال لعب الحاكم (خال،باش،ميم،غلام،عشره=٠)"
-  const buyerPlayInTrick =
-    buyerId !== null && buyerId !== undefined
-      ? trick.find((p) => p.playerId === buyerId)
-      : null;
-
   const isBuyerHighCardPlayed = Boolean(
     buyerPlayInTrick &&
       buyerTeam === bot.team &&
@@ -1187,13 +1285,7 @@ export function selectBotMove(
     // User Rule:
     // "يلعب الحكم الكبير اذا الحاكم صاحبه ولعب حكم صغير والفريق الاخر ممكن يملك حكم اكبر"
     // "الجيكر والمكر لا يستعملهم البوت في حال لعب الحاكم (خال،باش،ميم،غلام،عشره=٠)"
-    const isSmallTrumpPlayedByBuyer =
-      buyerPlayInTrick &&
-      trumpColor &&
-      buyerPlayInTrick.card.color === trumpColor &&
-      ['2', '3', '4', '5', '6', '7', '8', '9'].includes(buyerPlayInTrick.card.rank);
-
-    if (isSmallTrumpPlayedByBuyer && buyerTeam && bot.team === buyerTeam && bot.id !== buyerId) {
+    if (isSmallTrumpPlayedByBuyer && buyerPlayInTrick && buyerTeam && bot.team === buyerTeam && bot.id !== buyerId) {
       // Check if an opponent still hasn't played in this trick OR already over-trumped the buyer
       const playedIds = new Set(trick.map((t) => t.playerId));
       const opponentYetToPlay = [0, 1, 2, 3, 4, 5].some(
@@ -1219,8 +1311,10 @@ export function selectBotMove(
 
         // Only use Joker/Maker if an opponent actually over-trumped our buyer (never strike with Maker when the trick is still ours!)
         if (highestBid >= 6 && opponentCurrentlyWinning) {
-          const jokerMove = legalMoves.find((c) => c.isJoker);
-          if (jokerMove) return jokerMove;
+          if (!shouldForbidJokerOnBuyerSmallTrump) {
+            const jokerMove = legalMoves.find((c) => c.isJoker);
+            if (jokerMove) return jokerMove;
+          }
           const makerMove = legalMoves.find((c) => c.isMaker);
           if (makerMove) return makerMove;
         }
