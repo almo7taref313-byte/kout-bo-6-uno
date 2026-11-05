@@ -2347,9 +2347,14 @@ export default function App() {
 
   const isNearSquareViewport = () => {
     if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isIPadDevice =
+      /iPad/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && !/iPhone|iPod/i.test(ua));
+    if (isIPadDevice) return false;
     const minD = Math.min(window.innerWidth, window.innerHeight);
     const maxD = Math.max(window.innerWidth, window.innerHeight);
-    return maxD > 0 && minD / maxD > 0.72;
+    return maxD > 0 && maxD < 940 && minD / maxD > 0.85;
   };
 
   const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(() => {
@@ -2360,13 +2365,15 @@ export default function App() {
   });
   const isLandscapeModeRef = useRef<boolean>(isLandscapeMode);
   const manualScreenModeRef = useRef<'auto' | 'landscape' | 'portrait'>('auto');
+  const lastPhysicalLandscapeRef = useRef<boolean>(
+    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : false
+  );
 
   const syncDeviceViewportAndSafeAreas = useCallback(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-    const vv = window.visualViewport;
-    const winW = Math.round(vv?.width || window.innerWidth);
-    const winH = Math.round(vv?.height || window.innerHeight);
+    const winW = Math.round(window.innerWidth);
+    const winH = Math.round(window.innerHeight);
 
     const root = document.documentElement;
     root.style.setProperty('--app-vw', `${winW}px`);
@@ -2400,8 +2407,8 @@ export default function App() {
         safeTop = 24;
         safeBottom = 6;
       } else if (isIPad) {
-        safeTop = 18;
-        safeBottom = 8;
+        safeTop = 14;
+        safeBottom = 6;
       } else if (isAndroid) {
         const isStandalone =
           window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -2427,15 +2434,18 @@ export default function App() {
   const applyOrientationMode = useCallback((mode: 'auto' | 'landscape' | 'portrait') => {
     manualScreenModeRef.current = mode;
     const nearSquare = isNearSquareViewport();
+    const physicalIsLandscape = window.innerWidth > window.innerHeight;
+    lastPhysicalLandscapeRef.current = physicalIsLandscape;
 
     if (mode === 'auto') {
       document.body.classList.remove('forced-landscape-mode', 'forced-portrait-mode');
-      const nativeLand = window.innerWidth > window.innerHeight && !nearSquare;
+      const nativeLand = physicalIsLandscape && !nearSquare;
       isLandscapeModeRef.current = nativeLand;
       setIsLandscapeMode(nativeLand);
     } else if (mode === 'landscape') {
       document.body.classList.remove('forced-portrait-mode');
-      if (!nearSquare) {
+      // إذا كان الجهاز أصلاً في الوضع الأفقي الفيزيائي، لا نضيف forced-landscape-mode حتى لا نطبق تدوير أو قيود غير ضرورية
+      if (!physicalIsLandscape && !nearSquare) {
         document.body.classList.add('forced-landscape-mode');
       } else {
         document.body.classList.remove('forced-landscape-mode');
@@ -2444,7 +2454,11 @@ export default function App() {
       setIsLandscapeMode(true);
     } else {
       document.body.classList.remove('forced-landscape-mode');
-      document.body.classList.add('forced-portrait-mode');
+      if (physicalIsLandscape) {
+        document.body.classList.add('forced-portrait-mode');
+      } else {
+        document.body.classList.remove('forced-portrait-mode');
+      }
       isLandscapeModeRef.current = false;
       setIsLandscapeMode(false);
     }
@@ -2462,7 +2476,11 @@ export default function App() {
     setTimeout(() => {
       syncDeviceViewportAndSafeAreas();
       window.dispatchEvent(new Event('kout-layout-refresh'));
-    }, 280);
+    }, 200);
+    setTimeout(() => {
+      syncDeviceViewportAndSafeAreas();
+      window.dispatchEvent(new Event('kout-layout-refresh'));
+    }, 420);
   }, [syncDeviceViewportAndSafeAreas]);
 
   useEffect(() => {
@@ -2470,11 +2488,15 @@ export default function App() {
     applyOrientationMode('auto');
 
     const handleNativeViewportChange = () => {
+      const currentPhysicalLandscape = window.innerWidth > window.innerHeight;
+      const physicalOrientationFlipped = currentPhysicalLandscape !== lastPhysicalLandscapeRef.current;
+      lastPhysicalLandscapeRef.current = currentPhysicalLandscape;
+
       syncDeviceViewportAndSafeAreas();
-      if (manualScreenModeRef.current === 'auto') {
+      if (manualScreenModeRef.current === 'auto' || physicalOrientationFlipped) {
+        // عند قلب الجهاز فعلياً (من الرأسي للأفقي أو العكس) نضبط الوضع التلقائي ليتطابق فوراً مع اتجاه الشاشة الحقيقي
         applyOrientationMode('auto');
       } else if (isNearSquareViewport()) {
-        // عند فتح شاشة الفولد الداخلية المربعية نلغي أي تدوير CSS قسري لتبقى الشاشة معتدلة دائماً
         document.body.classList.remove('forced-landscape-mode');
         window.dispatchEvent(new Event('kout-layout-refresh'));
       } else {

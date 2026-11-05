@@ -97,14 +97,73 @@ const getResponsiveTableCardLayout = (tableW: number, tableH: number): TableGrid
   };
 };
 
-// إحداثيات مركز صور اللاعبين كمرجع احتياطي
-const WINNER_AVATAR_TARGETS: Record<number, CardCoord> = {
-  0: { x: 0, y: 170, rotate: 0 },        // إلى مركز صورة اللاعب (أنت) بأسفل الطاولة
-  1: { x: 165, y: 95, rotate: 10 },      // إلى مركز صورة المقعد 1 (يمين أسفل)
-  2: { x: 165, y: -95, rotate: 10 },     // إلى مركز صورة المقعد 2 (يمين أعلى)
-  3: { x: 0, y: -170, rotate: 0 },       // إلى مركز صورة المقعد 3 (أعلى المنتصف)
-  4: { x: -165, y: -95, rotate: -10 },   // إلى مركز صورة المقعد 4 (يسار أعلى)
-  5: { x: -165, y: 95, rotate: -10 },    // إلى مركز صورة المقعد 5 (يسار أسفل)
+// حساب إحداثيات مركز صورة اللاعب الفائز بالأكلة في الفضاء المحلي للطاولة بدقة رياضية 100%
+// بغض النظر عن وضع الشاشة (رأسي/أفقي/آيباد/تابلت/موبايل) أو وجود تدوير CSS على الحاوية الرئيسية
+const computeAvatarOffsetInTableSpace = (
+  tableEl: HTMLElement | null,
+  winnerId: number | null
+): { x: number; y: number } | null => {
+  if (!tableEl || winnerId === null || typeof document === 'undefined') return null;
+  const avatarEl = document.getElementById(`avatar-player-${winnerId}`);
+  if (!avatarEl) return null;
+
+  const tableRect = tableEl.getBoundingClientRect();
+  const avatarRect = avatarEl.getBoundingClientRect();
+  if (tableRect.width === 0 || tableRect.height === 0) return null;
+
+  const screenDX = avatarRect.left + avatarRect.width / 2 - (tableRect.left + tableRect.width / 2);
+  const screenDY = avatarRect.top + avatarRect.height / 2 - (tableRect.top + tableRect.height / 2);
+
+  const wrapperEl = document.getElementById('gameMainWrapper');
+  if (wrapperEl && typeof window !== 'undefined') {
+    const transformStr = window.getComputedStyle(wrapperEl).transform;
+    if (transformStr && transformStr !== 'none') {
+      const match = transformStr.match(/matrix\(([^)]+)\)/);
+      if (match && match[1]) {
+        const parts = match[1].split(',').map((v) => parseFloat(v.trim()));
+        if (parts.length >= 4 && parts.every((n) => Number.isFinite(n))) {
+          const [a, b, c, d] = parts;
+          const det = a * d - b * c;
+          if (Math.abs(det) > 1e-6) {
+            const localDX = (d * screenDX - c * screenDY) / det;
+            const localDY = (-b * screenDX + a * screenDY) / det;
+            return {
+              x: Math.round(localDX),
+              y: Math.round(localDY),
+            };
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    x: Math.round(screenDX),
+    y: Math.round(screenDY),
+  };
+};
+
+// إحداثيات مركز صور اللاعبين كمرجع احتياطي متجاوب مع أبعاد الطاولة الفعلية
+const getFallbackAvatarTarget = (relSlot: number, tableW: number, tableH: number): CardCoord => {
+  const halfW = Math.round(tableW * 0.43);
+  const halfH = Math.round(tableH * 0.42);
+  const sideY = Math.round(tableH * 0.24);
+  switch (relSlot) {
+    case 0:
+      return { x: 0, y: halfH, rotate: 0 };
+    case 1:
+      return { x: halfW, y: sideY, rotate: 10 };
+    case 2:
+      return { x: halfW, y: -sideY, rotate: 10 };
+    case 3:
+      return { x: 0, y: -halfH, rotate: 0 };
+    case 4:
+      return { x: -halfW, y: -sideY, rotate: -10 };
+    case 5:
+      return { x: -halfW, y: sideY, rotate: -10 };
+    default:
+      return { x: 0, y: 0, rotate: 0 };
+  }
 };
 
 export const TableArena: React.FC<TableArenaProps> = ({
@@ -145,7 +204,6 @@ export const TableArena: React.FC<TableArenaProps> = ({
     const el = tableFeltRef.current;
     if (!el) return;
     const updateDimensions = () => {
-      // استخدام offsetWidth / offsetHeight بدلاً من getBoundingClientRect لأن التدوير 90 درجة يعكس الطول والعرض في getBoundingClientRect
       const localW = el.offsetWidth || el.clientWidth;
       const localH = el.offsetHeight || el.clientHeight;
       if (localW > 0 && localH > 0) {
@@ -154,19 +212,23 @@ export const TableArena: React.FC<TableArenaProps> = ({
     };
     updateDimensions();
     const t1 = setTimeout(updateDimensions, 60);
-    const t2 = setTimeout(updateDimensions, 280);
+    const t2 = setTimeout(updateDimensions, 200);
+    const t3 = setTimeout(updateDimensions, 420);
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(updateDimensions);
       ro.observe(el);
     }
     window.addEventListener('resize', updateDimensions);
+    window.addEventListener('orientationchange', updateDimensions);
     window.addEventListener('kout-layout-refresh', updateDimensions);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
       if (ro) ro.disconnect();
       window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('orientationchange', updateDimensions);
       window.removeEventListener('kout-layout-refresh', updateDimensions);
     };
   }, [isLandscapeMode]);
@@ -209,43 +271,25 @@ export const TableArena: React.FC<TableArenaProps> = ({
   React.useEffect(() => {
     if (collectingWinnerId !== null) {
       const measureTarget = () => {
-        const tableEl = tableFeltRef.current;
-        const avatarEl = document.getElementById(`avatar-player-${collectingWinnerId}`);
-        if (tableEl && avatarEl) {
-          const tableRect = tableEl.getBoundingClientRect();
-          const avatarRect = avatarEl.getBoundingClientRect();
-
-          const tableCenterX = tableRect.left + tableRect.width / 2;
-          const tableCenterY = tableRect.top + tableRect.height / 2;
-
-          const avatarCenterX = avatarRect.left + avatarRect.width / 2;
-          const avatarCenterY = avatarRect.top + avatarRect.height / 2;
-
-          const screenDX = avatarCenterX - tableCenterX;
-          const screenDY = avatarCenterY - tableCenterY;
-          const isRotated90 =
-            typeof document !== 'undefined' &&
-            document.body.classList.contains('forced-landscape-mode') &&
-            window.innerHeight >= window.innerWidth;
-          const isRotatedMinus90 =
-            typeof document !== 'undefined' &&
-            document.body.classList.contains('forced-portrait-mode') &&
-            window.innerWidth > window.innerHeight;
-
-          setCollectOffset({
-            x: Math.round(isRotated90 ? screenDY : isRotatedMinus90 ? -screenDY : screenDX),
-            y: Math.round(isRotated90 ? -screenDX : isRotatedMinus90 ? screenDX : screenDY),
-          });
+        const offset = computeAvatarOffsetInTableSpace(tableFeltRef.current, collectingWinnerId);
+        if (offset) {
+          setCollectOffset(offset);
         }
       };
 
       measureTarget();
       const raf = requestAnimationFrame(measureTarget);
-      return () => cancelAnimationFrame(raf);
+      window.addEventListener('resize', measureTarget);
+      window.addEventListener('kout-layout-refresh', measureTarget);
+      return () => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener('resize', measureTarget);
+        window.removeEventListener('kout-layout-refresh', measureTarget);
+      };
     } else {
       setCollectOffset(null);
     }
-  }, [collectingWinnerId]);
+  }, [collectingWinnerId, tableSize.w, tableSize.h, isLandscapeMode]);
 
   return (
     <main
@@ -255,7 +299,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
       
       {/* 
         طاولة الكوت الفسيحة والمطورة لجميع الأجهزة (الموبايل، التابلت، والكمبيوتر):
-        - تتمدد بالعرض والارتفاع على التابلت (sm:max-w-[740px] md:max-w-[860px]) لمنع ضيق المساحة
+        - تتمدد بالعرض والارتفاع على التابلت والآيباد في الوضعين الرأسي والأفقي لمنع أي فراغ زائد
       */}
       <div 
         ref={tableFeltRef}
@@ -268,9 +312,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
         className={`jawaker-table-felt ${
           tableColor === 'green' ? 'table-theme-green' : 'table-theme-snow'
         } rounded-[44px] sm:rounded-[64px] md:rounded-[76px]
-          w-[96%] max-w-[440px] sm:max-w-[740px] md:max-w-[860px] lg:max-w-[920px]
-          h-[96%] max-h-[450px] xs:max-h-[480px] sm:max-h-[550px] md:max-h-[580px]
-          relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${
+          w-[96%] max-w-[440px] sm:max-w-[820px] md:max-w-[920px] lg:max-w-[980px]
+          h-[96%] max-h-[450px] xs:max-h-[480px] sm:max-h-[760px] md:max-h-[820px]
+          relative flex items-center justify-center select-none shadow-2xl ${
           isBaoonActive ? 'table-baoon-festive-lights ring-4 ring-yellow-400/80 ring-offset-2 ring-offset-slate-900' : ''
         }`}
       >
@@ -346,7 +390,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
             const relPlaySlot = (play.playerId - humanSeatIndex + 6) % 6;
             const rest = dynamicCardSlots[relPlaySlot] || { x: 0, y: 0, rotate: 0 };
             const relWinnerSlot = collectingWinnerId !== null ? (collectingWinnerId - humanSeatIndex + 6) % 6 : 0;
-            const fallbackTarget = WINNER_AVATAR_TARGETS[relWinnerSlot] || { x: 0, y: 0, rotate: 0 };
+            const fallbackTarget = getFallbackAvatarTarget(relWinnerSlot, tableSize.w, tableSize.h);
 
             let targetX = rest.x;
             let targetY = rest.y;
@@ -354,32 +398,11 @@ export const TableArena: React.FC<TableArenaProps> = ({
             let targetScale = 1;
 
             if (isCollecting) {
-              let measuredX = collectOffset?.x;
-              let measuredY = collectOffset?.y;
+              const liveOffset =
+                computeAvatarOffsetInTableSpace(tableFeltRef.current, collectingWinnerId) || collectOffset;
 
-              if (measuredX === undefined || measuredY === undefined) {
-                const tableEl = tableFeltRef.current;
-                const avatarEl = typeof document !== 'undefined' ? document.getElementById(`avatar-player-${collectingWinnerId}`) : null;
-                if (tableEl && avatarEl) {
-                  const tableRect = tableEl.getBoundingClientRect();
-                  const avatarRect = avatarEl.getBoundingClientRect();
-                  const screenDX = (avatarRect.left + avatarRect.width / 2) - (tableRect.left + tableRect.width / 2);
-                  const screenDY = (avatarRect.top + avatarRect.height / 2) - (tableRect.top + tableRect.height / 2);
-                  const isRotated90 =
-                    typeof document !== 'undefined' &&
-                    document.body.classList.contains('forced-landscape-mode') &&
-                    window.innerHeight >= window.innerWidth;
-                  const isRotatedMinus90 =
-                    typeof document !== 'undefined' &&
-                    document.body.classList.contains('forced-portrait-mode') &&
-                    window.innerWidth > window.innerHeight;
-                  measuredX = Math.round(isRotated90 ? screenDY : isRotatedMinus90 ? -screenDY : screenDX);
-                  measuredY = Math.round(isRotated90 ? -screenDX : isRotatedMinus90 ? screenDX : screenDY);
-                }
-              }
-
-              targetX = measuredX !== undefined ? measuredX : fallbackTarget.x;
-              targetY = measuredY !== undefined ? measuredY : fallbackTarget.y;
+              targetX = liveOffset ? liveOffset.x : fallbackTarget.x;
+              targetY = liveOffset ? liveOffset.y : fallbackTarget.y;
               targetRotate = 0;
               targetScale = 0.22;
             }

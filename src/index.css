@@ -16,11 +16,12 @@
   html, body, #root {
     font-family: var(--font-sans);
     height: 100%;
-    height: var(--app-vh, 100dvh);
+    height: 100vh;
+    height: 100dvh;
     width: 100%;
     width: 100vw;
     max-width: 100vw;
-    max-height: var(--app-vh, 100dvh);
+    max-height: 100dvh;
     margin: 0;
     padding: 0;
     user-select: none;
@@ -41,8 +42,11 @@
 }
 
 #gameMainWrapper {
-  height: var(--app-vh, 100dvh);
-  max-height: var(--app-vh, 100dvh);
+  width: 100%;
+  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
 }
 
 .safe-top {
@@ -110,7 +114,7 @@
    التحكم الحاسم في الوضع الأفقي للموبايل (Landscape Phones) والوضع الأفقي الإجباري
    يمسح الفراغ الأسود حول كروت اليد ويمدد الطاولة لتصبح فسيحة وتتسع لكافة الكروت بدون تداخل
    ========================================================================== */
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 450px) and (max-width: 932px) {
   body:not(.forced-portrait-mode) .scoreboard-inner {
     min-height: 34px !important;
     padding-top: 2px !important;
@@ -159,34 +163,34 @@
   }
 }
 
-/* للأجهزة اللوحية (التابلت والآيباد) والشاشات المتوسطة بارتفاع مريح */
-@media (min-width: 600px) and (min-height: 501px) {
+/* للأجهزة اللوحية (التابلت والآيباد) والشاشات المتوسطة بارتفاع مريح في الوضعين الرأسي والأفقي */
+@media (min-width: 600px) and (min-height: 451px) {
   .jawaker-table-felt {
-    width: 92% !important;
-    max-width: 760px !important;
-    height: 95% !important;
-    max-height: 540px !important;
+    width: 94% !important;
+    max-width: 820px !important;
+    height: 96% !important;
+    max-height: 760px !important;
     border-radius: 68px !important;
   }
 }
 
-/* للشاشات الكبيرة والآيباد العريض وأجهزة اللابتوب */
-@media (min-width: 768px) and (min-height: 520px) {
+/* للشاشات الكبيرة والآيباد في الوضعين الرأسي والأفقي وأجهزة اللابتوب */
+@media (min-width: 740px) and (min-height: 451px) {
   .jawaker-table-felt {
-    width: 86% !important;
-    max-width: 860px !important;
-    height: 95% !important;
-    max-height: 560px !important;
+    width: 92% !important;
+    max-width: 920px !important;
+    height: 96% !important;
+    max-height: 820px !important;
     border-radius: 76px !important;
   }
 }
 
-@media (min-width: 1024px) and (min-height: 640px) {
+@media (min-width: 1024px) and (min-height: 600px) {
   .jawaker-table-felt {
-    width: 76% !important;
-    max-width: 920px !important;
-    height: 95% !important;
-    max-height: 580px !important;
+    width: 88% !important;
+    max-width: 980px !important;
+    height: 96% !important;
+    max-height: 820px !important;
     border-radius: 80px !important;
   }
 }
@@ -261,24 +265,32 @@
     padding: 3px;
   }
 }
-@media (min-width: 640px) {
+@media (min-width: 600px) and (min-height: 451px) {
   .uno-card-hand {
-    width: 72px;
-    height: 108px;
+    width: 74px;
+    height: 111px;
     border-radius: 10.5px;
     padding: 3px;
   }
 }
-@media (min-width: 1024px) {
+@media (min-width: 740px) and (min-height: 451px) {
   .uno-card-hand {
     width: 80px;
     height: 120px;
+    border-radius: 11.5px;
+    padding: 3.5px;
+  }
+}
+@media (min-width: 820px) and (min-height: 451px) {
+  .uno-card-hand {
+    width: 84px;
+    height: 126px;
     border-radius: 12px;
     padding: 3.5px;
   }
 }
-/* ضبط كروت اليد في الشاشات العرضية للهواتف لتكون واضحة مع الحفاظ على مساحة الطاولة */
-@media (max-height: 500px) and (orientation: landscape) {
+/* ضبط كروت اليد في الشاشات العرضية للهواتف الصغيرة فقط لتكون واضحة مع الحفاظ على مساحة الطاولة */
+@media (max-height: 450px) and (max-width: 932px) and (orientation: landscape) {
   body:not(.forced-portrait-mode) .uno-card-hand {
     width: 44px !important;
     height: 66px !important;
@@ -301,7 +313,7 @@
     padding: 3px;
   }
 }
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-height: 450px) and (max-width: 932px) and (orientation: landscape) {
   body:not(.forced-portrait-mode) .uno-card-table {
     border-radius: 6px !important;
     padding: 2px !important;
@@ -556,11 +568,11 @@
   box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5);
 }
 
-/* Forced landscape mode (عند قفل تدوير الهاتف العادي وتفعيل الوضع الأفقي يدوياً من داخل اللعبة - لا يدور شاشات الفولد المربعية) */
+/* Forced landscape mode (عند قفل تدوير الجهاز وتفعيل الوضع الأفقي يدوياً من داخل اللعبة) */
 body.forced-landscape-mode {
   overflow: hidden;
 }
-@media (orientation: portrait) and (max-aspect-ratio: 3/4) {
+@media (orientation: portrait) {
   body.forced-landscape-mode #gameMainWrapper {
     position: fixed !important;
     top: 50% !important;
@@ -576,66 +588,72 @@ body.forced-landscape-mode {
     z-index: 100;
   }
 }
-body.forced-landscape-mode .scoreboard-inner {
-  min-height: 34px !important;
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
-}
-body.forced-landscape-mode .arena-center-stage {
-  padding: 3px 10px !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-body.forced-landscape-mode .jawaker-table-felt {
-  width: 90% !important;
-  max-width: 840px !important;
-  height: 96% !important;
-  max-height: 400px !important;
-  border-radius: 54px !important;
-}
-body.forced-landscape-mode .player-hand-footer {
-  padding-top: 2px !important;
-  padding-bottom: 3px !important;
-}
-body.forced-landscape-mode .player-hand-row {
-  min-height: 68px !important;
-  padding-top: 3px !important;
-  padding-bottom: 1px !important;
-}
-body.forced-landscape-mode .uno-card-hand {
-  width: 44px !important;
-  height: 66px !important;
-  border-radius: 6px !important;
-  padding: 2px !important;
-}
-body.forced-landscape-mode .uno-card-table {
-  border-radius: 6px !important;
-  padding: 2px !important;
-}
-body.forced-landscape-mode .seat-avatar-ring {
-  width: 36px !important;
-  height: 36px !important;
-}
-body.forced-landscape-mode .seat-avatar-inner {
-  width: 31px !important;
-  height: 31px !important;
-}
-body.forced-landscape-mode .seat-name-pill {
-  padding-top: 1px !important;
-  padding-bottom: 1px !important;
-  margin-top: 1px !important;
+
+/* تصغير العناصر في الوضع الأفقي الإجباري محصور بالهواتف الصغيرة فقط ولا يطبق على الآيباد والتابلت */
+@media (max-width: 540px) and (max-height: 932px), (max-height: 450px) and (max-width: 932px) {
+  body.forced-landscape-mode .scoreboard-inner {
+    min-height: 34px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+  }
+  body.forced-landscape-mode .arena-center-stage {
+    padding: 3px 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  body.forced-landscape-mode .jawaker-table-felt {
+    width: 90% !important;
+    max-width: 840px !important;
+    height: 96% !important;
+    max-height: 400px !important;
+    border-radius: 54px !important;
+  }
+  body.forced-landscape-mode .player-hand-footer {
+    padding-top: 2px !important;
+    padding-bottom: 3px !important;
+  }
+  body.forced-landscape-mode .player-hand-row {
+    min-height: 68px !important;
+    padding-top: 3px !important;
+    padding-bottom: 1px !important;
+  }
+  body.forced-landscape-mode .uno-card-hand {
+    width: 44px !important;
+    height: 66px !important;
+    border-radius: 6px !important;
+    padding: 2px !important;
+  }
+  body.forced-landscape-mode .uno-card-table {
+    border-radius: 6px !important;
+    padding: 2px !important;
+  }
+  body.forced-landscape-mode .seat-avatar-ring {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  body.forced-landscape-mode .seat-avatar-inner {
+    width: 31px !important;
+    height: 31px !important;
+  }
+  body.forced-landscape-mode .seat-name-pill {
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+    margin-top: 1px !important;
+  }
 }
 
-/* Forced portrait mode (يحافظ على اتجاه الشاشة الطبيعي بدون تدوير عكسي -90deg يمنع انقلاب شاشة الفولد) */
+/* Forced portrait mode */
 body.forced-portrait-mode {
   overflow: hidden;
 }
-body.forced-portrait-mode .jawaker-table-felt {
-  width: 96% !important;
-  max-width: 440px !important;
-  height: 96% !important;
-  max-height: 460px !important;
-  border-radius: 44px !important;
+@media (max-width: 599px) {
+  body.forced-portrait-mode .jawaker-table-felt {
+    width: 96% !important;
+    max-width: 440px !important;
+    height: 96% !important;
+    max-height: 460px !important;
+    border-radius: 44px !important;
+  }
 }
 
 

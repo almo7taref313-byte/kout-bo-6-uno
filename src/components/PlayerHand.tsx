@@ -62,10 +62,22 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   const sortedHand = sortHandCards(activePlayer.hand, trumpColor);
 
-  const [handGapPx, setHandGapPx] = React.useState<number>(2);
+  const [handGapPx, setHandGapPx] = React.useState<number>(3);
+  const handRowRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const updateSpacing = () => {
+      const count = Math.max(1, sortedHand.length);
+      if (count <= 1) {
+        setHandGapPx(0);
+        return;
+      }
+
+      const rowEl = handRowRef.current;
+      const measuredRowW = rowEl ? rowEl.clientWidth || rowEl.offsetWidth : 0;
+      const firstCardEl = rowEl?.querySelector('.uno-card-hand') as HTMLElement | null;
+      const measuredCardW = firstCardEl ? firstCardEl.offsetWidth || firstCardEl.clientWidth : 0;
+
       const isForcedLandscape =
         typeof document !== 'undefined' &&
         document.body.classList.contains('forced-landscape-mode');
@@ -76,37 +88,61 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         isLandscapeMode !== undefined
           ? isLandscapeMode
           : isForcedLandscape || (!isForcedPortrait && window.innerWidth > window.innerHeight);
-      const effectiveWidth = isLandscape
-        ? Math.max(window.innerWidth, window.innerHeight)
-        : Math.min(window.innerWidth, window.innerHeight);
-      const count = Math.max(1, sortedHand.length);
 
-      if (isLandscape || effectiveWidth >= 520) {
-        // في الوضع الأفقي أو الشاشات العريضة: مسافة موجبة مريحة بين كل كرت والآخر بدون أي تداخل
-        setHandGapPx(count >= 8 ? 4 : count >= 6 ? 6 : 8);
+      const fallbackViewportW = isLandscape
+        ? Math.max(window.innerWidth, window.innerHeight)
+        : window.innerWidth;
+      const effectiveWidth = measuredRowW > 120 ? measuredRowW : fallbackViewportW;
+
+      const cardW =
+        measuredCardW > 20
+          ? measuredCardW
+          : effectiveWidth >= 820
+          ? 84
+          : effectiveWidth >= 740
+          ? 80
+          : effectiveWidth >= 600
+          ? 74
+          : effectiveWidth >= 480
+          ? 64
+          : effectiveWidth >= 410
+          ? 50
+          : effectiveWidth >= 360
+          ? 48
+          : 45;
+
+      const sideMargin = effectiveWidth >= 600 ? 32 : effectiveWidth >= 380 ? 44 : 32;
+      const availW = Math.max(200, effectiveWidth - sideMargin);
+      const totalCardsW = count * cardW;
+      const maxPreferredGap = effectiveWidth >= 700 ? (count >= 8 ? 5 : 8) : 4;
+
+      if (totalCardsW + (count - 1) * maxPreferredGap <= availW) {
+        setHandGapPx(maxPreferredGap);
       } else {
-        // في الوضع العمودي للهاتف: ترك هامش مريح من الطرفين الأيمن والأيسر وتوزيع الكروت في الوسط بدون اكتظاظ
-        const cardW =
-          effectiveWidth >= 480 ? 64 : effectiveWidth >= 410 ? 50 : effectiveWidth >= 360 ? 48 : 45;
-        const sideMargin = effectiveWidth >= 380 ? 52 : 40;
-        const availW = effectiveWidth - sideMargin;
-        const totalCardsW = count * cardW;
-        if (totalCardsW + (count - 1) * 3 <= availW) {
-          setHandGapPx(3);
-        } else if (count > 1) {
-          const calculatedOverlap = Math.floor((availW - totalCardsW) / (count - 1));
-          setHandGapPx(Math.max(-14, Math.min(3, calculatedOverlap)));
-        } else {
-          setHandGapPx(0);
-        }
+        const calculatedGap = Math.floor((availW - totalCardsW) / (count - 1));
+        setHandGapPx(Math.max(-14, Math.min(maxPreferredGap, calculatedGap)));
       }
     };
 
     updateSpacing();
+    const t1 = setTimeout(updateSpacing, 60);
+    const t2 = setTimeout(updateSpacing, 220);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && handRowRef.current) {
+      ro = new ResizeObserver(updateSpacing);
+      ro.observe(handRowRef.current);
+    }
+
     window.addEventListener('resize', updateSpacing);
+    window.addEventListener('orientationchange', updateSpacing);
     window.addEventListener('kout-layout-refresh', updateSpacing);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (ro) ro.disconnect();
       window.removeEventListener('resize', updateSpacing);
+      window.removeEventListener('orientationchange', updateSpacing);
       window.removeEventListener('kout-layout-refresh', updateSpacing);
     };
   }, [sortedHand.length, isLandscapeMode]);
@@ -114,16 +150,17 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   return (
     <footer
       onClick={() => onTableTap?.()}
-      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1.5 sm:pt-2 pb-1.5 sm:pb-2.5 px-3 xs:px-4 sm:px-3 select-none flex-shrink-0 transition-all duration-200 overflow-visible ${
+      className={`player-hand-footer relative w-full bg-[#181a1f]/95 border-t border-[#2a2f3a] pt-1 sm:pt-1.5 pb-1.5 sm:pb-2 px-2 xs:px-3 sm:px-3 select-none flex-shrink-0 overflow-visible ${
         isBiddingPhase ? 'z-50 ring-2 ring-emerald-500/50 shadow-2xl bg-[#14161b]' : 'z-40'
       }`}
     >
       <div className="max-w-5xl mx-auto flex flex-col items-center overflow-visible">
         {/* ترتيب أوراق اليد من اليسار لليمين بمسافات متوازنة وهوامش جانبية مريحة */}
         <div
+          ref={handRowRef}
           dir="ltr"
           style={{ direction: 'ltr' }}
-          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[74px] xs:min-h-[80px] sm:min-h-[108px] md:min-h-[122px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-2 sm:pt-3 pb-1 no-scrollbar"
+          className="player-hand-row w-full flex flex-row items-end justify-center min-h-[74px] xs:min-h-[80px] sm:min-h-[114px] md:min-h-[124px] overflow-x-visible overflow-y-visible px-2 sm:px-4 pt-1.5 sm:pt-2 pb-1 no-scrollbar"
         >
           {sortedHand.map((card, idx) => {
             const isLegal = isMyTurn
