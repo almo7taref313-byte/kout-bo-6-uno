@@ -24,6 +24,7 @@ interface TableArenaProps {
   isBaoonPendingTrump?: boolean;
   isTimerDisabled?: boolean;
   isLandscapeMode?: boolean;
+  tableColor?: 'snow' | 'green';
   onTableTap?: () => void;
 }
 
@@ -124,6 +125,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
   isBaoonPendingTrump,
   isTimerDisabled = false,
   isLandscapeMode,
+  tableColor = 'snow',
   onTableTap,
 }) => {
   const isBaoonActive = isBaoonPendingTrump !== undefined ? isBaoonPendingTrump : (highestBid === 9 && trumpColor === null);
@@ -263,7 +265,9 @@ export const TableArena: React.FC<TableArenaProps> = ({
             '--table-card-h': `${dynamicCardLayout.cardH}px`,
           } as React.CSSProperties
         }
-        className={`jawaker-table-felt rounded-[44px] sm:rounded-[64px] md:rounded-[76px]
+        className={`jawaker-table-felt ${
+          tableColor === 'green' ? 'table-theme-green' : 'table-theme-snow'
+        } rounded-[44px] sm:rounded-[64px] md:rounded-[76px]
           w-[96%] max-w-[440px] sm:max-w-[740px] md:max-w-[860px] lg:max-w-[920px]
           h-[96%] max-h-[450px] xs:max-h-[480px] sm:max-h-[550px] md:max-h-[580px]
           relative flex items-center justify-center select-none shadow-2xl transition-all duration-300 ${

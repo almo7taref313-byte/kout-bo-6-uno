@@ -17,6 +17,8 @@ interface ScoreBoardProps {
   soundEnabled: boolean;
   isLandscapeMode?: boolean;
   matchTargetScore?: MatchTargetScore;
+  tableColor?: 'snow' | 'green';
+  onToggleTableColor?: () => void;
   onToggleSound: () => void;
   onToggleScreenOrientation?: () => void;
   onOpenProfile: () => void;
@@ -41,6 +43,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   soundEnabled,
   isLandscapeMode = false,
   matchTargetScore = 101,
+  tableColor = 'snow',
+  onToggleTableColor,
   onToggleSound,
   onToggleScreenOrientation,
   onOpenRooms,
@@ -198,8 +202,34 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
           </div>
         </div>
 
-        {/* Left Section (in RTL): Orientation Toggle + Sound + Exit */}
+        {/* Left Section (in RTL): Table Color Toggle + Orientation Toggle + Sound + Exit */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Table Color toggle button (Snowy Gray vs Classic Green) */}
+          {onToggleTableColor && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleTableColor();
+              }}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] flex items-center justify-center transition active:scale-90 shadow cursor-pointer border border-slate-600/80 touch-manipulation"
+              title={
+                tableColor === 'green'
+                  ? 'تغيير لون الطاولة إلى الثلجي الرمادي'
+                  : 'تغيير لون الطاولة إلى الأخضر الكلاسيكي'
+              }
+              aria-label="تغيير لون الطاولة"
+            >
+              <span
+                className={`w-4 h-4 rounded-full border-2 transition-all ${
+                  tableColor === 'green'
+                    ? 'bg-gradient-to-br from-[#2fa53e] to-[#1e7529] border-emerald-200 shadow-[0_0_6px_rgba(47,165,62,0.8)]'
+                    : 'bg-gradient-to-br from-[#f8fafc] via-[#cbd5e1] to-[#94a3b8] border-slate-400 shadow-[0_0_6px_rgba(226,232,240,0.7)]'
+                }`}
+              />
+            </button>
+          )}
+
           {/* Screen Orientation toggle button */}
           <button
             type="button"

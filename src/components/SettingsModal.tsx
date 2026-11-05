@@ -2,6 +2,8 @@ import React from 'react';
 
 interface SettingsModalProps {
   soundEnabled: boolean;
+  tableColor?: 'snow' | 'green';
+  onChangeTableColor?: (color: 'snow' | 'green') => void;
   onToggleSound: () => void;
   onOpenProfile: () => void;
   onOpenRules: () => void;
@@ -11,6 +13,8 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   soundEnabled,
+  tableColor = 'snow',
+  onChangeTableColor,
   onToggleSound,
   onOpenProfile,
   onOpenRules,
@@ -36,6 +40,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Settings List */}
         <div className="space-y-2.5 mb-4">
+          {/* Table Color Selector (Snowy Gray vs Classic Green) */}
+          {onChangeTableColor && (
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🎨</span>
+                <div>
+                  <span className="text-xs font-bold text-white block">لون طاولة اللعب</span>
+                  <span className="text-[10px] text-slate-400">
+                    اختر لون سطح الطاولة المفضل لديك
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeTableColor('snow')}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 border transition active:scale-95 cursor-pointer ${
+                    tableColor === 'snow'
+                      ? 'bg-slate-100 text-slate-900 border-amber-400 ring-2 ring-amber-400/50 shadow'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="w-4 h-4 rounded-full bg-gradient-to-br from-[#f8fafc] via-[#cbd5e1] to-[#94a3b8] border border-slate-400 shrink-0" />
+                  <span>ثلجي رمادي</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeTableColor('green')}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 border transition active:scale-95 cursor-pointer ${
+                    tableColor === 'green'
+                      ? 'bg-emerald-600 text-white border-amber-400 ring-2 ring-amber-400/50 shadow'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="w-4 h-4 rounded-full bg-gradient-to-br from-[#2fa53e] to-[#1e7529] border border-emerald-200 shrink-0" />
+                  <span>أخضر كلاسيكي</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Sound Toggle */}
           <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">

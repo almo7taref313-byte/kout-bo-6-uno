@@ -185,6 +185,29 @@ export default function App() {
 
   // Settings (persisted in localStorage & synced with device silent/mute switch)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => soundEngine.enabled);
+  const [tableColor, setTableColor] = useState<'snow' | 'green'>(() => {
+    const saved = localStorage.getItem('kout_table_color');
+    return saved === 'green' ? 'green' : 'snow';
+  });
+
+  const handleChangeTableColor = useCallback((color: 'snow' | 'green') => {
+    soundEngine.playCardSlide();
+    setTableColor(color);
+    try {
+      localStorage.setItem('kout_table_color', color);
+    } catch {}
+  }, []);
+
+  const handleToggleTableColor = useCallback(() => {
+    soundEngine.playCardSlide();
+    setTableColor((prev) => {
+      const next = prev === 'green' ? 'snow' : 'green';
+      try {
+        localStorage.setItem('kout_table_color', next);
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Seats & Players
   const [seats, setSeats] = useState<SeatConfig[]>(() => {
@@ -2576,6 +2599,8 @@ export default function App() {
             soundEnabled={soundEnabled}
             isLandscapeMode={isLandscapeMode}
             matchTargetScore={matchTargetScore}
+            tableColor={tableColor}
+            onToggleTableColor={handleToggleTableColor}
             onToggleSound={toggleSound}
             onToggleScreenOrientation={handleToggleScreenOrientation}
             onOpenProfile={() => setShowProfileModal(true)}
@@ -2605,6 +2630,7 @@ export default function App() {
             isBaoonPendingTrump={highestBid === 9 && trumpColor === null}
             isTimerDisabled={isAllHumanGame}
             isLandscapeMode={isLandscapeMode}
+            tableColor={tableColor}
             onTableTap={handleTableSingleCardTap}
           />
 
@@ -2919,6 +2945,8 @@ export default function App() {
       {showSettingsModal && (
         <SettingsModal
           soundEnabled={soundEnabled}
+          tableColor={tableColor}
+          onChangeTableColor={handleChangeTableColor}
           onToggleSound={toggleSound}
           onOpenProfile={() => setShowProfileModal(true)}
           onOpenRules={() => setShowRulesModal(true)}
