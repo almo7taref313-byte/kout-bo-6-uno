@@ -290,17 +290,54 @@ export const TableArena: React.FC<TableArenaProps> = ({
           </span>
         </div>
 
-        {/* رسائل وسط الطاولة */}
-        {callout && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none select-none animate-bounce">
-            <div className="bg-gradient-to-r from-slate-950/95 via-slate-900/95 to-slate-950/95 border-2 border-amber-400 text-amber-200 px-4 py-2 rounded-2xl shadow-2xl shadow-amber-950/80 flex items-center gap-2 backdrop-blur-md ring-4 ring-yellow-400/30">
-              <span className="text-2xl filter drop-shadow">{callout.emoji}</span>
-              <span className="text-sm sm:text-base font-black text-white whitespace-nowrap drop-shadow tracking-wide">
-                {callout.text}
-              </span>
+        {/* وسام دائري ثلاثي الأبعاد لرسائل نهاية الجولة (كفوووو / خسرتوا) بلون الفريق الحاكم */}
+        {callout && (() => {
+          const isWinCallout = callout.text.includes('كفو');
+          const cleanLabel = isWinCallout ? 'كفوووو' : 'خسرتوا';
+          const buyerPlayer = bidWinner !== null ? players[bidWinner] : null;
+          const buyerTeam = buyerPlayer
+            ? buyerPlayer.team
+            : bidWinner !== null && bidWinner % 2 === 1
+            ? 'B'
+            : 'A';
+          const isBlueTeam = buyerTeam === 'A';
+
+          return (
+            <div className="medallion-3d-enter absolute top-1/2 left-1/2 z-50 pointer-events-none select-none">
+              <div className="relative flex items-center justify-center">
+                {/* توهج خلفي دائري بلون الفريق الحاكم */}
+                <div
+                  className={`absolute -inset-3 rounded-full blur-xl opacity-80 ${
+                    isBlueTeam ? 'bg-sky-500/60' : 'bg-rose-500/60'
+                  }`}
+                />
+
+                {/* الحلقة الخارجية المعدنية للدائرة */}
+                <div
+                  className={`relative w-[108px] h-[108px] xs:w-[118px] xs:h-[118px] sm:w-[134px] sm:h-[134px] rounded-full p-[4px] shadow-[0_14px_32px_rgba(0,0,0,0.75)] flex items-center justify-center ${
+                    isBlueTeam
+                      ? 'bg-gradient-to-b from-sky-200 via-sky-400 to-blue-900'
+                      : 'bg-gradient-to-b from-rose-200 via-rose-400 to-rose-950'
+                  }`}
+                >
+                  {/* جسم الدائرة الداخلي بلون الفريق الحاكم مع لمعة ثلاثية الأبعاد */}
+                  <div
+                    className={`medallion-shine-sweep relative w-full h-full rounded-full overflow-hidden flex items-center justify-center border-2 ${
+                      isBlueTeam
+                        ? 'bg-gradient-to-b from-[#38bdf8] via-[#0284c7] to-[#0369a1] border-sky-100/80 shadow-[inset_0_3px_8px_rgba(255,255,255,0.45),inset_0_-6px_12px_rgba(0,0,0,0.45)]'
+                        : 'bg-gradient-to-b from-[#fb7185] via-[#e11d48] to-[#9f1239] border-rose-100/80 shadow-[inset_0_3px_8px_rgba(255,255,255,0.45),inset_0_-6px_12px_rgba(0,0,0,0.45)]'
+                    }`}
+                  >
+                    {/* الكلمة في وسط الدائرة فقط */}
+                    <span className="font-callout font-black text-[22px] xs:text-[24px] sm:text-[28px] text-white tracking-normal leading-none text-center whitespace-nowrap drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]">
+                      {cleanLabel}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ساحة الأوراق المرمية */}
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-20">

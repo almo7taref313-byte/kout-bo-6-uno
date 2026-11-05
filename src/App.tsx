@@ -345,10 +345,11 @@ export default function App() {
     ((seats.length === 6 && seats.every((s) => s.isHuman && !s.isVacant)) ||
       (players.length === 6 && players.every((p) => p.isHuman)));
 
-  // دالة عرض الرسائل: محصورة فقط بالرسائل المحددة (كفو شباب / راحت عليكم) ومتزامنة بالميلي ثانية مع بداية ونهاية صوت الاحتفال
+  // دالة عرض الرسائل: محصورة فقط بالرسائل المحددة (كفوووو / خسرتوا) ومتزامنة بالميلي ثانية مع بداية ونهاية صوت الاحتفال
   const calloutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const showCallout = useCallback((text: string, emoji = '📢', durationMs = 2400) => {
-    const isAllowedMessage = text.includes('كفو شباب') || text.includes('راحت عليكم');
+    const isAllowedMessage =
+      text.includes('كفو') || text.includes('خسرتوا') || text.includes('راحت عليكم');
     if (!isAllowedMessage) return;
 
     if (calloutTimerRef.current) {
@@ -359,7 +360,7 @@ export default function App() {
     setCallout({ text, emoji, timestamp: Date.now() });
     calloutTimerRef.current = setTimeout(() => {
       setCallout(null);
-      if (text.includes('كفو شباب')) {
+      if (text.includes('كفو')) {
         soundEngine.stopApplause();
       }
       calloutTimerRef.current = null;
@@ -902,7 +903,7 @@ export default function App() {
       if (matchStatus.isMatchOver || isFirstRoundBaoonWin) {
         if (!buyerIsWinner && isBaoon) {
           soundEngine.playBaoonLossVoice();
-          showCallout('راحت عليكم! 😅👎', '💔');
+          showCallout('خسرتوا', '');
           nativeBridge.hapticTrickWin();
           scheduleGameTimeout(() => {
             setPhase('MATCH_OVER');
@@ -920,7 +921,7 @@ export default function App() {
       // تشغيل رسالة التشويق وصوت التصفيق حين يفوز الفريق الحاكم بالجولة، وحين يخسر تظهر الرسالة الأخرى
       if (buyerIsWinner) {
         soundEngine.playCheeringAndWhistle(2400);
-        showCallout('كفو شباب! 👏🎉', '👑');
+        showCallout('كفوووو', '');
         nativeBridge.hapticVictory();
       } else {
         if (isBaoon) {
@@ -928,7 +929,7 @@ export default function App() {
         } else {
           soundEngine.playSadTromboneMock();
         }
-        showCallout('راحت عليكم! 😅👎', '💔');
+        showCallout('خسرتوا', '');
         nativeBridge.hapticTrickWin();
       }
 
