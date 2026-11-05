@@ -133,8 +133,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-lg">📜</span>
               <div className="text-right">
-                <span className="text-xs font-bold text-white block">قواعد وطريقة اللعب</span>
-                <span className="text-[10px] text-slate-400">شرح كوت بو ستة أونو ونظام النقاط</span>
+                <span className="text-xs font-bold text-white block">دليل الرموز وقواعد اللعب</span>
+                <span className="text-[10px] text-slate-400">شرح مبسط لرموز اللعبة وترتيب الأوراق</span>
               </div>
             </div>
             <span className="text-slate-400 text-sm">‹</span>
