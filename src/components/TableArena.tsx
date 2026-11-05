@@ -457,12 +457,14 @@ export const TableArena: React.FC<TableArenaProps> = ({
             bubbleSeatPos = 'bottom-left';
           }
 
-          // موقع شارة الحكم البيضاوية:
+          // موقع شارة الحكم البيضاوية (الرقم أو كلمة "ملزوم"):
           // - للاعبين يمين ويسار الطاولة (1, 2, 4, 5): فوق رأس اللاعب مباشرة
           // - للاعبين فوق وتحت الطاولة (0, 3): بجانب صورة اللاعب (يسار الصورة)
           const targetBadgePosClass =
             relPos === 0 || relPos === 3
-              ? '-left-[48px] sm:-left-[58px] top-1/2 -translate-y-1/2'
+              ? isForcedBid
+                ? '-left-[56px] sm:-left-[66px] top-1/2 -translate-y-1/2'
+                : '-left-[48px] sm:-left-[58px] top-1/2 -translate-y-1/2'
               : '-top-[31px] sm:-top-[36px] left-1/2 -translate-x-1/2';
 
           const isDealer = dealerIdx === idx;
@@ -525,11 +527,15 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   
                   {isBuyer && (
                     <div
-                      dir="ltr"
+                      dir={isForcedBid ? 'rtl' : 'ltr'}
                       className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none transition-all duration-300`}
                     >
                       <div
-                        className={`w-[44px] h-[28px] sm:w-[52px] sm:h-[33px] p-0 rounded-full grid place-items-center tabular-nums ${
+                        className={`${
+                          isForcedBid
+                            ? 'w-[52px] h-[28px] sm:w-[60px] sm:h-[33px]'
+                            : 'w-[44px] h-[28px] sm:w-[52px] sm:h-[33px]'
+                        } p-0 rounded-full grid place-items-center tabular-nums ${
                           buyerTrumpInfo
                             ? 'border-2 border-white/95'
                             : 'border-2 border-amber-400/95'
@@ -547,24 +553,34 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         }}
                         title={
                           buyerTrumpInfo
-                            ? `الحكم: ${buyerTrumpInfo.name} (${highestBid})`
-                            : `عدد الحكم: ${highestBid}`
+                            ? `الحكم: ${buyerTrumpInfo.name} (${isForcedBid ? 'ملزوم' : highestBid})`
+                            : `الحكم: ${isForcedBid ? 'ملزوم' : highestBid}`
                         }
                       >
                         <span
-                          style={{
-                            fontFamily: "'Fredoka', Arial, Helvetica, sans-serif",
-                            lineHeight: 1,
-                            textBoxTrim: 'trim-both',
-                            textBoxEdge: 'cap alphabetic',
-                          } as React.CSSProperties}
-                          className={`block font-black text-[17px] sm:text-[20px] text-center m-0 p-0 ${
+                          style={
+                            isForcedBid
+                              ? ({
+                                  lineHeight: 1,
+                                } as React.CSSProperties)
+                              : ({
+                                  fontFamily: "'Fredoka', Arial, Helvetica, sans-serif",
+                                  lineHeight: 1,
+                                  textBoxTrim: 'trim-both',
+                                  textBoxEdge: 'cap alphabetic',
+                                } as React.CSSProperties)
+                          }
+                          className={`block font-black ${
+                            isForcedBid
+                              ? 'text-[12.5px] sm:text-[14.5px] tracking-tight'
+                              : 'text-[17px] sm:text-[20px]'
+                          } text-center m-0 p-0 whitespace-nowrap ${
                             buyerTrumpInfo && trumpColor === 'yellow'
                               ? 'drop-shadow-[0_1px_0px_rgba(255,255,255,0.65)]'
                               : 'drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.9)]'
                           }`}
                         >
-                          {highestBid}
+                          {isForcedBid ? 'ملزوم' : highestBid}
                         </span>
                       </div>
                     </div>

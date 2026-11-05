@@ -6,6 +6,7 @@ import {
   SKIP_VOICES_BASE64,
   THROW_PAPER_BASE64,
 } from './customVoicesData';
+import { CUSTOM_BID_VOICES_BASE64 } from './malzomVoiceData';
 
 const CUSTOM_SKIP_VOICES_STORAGE_KEY = 'kout_custom_skip_voices_v1';
 const SOUND_ENABLED_STORAGE_KEY = 'kout_sound_enabled';
@@ -48,6 +49,10 @@ class SoundEngineClass {
 
   private skipBuffers: (AudioBuffer | null)[] = [];
   private isDecodingSkip: boolean[] = [];
+
+  private customBidBuffers: Record<string, AudioBuffer | null> = {};
+  private isDecodingCustomBid: Record<string, boolean> = {};
+  private activeCustomBidSource: AudioBufferSourceNode | null = null;
 
   private baoonLossBuffer: AudioBuffer | null = null;
   private isDecodingBaoonLoss: boolean = false;
@@ -124,6 +129,7 @@ class SoundEngineClass {
 
   public stopAllActiveSounds() {
     this.stopSkipVoices();
+    this.stopCustomBidVoices();
     this.stopApplause();
     if (this.activeJokerSource) {
       try {
@@ -332,8 +338,81 @@ class SoundEngineClass {
     for (let i = 0; i < activeSkipList.length; i++) {
       this.decodeSkipBuffer(i);
     }
+    for (const key of Object.keys(CUSTOM_BID_VOICES_BASE64)) {
+      this.decodeCustomBidBuffer(key);
+    }
     this.decodeBaoonLossBuffer();
     this.decodeThrowPaperBuffer();
+  }
+
+  private decodeCustomBidBuffer(key: string, onReady?: (buf: AudioBuffer) => void) {
+    const base64 = CUSTOM_BID_VOICES_BASE64[key];
+    if (!base64) return;
+    this.decodeBase64Audio(
+      base64,
+      () => this.customBidBuffers[key] ?? null,
+      (buf) => {
+        this.customBidBuffers[key] = buf;
+      },
+      () => Boolean(this.isDecodingCustomBid[key]),
+      (val) => {
+        this.isDecodingCustomBid[key] = val;
+      },
+      onReady
+    );
+  }
+
+  private playDecodedCustomBidBuffer(buf: AudioBuffer) {
+    if (!this.ctx || !this.enabled) return;
+    try {
+      if ((this.ctx.state as string) !== 'running') {
+        this.ctx.resume().catch(() => {});
+      }
+      this.stopCustomBidVoices();
+      const source = this.ctx.createBufferSource();
+      source.buffer = buf;
+      const gainNode = this.ctx.createGain();
+      gainNode.gain.setValueAtTime(1.25, this.ctx.currentTime);
+      source.connect(gainNode);
+      gainNode.connect(this.ctx.destination);
+      source.start(0);
+      this.activeCustomBidSource = source;
+    } catch {}
+  }
+
+  public stopCustomBidVoices() {
+    if (this.activeCustomBidSource) {
+      try {
+        this.activeCustomBidSource.stop();
+      } catch {}
+      this.activeCustomBidSource = null;
+    }
+  }
+
+  // تشغيل الأصوات المسجلة الخاصة بالمستخدم للمزايدة: (5، 6، 7، 8، باون، ملزوم)
+  public playCustomBidVoice(val: number, forced: boolean = false) {
+    if (!this.enabled) return;
+    this.init();
+    this.stopSkipVoices();
+    this.stopCustomBidVoices();
+
+    const key = forced ? 'forced' : String(val);
+    if (!CUSTOM_BID_VOICES_BASE64[key]) {
+      this.playBidTone(val === 9);
+      return;
+    }
+
+    if (!this.ctx) return;
+    const existing = this.customBidBuffers[key];
+    if (existing) {
+      this.playDecodedCustomBidBuffer(existing);
+    } else {
+      this.decodeCustomBidBuffer(key, (buf) => this.playDecodedCustomBidBuffer(buf));
+    }
+  }
+
+  public playMalzomVoice() {
+    this.playCustomBidVoice(5, true);
   }
 
   private playDecodedThrowPaperBuffer(buf: AudioBuffer) {
@@ -605,6 +684,9 @@ class SoundEngineClass {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
+    if ((this.ctx.state as string) !== 'running') {
+      this.ctx.resume().catch(() => {});
+    }
     const now = this.ctx.currentTime;
 
     const chord = isBaoon ? [523.25, 659.25, 783.99, 1046.5] : [440, 554.37, 659.25];
@@ -614,12 +696,12 @@ class SoundEngineClass {
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, now + i * 0.04);
-      gain.gain.setValueAtTime(0.12, now + i * 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.24);
+      gain.gain.setValueAtTime(0.28, now + i * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.26);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(now + i * 0.04);
-      osc.stop(now + i * 0.04 + 0.24);
+      osc.stop(now + i * 0.04 + 0.26);
     });
   }
 
@@ -726,6 +808,7 @@ class SoundEngineClass {
     if (!this.enabled) return 0;
     this.init();
     this.stopSkipVoices();
+    this.stopCustomBidVoices();
 
     const activeSkipList = this.getActiveSkipVoices();
     const count = activeSkipList.length;

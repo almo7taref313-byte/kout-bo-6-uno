@@ -320,21 +320,46 @@ function filterBotWildMoves(
   return filtered;
 }
 
+const HIGH_CARD_RANKS: Set<SuitRank> = new Set(['1', 'draw2', 'skip', 'reverse', '0']);
+const MEDIUM_OR_HIGH_CARD_RANKS: Set<SuitRank> = new Set([
+  '1',
+  'draw2',
+  'skip',
+  'reverse',
+  '0',
+  '9',
+  '8',
+  '7',
+  '6',
+  '5',
+]);
+
 export function calculateBotBid(
   hand: Card[],
   currentHighestBid: number,
   isFirstBidder: boolean = false,
-  roundNumber: number = 1
+  roundNumber: number = 1,
+  opponentScore: number = 0
 ): number {
-  // First Bot Bidder Rule:
-  // "اول لاعب بوت بعد الموزع اذا كان يمتلك اوراقا من لون واحد مثال:(خال،باش،ميم،ورقم) يختار ٥ اكلات في اول جولة في اللعبة لكي لا يعطي فرصة للفريق الخصم ليبدأ اللعب"
-  if (isFirstBidder && roundNumber === 1 && currentHighestBid <= 4) {
-    const suitGroups: Record<string, Card[]> = { red: [], blue: [], green: [], yellow: [] };
-    hand.forEach((c) => {
-      if (c.color !== 'special') suitGroups[c.color].push(c);
-    });
+  const suitGroups: Record<SuitColor, Card[]> = {
+    red: [],
+    blue: [],
+    green: [],
+    yellow: [],
+    special: [],
+  };
+  hand.forEach((c) => {
+    if (suitGroups[c.color]) {
+      suitGroups[c.color].push(c);
+    }
+  });
 
-    for (const cards of Object.values(suitGroups)) {
+  const normalSuits: SuitColor[] = ['red', 'blue', 'green', 'yellow'];
+
+  // First Bot Bidder Rule in Round 1:
+  if (isFirstBidder && roundNumber === 1 && currentHighestBid <= 4 && opponentScore === 0) {
+    for (const col of normalSuits) {
+      const cards = suitGroups[col];
       if (cards.length >= 4) {
         const hasKing = cards.some((c) => c.rank === '1');
         const hasBasha = cards.some((c) => c.rank === 'draw2');
@@ -368,21 +393,55 @@ export function calculateBotBid(
   } else if (totalTricksEst > currentHighestBid && totalTricksEst >= 5) {
     return currentHighestBid + 1;
   }
+
+  // قاعدة الشراء التكتيكي بـ (5) في أول دورة أو طالما لم يحرز الفريق الخصم أي نقاط (opponentScore === 0):
+  // إذا كان البوت يملك 4 أوراق (أو أكثر) من زات واحد من الأرقام الكبيرة أو المتوسطة،
+  // وقاص زات (0 أوراق في أحد الزاتات الأخرى)، ويمتلك رقماً كبيراً من زات آخر -> يشتري 5 ليصعّب الشراء على الخصم.
+  // أما في حال كسب الفريق الثاني نقاطاً (opponentScore > 0) فلا يعتمد هذه الإعدادات.
+  const canUseZeroScoreTacticalFive = (roundNumber === 1 || opponentScore === 0) && opponentScore === 0;
+  if (canUseZeroScoreTacticalFive && currentHighestBid <= 4) {
+    for (const candidateSuit of normalSuits) {
+      const candidateCards = suitGroups[candidateSuit];
+      if (candidateCards.length < 4) continue;
+
+      const mediumOrHighCount = candidateCards.filter((c) =>
+        MEDIUM_OR_HIGH_CARD_RANKS.has(c.rank)
+      ).length;
+      if (mediumOrHighCount < 4) continue;
+
+      const otherSuits = normalSuits.filter((s) => s !== candidateSuit);
+      // شرط "قاص زات": خلو اليد تماماً من أحد الزاتات الثلاثة الأخرى
+      const hasVoidSuit = otherSuits.some((s) => suitGroups[s].length === 0);
+      if (!hasVoidSuit) continue;
+
+      // شرط "يمتلك رقماً كبيراً من زات آخر": وجود كرت كبير في زات آخر غير زات الحكم المرشح
+      const hasHighCardInOtherSuit = otherSuits.some((s) =>
+        suitGroups[s].some((c) => HIGH_CARD_RANKS.has(c.rank))
+      );
+      if (!hasHighCardInOtherSuit) continue;
+
+      return 5;
+    }
+  }
+
   return 0; // Pass ("طوف")
 }
 
 export function selectBotBestTrump(hand: Card[]): SuitColor {
-  const counts: Record<string, number> = { red: 0, blue: 0, green: 0, yellow: 0 };
-  hand.forEach((c) => {
-    if (c.color !== 'special') counts[c.color]++;
-  });
-
+  const normalSuits: SuitColor[] = ['red', 'blue', 'green', 'yellow'];
   let bestColor: SuitColor = 'red';
-  let maxCount = -1;
-  for (const [col, count] of Object.entries(counts)) {
-    if (count > maxCount) {
-      maxCount = count;
-      bestColor = col as SuitColor;
+  let bestCount = -1;
+  let bestStrength = -1;
+
+  for (const col of normalSuits) {
+    const suitCards = hand.filter((c) => c.color === col);
+    const count = suitCards.length;
+    const strength = suitCards.reduce((sum, c) => sum + Math.max(0, SUIT_RANKS.indexOf(c.rank)), 0);
+
+    if (count > bestCount || (count === bestCount && strength > bestStrength)) {
+      bestCount = count;
+      bestStrength = strength;
+      bestColor = col;
     }
   }
   return bestColor;

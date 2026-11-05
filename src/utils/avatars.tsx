@@ -76,6 +76,48 @@ export const AVATARS_CATALOG: AvatarItem[] = [
     src: '/avatars/avatar_6.svg',
     render: () => renderSvgImg('/avatars/avatar_6.svg', 'بوسكندر'),
   },
+  {
+    id: 'kuwaiti_avatar_7',
+    title: '',
+    attire: 'رجل مبتسم بقحفية بيضاء ودشداشة',
+    src: '/avatars/avatar_7.svg',
+    render: () => renderSvgImg('/avatars/avatar_7.svg', ''),
+  },
+  {
+    id: 'kuwaiti_avatar_8',
+    title: '',
+    attire: 'رجل بغترة بيضاء وعقال أسود',
+    src: '/avatars/avatar_8.svg',
+    render: () => renderSvgImg('/avatars/avatar_8.svg', ''),
+  },
+  {
+    id: 'kuwaiti_avatar_9',
+    title: '',
+    attire: 'رجل بشماغ أحمر ودشداشة داكنة',
+    src: '/avatars/avatar_9.svg',
+    render: () => renderSvgImg('/avatars/avatar_9.svg', ''),
+  },
+  {
+    id: 'kuwaiti_avatar_10',
+    title: '',
+    attire: 'رجل مبتسم بنظارة زرقاء ودشداشة بيضاء',
+    src: '/avatars/avatar_10.svg',
+    render: () => renderSvgImg('/avatars/avatar_10.svg', ''),
+  },
+  {
+    id: 'kuwaiti_avatar_11',
+    title: '',
+    attire: 'شاب مبتسم بقبعة كاب بيج ودشداشة',
+    src: '/avatars/avatar_11.svg',
+    render: () => renderSvgImg('/avatars/avatar_11.svg', ''),
+  },
+  {
+    id: 'kuwaiti_avatar_12',
+    title: '',
+    attire: 'شاب مبتسم بهودي كحلي',
+    src: '/avatars/avatar_12.svg',
+    render: () => renderSvgImg('/avatars/avatar_12.svg', ''),
+  },
 ];
 
 interface AvatarViewProps {

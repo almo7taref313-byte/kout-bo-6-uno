@@ -609,12 +609,12 @@ export default function App() {
         isForcedBidRef.current = false;
       }
 
-      if (effectiveVal === 0) {
+      if (isDealerForced) {
+        soundEngine.playCustomBidVoice(5, true);
+      } else if (effectiveVal === 0) {
         soundEngine.playRandomSkipVoice();
-      } else if (effectiveVal === 9) {
-        soundEngine.playBidTone(true);
       } else {
-        soundEngine.playBidTone(false);
+        soundEngine.playCustomBidVoice(effectiveVal, false);
       }
 
       const nextBids = [
@@ -726,10 +726,11 @@ export default function App() {
       let bidVal = 0;
       let isForced = false;
       const isFirstBidder = bot.id === (dealerIdx + 1) % 6;
+      const opponentScore = bot.team === 'A' ? matchScoreTeamB : matchScoreTeamA;
       if (bot.id === dealerIdx && highestBid <= 4) {
         // User Rule:
         // "اذا كان هو الديلر(الموزع)والكل طاف وكان يريد ان يختار ٥ التي خسارتها ١٠ نقاط فليختار ملزوم لان خسارتها ٥ نقاط"
-        const estBid = calculateBotBid(bot.hand, 4, false, roundNumber);
+        const estBid = calculateBotBid(bot.hand, 4, false, roundNumber, opponentScore);
         if (estBid >= 6) {
           bidVal = estBid;
           isForced = false;
@@ -739,13 +740,13 @@ export default function App() {
           isForced = true;
         }
       } else {
-        bidVal = calculateBotBid(bot.hand, highestBid, isFirstBidder, roundNumber);
+        bidVal = calculateBotBid(bot.hand, highestBid, isFirstBidder, roundNumber, opponentScore);
       }
       submitBid(bot.id, bidVal, isForced);
     }, 1700);
 
     return () => clearTimeout(botTimer);
-  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, phase, players, roundNumber, scheduleGameTimeout, submitBid]);
+  }, [currentTurn, dealerIdx, highestBid, isMultiplayerActive, isRoomHost, matchScoreTeamA, matchScoreTeamB, phase, players, roundNumber, scheduleGameTimeout, submitBid]);
 
   // Bot trump selection automation (handles bots & human players replaced by bots mid-turn)
   useEffect(() => {

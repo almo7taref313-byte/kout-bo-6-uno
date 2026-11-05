@@ -151,7 +151,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </label>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {AVATARS_CATALOG.map((av) => (
               <div
                 key={av.id}
@@ -160,18 +160,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onSelectAvatar(av.id);
                   onClose();
                 }}
-                className={`cursor-pointer bg-slate-800 hover:bg-slate-700 border rounded-xl p-1.5 flex flex-col items-center gap-1 transition active:scale-95 shadow ${
+                className={`cursor-pointer bg-slate-800 hover:bg-slate-700 border rounded-xl p-2 flex items-center justify-center transition active:scale-95 shadow ${
                   currentAvatarId === av.id
                     ? 'border-amber-400 ring-2 ring-amber-400/40'
                     : 'border-slate-700 hover:border-amber-400'
                 }`}
               >
-                <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-600 bg-slate-950">
+                <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full overflow-hidden border border-slate-600 bg-slate-950">
                   {av.render()}
                 </div>
-                <span className="text-[9px] text-center font-bold text-slate-300 leading-tight">
-                  {av.title}
-                </span>
               </div>
             ))}
           </div>
