@@ -518,9 +518,6 @@ export const HostTableModal: React.FC<HostTableModalProps> = ({
                   }`}
                   title={isConnected ? 'متصل بالسيرفر' : 'جاري الاتصال'}
                 />
-                <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-300 shadow-xs text-[10px] font-black text-slate-700 font-mono">
-                  اللاعبون بالطاولة: {filledSeats.length + waitingPlayers.length} / 6
-                </span>
               </div>
             </div>
           </div>

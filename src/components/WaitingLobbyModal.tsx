@@ -286,9 +286,6 @@ export const WaitingLobbyModal: React.FC<WaitingLobbyModalProps> = ({
                     isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
                   }`}
                 />
-                <span className="px-2 py-0.5 rounded-lg bg-white border border-slate-300 shadow-xs text-[10px] font-black text-slate-700 font-mono">
-                  اللاعبون بالطاولة: {seats.filter((s) => !s.isVacant && s.name && s.name.trim() !== '').length + waitingPlayers.length} / 6
-                </span>
               </div>
             </div>
           </div>
