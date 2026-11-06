@@ -1428,9 +1428,13 @@ export function selectBotMove(
       }
     }
 
+    // ============================================================================
     // User Rule:
-    // "اذا كان الزات يلعب اول مره ولعب الخال وليس حكما فلا يجب ان يلعب البوت من نفس الفريق حكما ابدا"
-    // "الا في حالة واحدة اذا رمى الخصم حكما على خال الزات الاخر من قبل الفريق فيرمي البوت حكما اكبر من حكم الخصم لكسب الاكلة او يرمي جيكر او ميكر"
+    // 1) "اذا كان الزات يلعب اول مره ولعب الخال وليس حكما فلا يجب ان يلعب البوت من نفس الفريق حكما ابدا
+    //     الا في حالة واحدة اذا رمى الخصم حكما على خال الزات الاخر من قبل الفريق فيرمي البوت حكما اكبر من حكم الخصم لكسب الاكلة او يرمي جيكر او ميكر"
+    // 2) "في حال لعب اللاعب زات غير الحكم وكان اكبر كرت مثال:(باش) وخال الزات نازل من قبل والفريق الاخر لا يملك حكم
+    //     او من لديه حكم من الفريق الاخر لم يلعب حكما فيجب على البوت ان لا يلعب حكما ويخسر حكم والاكلة لصالح فريقه."
+    // ============================================================================
     const isFirstTimeSuitPlayed = Boolean(
       leadSuit && leadSuit !== 'special' && !suitsPlayedBefore.has(leadSuit)
     );
@@ -1444,7 +1448,51 @@ export function selectBotMove(
         )
     );
 
-    if (isFirstTimeSuitPlayed && teammatePlayedKhaleOfLead) {
+    // هل لعب زميل البوت أكبر كرت متبقٍ في هذا الزات غير الحكم (مثلاً: الخال، أو الباش بعد نزول الخال من قبل، أو الميم بعد نزول الخال والباش)؟
+    const teammatePlayedMasterOfLead = Boolean(
+      isLeadOtherColor &&
+        leadSuit &&
+        trick.some(
+          (p) =>
+            isTeammate(p.playerId) &&
+            p.card.color === leadSuit &&
+            !p.card.isJoker &&
+            !p.card.isMaker &&
+            isMasterCardInSuit(p.card, true)
+        )
+    );
+
+    // هل يوجد خصم لم يلعب بعد في هذه الأكلة ويملك حكماً وقاصّ لهذا الزات (يمكنه فعلياً قطع ورقة الزميل بالحكم)؟
+    const playedIdsInTrickNow = new Set(trick.map((t) => t.playerId));
+    const remainingOpponentsInTrick = [0, 1, 2, 3, 4, 5].filter(
+      (pid) => !playedIdsInTrickNow.has(pid) && !isTeammate(pid) && pid !== bot.id
+    );
+    const canAnyRemainingOpponentCutLeadWithTrump = Boolean(
+      trumpColor &&
+        !opponentsExhaustedTrumps &&
+        leadSuit &&
+        remainingOpponentsInTrick.some((pid) => {
+          if (opponentsVoidInTrump.has(pid)) return false;
+          const oppPlayer =
+            context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+          if (oppPlayer && oppPlayer.hand && oppPlayer.hand.length > 0) {
+            const oppHasTrump = oppPlayer.hand.some(
+              (c) => c.color === trumpColor && !c.isJoker && !c.isMaker
+            );
+            const oppHasLeadSuit = oppPlayer.hand.some(
+              (c) => c.color === leadSuit && !c.isJoker && !c.isMaker
+            );
+            // لا يستطيع الخصم المتبقي لعب حكم إلا إذا كان يملك حكماً ولا يملك من الزات الملعوب
+            return oppHasTrump && !oppHasLeadSuit;
+          }
+          return opponentVoidSuits.has(leadSuit);
+        })
+    );
+
+    if (
+      (isFirstTimeSuitPlayed && teammatePlayedKhaleOfLead) ||
+      (teammatePlayedMasterOfLead && !canAnyRemainingOpponentCutLeadWithTrump)
+    ) {
       const opponentPlayedTrumpOnKhale = trick.some(
         (p) =>
           !isTeammate(p.playerId) &&
@@ -1459,7 +1507,7 @@ export function selectBotMove(
         currentWinnerId !== bot.id;
 
       if (isOpponentWinningWithTrump) {
-        // Exception: Opponent cut teammate's Khale with a trump -> Bot plays a higher trump, or Joker/Maker to win the trick
+        // Exception: Opponent cut teammate's Master/Khale with a trump -> Bot plays a higher trump, or Joker/Maker to win the trick
         const winningSuitedTrumps = legalMoves.filter(
           (c) =>
             trumpColor &&
@@ -1493,7 +1541,8 @@ export function selectBotMove(
         if (winningJoker) return winningJoker;
       }
 
-      // Otherwise (or if bot cannot beat the opponent's trump), bot from the same team must NEVER play any trump card
+      // Otherwise (the trick is ours and opponents either have no trumps or did not/cannot trump):
+      // Bot from the same team must NEVER play a trump card and waste it!
       const nonTrumpMoves = legalMoves.filter(
         (c) => (!trumpColor || c.color !== trumpColor) && !c.isJoker && !c.isMaker
       );
@@ -1743,6 +1792,7 @@ export function selectBotMove(
 
     // User Rule:
     // "اذا كان البوت حاكما ولعبت زات غير الحكم وهو قاص يجب ان يلعب حكما خصوصا اذا الكرت الذي لعبته هناك اكبر منه ولم يلعب او ان الزات لعب مرة اخرى"
+    // مع مراعاة: إذا لعب الزميل أكبر كرت متبقٍ في الزات (مثلاً الباش وخال الزات نازل من قبل) والخصم لا يملك حكماً أو من لديه حكم لم يلعب حكماً/لا يستطيع القَصّ، فلا يلعب البوت حكماً!
     if (isBotVoidInLead && trumpColor && !teammateCutWithTrump) {
       const isSuitPlayedAgain = Boolean(leadSuit && suitsPlayedBefore.has(leadSuit));
       const teammateLeadPlays = trick.filter(
@@ -1802,14 +1852,23 @@ export function selectBotMove(
         !isTeammate(currentWinnerId) && currentWinnerId !== bot.id;
       const isBotOnBuyerTeam = isBotBuyer || Boolean(buyerTeam && bot.team === buyerTeam);
 
+      // إذا كان الزميل متقدماً بأكبر كرت متبقٍ في الزات (!hasHigherUnplayedInLeadSuit) ولا يوجد خصم متبقٍ يستطيع قطع الزات بالحكم، لا يضرب البوت بالحكم أبداً
+      const isPartnerMasterSafeFromTrump =
+        !isOpponentCurrentlyWinning &&
+        teammatePlayedMasterOfLead &&
+        !canAnyRemainingOpponentCutLeadWithTrump;
+
       const shouldCutWithTrump =
-        isOpponentCurrentlyWinning ||
-        ((isBotOnBuyerTeam || opponentYetToPlay) &&
-          !opponentsExhaustedTrumps &&
-          (hasHigherUnplayedInLeadSuit ||
-            isSuitPlayedAgain ||
-            (leadSuit ? opponentVoidSuits.has(leadSuit) : false) ||
-            (isBotBuyer && !(isFirstTimeSuitPlayed && teammatePlayedKhaleOfLead))));
+        !isPartnerMasterSafeFromTrump &&
+        (isOpponentCurrentlyWinning ||
+          ((isBotOnBuyerTeam || opponentYetToPlay) &&
+            !opponentsExhaustedTrumps &&
+            (hasHigherUnplayedInLeadSuit ||
+              (isSuitPlayedAgain && canAnyRemainingOpponentCutLeadWithTrump) ||
+              (leadSuit ? opponentVoidSuits.has(leadSuit) && canAnyRemainingOpponentCutLeadWithTrump : false) ||
+              (isBotBuyer &&
+                !(isFirstTimeSuitPlayed && teammatePlayedKhaleOfLead) &&
+                (hasHigherUnplayedInLeadSuit || canAnyRemainingOpponentCutLeadWithTrump)))));
 
       if (shouldCutWithTrump) {
         const winningSuitedTrumps = legalMoves.filter(

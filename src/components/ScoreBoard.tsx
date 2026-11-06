@@ -54,13 +54,19 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   onExitGame,
 }) => {
   const trumpInfo = trumpColor && SUIT_COLORS[trumpColor] ? SUIT_COLORS[trumpColor] : null;
-  const targetTricks = highestBid >= 5 ? highestBid : 5;
+  const targetTricks = Math.min(9, Math.max(5, highestBid >= 5 ? highestBid : 5));
+  const buyerPlayer =
+    bidWinner !== null ? players.find((p) => p.id === bidWinner) || players[bidWinner] : null;
+  const buyerTeam = buyerPlayer?.team || 'A';
+  // Blue tricks (Team A) fill left-to-right (0 .. 8), so trick N is at index (N - 1)
+  // Red tricks (Team B) fill right-to-left (8 .. 0), so trick N is at index (9 - N)
+  const targetDotIdx = buyerTeam === 'B' ? 9 - targetTricks : targetTricks - 1;
   const { targetScore } = getMatchTargetAndStatus(scoreTeamA, scoreTeamB, matchTargetScore);
 
   // Build the 9 trick circles:
   // Blue tricks (Team A) fill from left (0 .. tricksTeamA - 1)
   // Red tricks (Team B) fill from right (8 down to 9 - tricksTeamB)
-  // Middle dot (index 4, the 5th trick) is white if not yet won
+  // White target dot moves dynamically to the bid target slot (5 -> middle slot 5, 6 -> slot 6, etc.)
   const renderNineDots = () => {
     const dotSize = isLandscapeMode
       ? 'w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0'
@@ -72,7 +78,7 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         {Array.from({ length: 9 }).map((_, idx) => {
           const isBlueWon = idx < tricksTeamA;
           const isRedWon = idx >= 9 - tricksTeamB;
-          const isCenterDot = idx === 4;
+          const isTargetDot = idx === targetDotIdx;
 
           if (isBlueWon) {
             return (
@@ -96,12 +102,12 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             );
           }
 
-          if (isCenterDot) {
+          if (isTargetDot) {
             return (
               <span
                 key={idx}
                 className={`${dotSize} rounded-full bg-white border border-amber-200/80 shadow-[0_0_7px_rgba(255,255,255,0.85)] transition-all duration-200`}
-                title="الأكلة الخامسة الفاصلة"
+                title={`الأكلة المطلوبة للشراء (${targetTricks === 9 ? 'باون - 9' : targetTricks})`}
               />
             );
           }
