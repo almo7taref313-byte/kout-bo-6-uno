@@ -28,6 +28,8 @@ interface ScoreBoardProps {
   onOpenSettings?: () => void;
   onReturnToLobby: () => void;
   onExitGame: () => void;
+  hasLastTrick?: boolean;
+  onOpenLastTrick?: () => void;
 }
 
 export const ScoreBoard: React.FC<ScoreBoardProps> = ({
@@ -52,6 +54,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   onOpenScreenModal,
   onOpenSettings,
   onExitGame,
+  hasLastTrick = false,
+  onOpenLastTrick,
 }) => {
   const trumpInfo = trumpColor && SUIT_COLORS[trumpColor] ? SUIT_COLORS[trumpColor] : null;
   const targetTricks = Math.min(9, Math.max(5, highestBid >= 5 ? highestBid : 5));
@@ -61,6 +65,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   // Blue tricks (Team A) fill left-to-right (0 .. 8), so trick N is at index (N - 1)
   // Red tricks (Team B) fill right-to-left (8 .. 0), so trick N is at index (9 - N)
   const targetDotIdx = buyerTeam === 'B' ? 9 - targetTricks : targetTricks - 1;
+  const defendingTricks = buyerTeam === 'A' ? tricksTeamB : tricksTeamA;
+  const isBidBrokenKout = highestBid >= 5 && 9 - defendingTricks < targetTricks;
   const { targetScore } = getMatchTargetAndStatus(scoreTeamA, scoreTeamB, matchTargetScore);
 
   // Build the 9 trick circles:
@@ -84,7 +90,9 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             return (
               <span
                 key={idx}
-                className={`${dotSize} rounded-full bg-[#090d16] p-[1.5px] sm:p-[2px] flex items-center justify-center shadow-inner transition-all duration-200`}
+                className={`${dotSize} rounded-full bg-[#090d16] p-[1.5px] sm:p-[2px] flex items-center justify-center shadow-inner transition-all duration-200 ${
+                  isTargetDot && isBidBrokenKout ? 'ring-2 ring-amber-400 animate-pulse' : ''
+                }`}
               >
                 <span className="w-full h-full rounded-full bg-gradient-to-b from-[#38bdf8] to-[#0284c7] shadow-[0_0_6px_rgba(56,189,248,0.85)]" />
               </span>
@@ -95,7 +103,9 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
             return (
               <span
                 key={idx}
-                className={`${dotSize} rounded-full bg-[#090d16] p-[1.5px] sm:p-[2px] flex items-center justify-center shadow-inner transition-all duration-200`}
+                className={`${dotSize} rounded-full bg-[#090d16] p-[1.5px] sm:p-[2px] flex items-center justify-center shadow-inner transition-all duration-200 ${
+                  isTargetDot && isBidBrokenKout ? 'ring-2 ring-amber-400 animate-pulse' : ''
+                }`}
               >
                 <span className="w-full h-full rounded-full bg-gradient-to-b from-[#fb7185] to-[#e11d48] shadow-[0_0_6px_rgba(244,63,94,0.85)]" />
               </span>
@@ -129,7 +139,11 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
         {/* Adopted First Design: Unified Score & Tricks Box */}
         <div
           dir="ltr"
-          className="flex-1 max-w-[320px] sm:max-w-[380px] rounded-xl overflow-hidden border border-slate-600/90 shadow-[0_4px_14px_rgba(0,0,0,0.65)] bg-[#090d16] tabular-nums"
+          className={`flex-1 max-w-[320px] sm:max-w-[380px] rounded-xl overflow-hidden border transition-all duration-300 shadow-[0_4px_14px_rgba(0,0,0,0.65)] bg-[#090d16] tabular-nums ${
+            isBidBrokenKout
+              ? 'border-amber-400/90 shadow-[0_0_14px_rgba(251,191,36,0.45)]'
+              : 'border-slate-600/90'
+          }`}
         >
           {/* Top Bar: Match Score (Blue Left | Target Center | Red Right) */}
           <div
@@ -145,13 +159,20 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
               {scoreTeamA}
             </span>
 
-            <span
-              className={`${
-                isLandscapeMode ? 'text-base sm:text-lg' : 'text-lg sm:text-2xl'
-              } font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none tracking-tight text-center`}
-            >
-              {targetScore}
-            </span>
+            <div className="flex items-center justify-center gap-1">
+              <span
+                className={`${
+                  isLandscapeMode ? 'text-base sm:text-lg' : 'text-lg sm:text-2xl'
+                } font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none tracking-tight text-center`}
+              >
+                {targetScore}
+              </span>
+              {isBidBrokenKout && (
+                <span className="px-1.5 py-0.5 rounded bg-rose-600/95 border border-amber-300 text-[9px] sm:text-[10px] font-black text-amber-200 animate-bounce leading-none">
+                  كوت!
+                </span>
+              )}
+            </div>
 
             <span
               className={`${
@@ -208,8 +229,24 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
           </div>
         </div>
 
-        {/* Left Section (in RTL): Table Color Toggle + Orientation Toggle + Sound + Exit */}
+        {/* Left Section (in RTL): Last Trick + Table Color Toggle + Orientation Toggle + Sound + Exit */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Last Trick viewer button */}
+          {hasLastTrick && onOpenLastTrick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenLastTrick();
+              }}
+              className="px-2 h-7 sm:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] text-amber-300 font-black text-[10px] sm:text-xs flex items-center justify-center gap-1 transition active:scale-90 shadow cursor-pointer border border-amber-400/50 touch-manipulation"
+              title="عرض أوراق آخر أكلة طُويت"
+              aria-label="آخر أكلة"
+            >
+              <span>🃏</span>
+              <span className="hidden xs:inline">آخر أكلة</span>
+            </button>
+          )}
           {/* Table Color toggle button (Snowy Gray vs Classic Green) */}
           {onToggleTableColor && (
             <button

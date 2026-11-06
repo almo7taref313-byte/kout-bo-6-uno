@@ -50,8 +50,15 @@ import { ExitConfirmModal } from './components/ExitConfirmModal';
 import { SettingsModal } from './components/SettingsModal';
 import { WaitingLobbyModal } from './components/WaitingLobbyModal';
 import { MatchOverModal } from './components/MatchOverModal';
+import { UnoCard } from './components/UnoCard';
 import { roomSync, RoomSyncMessage } from './utils/roomSync';
 import { AvatarView, getBotNameForAvatar } from './utils/avatars';
+import {
+  resetHumanRoundObservation,
+  observeHumanBidDecision,
+  observeHumanCardPlay,
+  evaluateRoundAndLearn,
+} from './utils/tacticalLearning';
 
 const getOrCreateDeviceId = (): string => {
   try {
@@ -295,6 +302,19 @@ export default function App() {
   const [showScreenModal, setShowScreenModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+  const [showLastTrickModal, setShowLastTrickModal] = useState<boolean>(false);
+  const [roundSummaryToast, setRoundSummaryToast] = useState<{
+    buyerName: string;
+    buyerTeam: 'A' | 'B';
+    bidVal: number;
+    isForced: boolean;
+    buyerIsWinner: boolean;
+    tricksA: number;
+    tricksB: number;
+    earnedPoints: number;
+    winningTeam: 'A' | 'B';
+    learnedTacticTitle: string | null;
+  } | null>(null);
 
   // PWA Install Hook
   const { isInstallable, install: triggerPWAInstall } = usePWAInstall();
@@ -501,6 +521,13 @@ export default function App() {
       setCollectingWinnerId(null);
       setTricksTeamA(0);
       setTricksTeamB(0);
+      setShowLastTrickModal(false);
+      setRoundSummaryToast(null);
+
+      const humanPl = freshPlayers[activeHumanSeat] || freshPlayers[0];
+      if (humanPl) {
+        resetHumanRoundObservation(humanPl.hand);
+      }
 
       const firstBidder = (activeDealer + 1) % 6;
       setCurrentTurn(firstBidder);
@@ -646,6 +673,14 @@ export default function App() {
         { playerId, val: effectiveVal, forced: isDealerForced },
       ];
       setBiddingHistory(nextBids);
+
+      if (playerId === currentHumanSeatIndex && !isFromRemote) {
+        observeHumanBidDecision(
+          effectiveVal,
+          players[playerId]?.hand || [],
+          isDealerForced
+        );
+      }
 
       let newHighest = highestBid;
       let newWinner = bidWinner;
@@ -908,6 +943,38 @@ export default function App() {
       setMatchScoreTeamA(nextScoreA);
       setMatchScoreTeamB(nextScoreB);
 
+      const humanPlayer = players[currentHumanSeatIndex] || players[0];
+      const humanTeam = humanPlayer ? humanPlayer.team : 'A';
+      const learningResult = evaluateRoundAndLearn({
+        humanTeam,
+        buyerTeam,
+        buyerIsWinner,
+        highestBid: activeBid,
+        tricksTeamA: _curTricksA,
+        tricksTeamB: _curTricksB,
+      });
+
+      const earnedPoints = buyerIsWinner ? pts : defensePts;
+      const winningTeam: 'A' | 'B' = buyerIsWinner
+        ? buyerTeam
+        : buyerTeam === 'A'
+        ? 'B'
+        : 'A';
+
+      setShowLastTrickModal(false);
+      setRoundSummaryToast({
+        buyerName: buyerPlayer?.name || 'المشتري',
+        buyerTeam,
+        bidVal: activeBid,
+        isForced: activeForced,
+        buyerIsWinner,
+        tricksA: _curTricksA,
+        tricksB: _curTricksB,
+        earnedPoints,
+        winningTeam,
+        learnedTacticTitle: learningResult.learnedTacticTitle,
+      });
+
       const isFirstRoundBaoonWin = isBaoon && buyerIsWinner && roundNumber === 1;
       const matchStatus = getMatchTargetAndStatus(nextScoreA, nextScoreB, matchTargetScore);
       if (matchStatus.isMatchOver || isFirstRoundBaoonWin) {
@@ -1040,6 +1107,24 @@ export default function App() {
 
       if (playerId === currentHumanSeatIndex) {
         nativeBridge.hapticCardPlay();
+        if (!isFromRemote && playingPlayer) {
+          const prevWinnerId =
+            activeTrick.length > 0
+              ? evaluateTrickWinner(activeTrick, trumpColor, highestBid)
+              : -1;
+          observeHumanCardPlay({
+            humanId: playerId,
+            humanTeam: playingPlayer.team,
+            handBeforePlay: playingPlayer.hand,
+            playedCard: card,
+            trickBeforePlay: activeTrick,
+            trumpColor,
+            highestBid,
+            buyerId: bidWinner,
+            players,
+            currentWinnerBeforePlay: prevWinnerId,
+          });
+        }
       }
 
       setPlayers((prev) =>
@@ -2643,6 +2728,8 @@ export default function App() {
             onOpenSettings={() => setShowSettingsModal(true)}
             onReturnToLobby={exitToLobbyCleanly}
             onExitGame={() => setShowExitConfirm(true)}
+            hasLastTrick={playedTricksInRound.length > 0 && phase === 'PLAYING'}
+            onOpenLastTrick={() => setShowLastTrickModal(true)}
           />
 
           <TableArena
@@ -3071,6 +3158,173 @@ export default function App() {
             }}
             onExit={exitToLobbyCleanly}
           />
+        );
+      })()}
+
+      {/* Quick 3-Second End-of-Round Summary Banner */}
+      {roundSummaryToast && phase === 'ROUND_END' && (
+        <div
+          dir="rtl"
+          className="fixed top-14 left-1/2 -translate-x-1/2 z-[115] w-[92%] max-w-sm pointer-events-none select-none animate-fade-in"
+        >
+          <div
+            className={`rounded-2xl px-3.5 py-2.5 bg-[#0e1422]/95 backdrop-blur-md border-2 shadow-[0_10px_30px_rgba(0,0,0,0.8)] ${
+              roundSummaryToast.buyerIsWinner
+                ? 'border-emerald-400/90'
+                : 'border-rose-500/90'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-700/80 pb-1.5 mb-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm">
+                  {roundSummaryToast.buyerIsWinner ? '🏆' : '💥'}
+                </span>
+                <span className="text-xs sm:text-sm font-black text-white truncate">
+                  المشتري: {roundSummaryToast.buyerName}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-black text-[11px] border border-amber-400/40 shrink-0">
+                  {roundSummaryToast.isForced
+                    ? 'ملزوم (5)'
+                    : roundSummaryToast.bidVal === 9
+                    ? 'باون (9)'
+                    : `${roundSummaryToast.bidVal}`}
+                </span>
+              </div>
+              <span
+                className={`px-2 py-0.5 rounded-lg text-xs font-black shrink-0 ${
+                  roundSummaryToast.buyerIsWinner
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50'
+                    : 'bg-rose-500/20 text-rose-300 border border-rose-400/50'
+                }`}
+              >
+                {roundSummaryToast.buyerIsWinner
+                  ? `+${roundSummaryToast.earnedPoints}`
+                  : `كوت (+${roundSummaryToast.earnedPoints})`}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+              <span>
+                الأكلات:{' '}
+                <strong className="text-[#38bdf8] font-black">
+                  {roundSummaryToast.tricksA}
+                </strong>{' '}
+                -{' '}
+                <strong className="text-[#fb7185] font-black">
+                  {roundSummaryToast.tricksB}
+                </strong>
+              </span>
+              <span
+                className={
+                  roundSummaryToast.winningTeam === 'A'
+                    ? 'text-[#38bdf8] font-black'
+                    : 'text-[#fb7185] font-black'
+                }
+              >
+                {roundSummaryToast.winningTeam === 'A'
+                  ? 'نقاط للفريق الأزرق'
+                  : 'نقاط للفريق الأحمر'}
+              </span>
+            </div>
+
+            {roundSummaryToast.learnedTacticTitle && (
+              <div className="mt-1.5 pt-1.5 border-t border-amber-400/30 flex items-center gap-1.5 text-[11px] font-black text-amber-300">
+                <span>🧠</span>
+                <span className="truncate">
+                  تعلّم البوت منك: {roundSummaryToast.learnedTacticTitle}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Last Trick Viewer Modal (سجل آخر أكلة طُويت) */}
+      {showLastTrickModal && playedTricksInRound.length > 0 && (() => {
+        const lastTrick = playedTricksInRound[playedTricksInRound.length - 1];
+        const lastWinnerId = evaluateTrickWinner(lastTrick, trumpColor, highestBid);
+        const lastWinnerPlayer = players[lastWinnerId];
+        return (
+          <div
+            dir="rtl"
+            onClick={() => setShowLastTrickModal(false)}
+            className="fixed inset-0 z-[130] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 select-none"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-[#111726] border-2 border-amber-400/80 shadow-2xl p-4 text-right"
+            >
+              <div className="flex items-center justify-between border-b border-slate-700 pb-2.5 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🃏</span>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-amber-300">
+                      آخر أكلة طُويت (الأكلة #{playedTricksInRound.length})
+                    </h3>
+                    {lastWinnerPlayer && (
+                      <p className="text-[11px] font-bold text-slate-300">
+                        أكلها:{' '}
+                        <span
+                          className={
+                            lastWinnerPlayer.team === 'A'
+                              ? 'text-[#38bdf8] font-black'
+                              : 'text-[#fb7185] font-black'
+                          }
+                        >
+                          {lastWinnerPlayer.name}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLastTrickModal(false)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black border border-slate-600 cursor-pointer"
+                >
+                  إغلاق ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 justify-items-center py-1">
+                {lastTrick.map((tp, idx) => {
+                  const pl = players[tp.playerId];
+                  const isWin = tp.playerId === lastWinnerId;
+                  return (
+                    <div
+                      key={`${tp.playerId}-${idx}`}
+                      className={`flex flex-col items-center p-1.5 rounded-xl border ${
+                        isWin
+                          ? 'bg-amber-500/15 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]'
+                          : 'bg-slate-900/70 border-slate-700/70'
+                      }`}
+                    >
+                      <span
+                        className={`text-[10px] font-black mb-1 truncate max-w-[68px] ${
+                          pl?.team === 'A' ? 'text-[#38bdf8]' : 'text-[#fb7185]'
+                        }`}
+                      >
+                        {pl?.name || `لاعب ${tp.playerId + 1}`}
+                      </span>
+                      <div className="scale-90 origin-center">
+                        <UnoCard
+                          card={tp.card}
+                          size="mini"
+                          trumpColor={trumpColor}
+                          isClickable={false}
+                        />
+                      </div>
+                      {isWin && (
+                        <span className="mt-1 text-[9px] font-black text-amber-300">
+                          👑 أكلها
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         );
       })()}
 

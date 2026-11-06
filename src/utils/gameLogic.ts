@@ -1,4 +1,5 @@
 import { Card, ColorInfo, Player, SuitColor, SuitRank, TrickPlay } from '../types';
+import { getTacticalMemory } from './tacticalLearning';
 
 export const SUIT_RANKS: SuitRank[] = [
   '2',
@@ -512,7 +513,9 @@ export function calculateBotBid(
       ? 2.0
       : 1.0;
   const voidBonus = maxColCount >= 4 && hasAnyVoidOutsideBestSuit ? 0.6 : 0;
-  const totalTricksEst = Math.floor(est + lengthBonus + voidBonus);
+  const tacticalMem = getTacticalMemory();
+  const rawTricksScore = est + lengthBonus + voidBonus + (tacticalMem.tacticalSixSevenBidBoost || 0);
+  const totalTricksEst = Math.floor(rawTricksScore);
 
   if (totalTricksEst >= 9 && currentHighestBid < 9) {
     return 9; // Baoon
@@ -630,6 +633,7 @@ export function selectSmartDiscard(
     avoidSuit?: SuitColor | null;
     preferSignalSuit?: SuitColor | null;
     masterCardIds?: Set<string>;
+    avoidDefendingSuits?: Set<SuitColor>;
   }
 ): Card {
   if (legalMoves.length === 1) return legalMoves[0];
@@ -659,6 +663,13 @@ export function selectSmartDiscard(
       ? basePool
       : [...legalMoves];
 
+  // حماية العشر والصور (0، غلام، ميم، باش) في الأكلات المشكوك فيها أو الخاسرة:
+  // يتجنب البوت رمي الكروت المتوسطة/العالية التي قد تترقى لاحقاً لتصبح Master Card طالما يملك أرقاماً ميتة صغيرة (2..9)
+  const deadLowNumbers = pool.filter((c) => !HIGH_CARD_RANKS.has(c.rank));
+  if (deadLowNumbers.length > 0) {
+    pool = deadLowNumbers;
+  }
+
   // If signaling a specific suit (e.g. repeating a suit in Baoon because bot holds its Khale '1'):
   if (options?.preferSignalSuit) {
     const signalPool = pool.filter(
@@ -672,6 +683,16 @@ export function selectSmartDiscard(
     const differentSuitPool = pool.filter((c) => c.color !== options.avoidSuit);
     if (differentSuitPool.length > 0) {
       pool = differentSuitPool;
+    }
+  }
+
+  // تنسيق الدفاع ضد الباون: عدم رمي نفس الزات الذي يرميه الزميل في الدفاع حتى يحتفظ كل مدافع بزات مختلف لكسر الباون
+  if (options?.avoidDefendingSuits && options.avoidDefendingSuits.size > 0) {
+    const coordinatedPool = pool.filter(
+      (c) => c.color === 'special' || !options.avoidDefendingSuits!.has(c.color)
+    );
+    if (coordinatedPool.length > 0) {
+      pool = coordinatedPool;
     }
   }
 
@@ -1040,10 +1061,46 @@ export function selectBotMove(
     }
   }
 
+  // تنسيق الدفاع ضد الباون (كشف الباون المكسور مبكراً):
+  // إذا اشترى الفريق المنافس باون (9)، يتعاون البوتان في فريق الدفاع بعدم رمي نفس الزات الذي يرميه زميله في الدفاع،
+  // حتى يحتفظ كل بوت بزات مختلف يحمي فيه الخال أو الباش لإسقاط الباون في آخر أكلتين
+  const avoidDefendingSuits = new Set<SuitColor>();
+  if (highestBid === 9 && isBuyerOpponent && !isLead) {
+    playedTricks.forEach((t) => {
+      const tLead = getEffectiveLeadColor(t, highestBid, trumpColor);
+      t.forEach((p) => {
+        if (
+          isTeammate(p.playerId) &&
+          p.card.color !== 'special' &&
+          !p.card.isJoker &&
+          !p.card.isMaker &&
+          p.card.color !== tLead &&
+          p.card.color !== trumpColor
+        ) {
+          avoidDefendingSuits.add(p.card.color);
+        }
+      });
+    });
+    const curLead = getEffectiveLeadColor(trick, highestBid, trumpColor);
+    trick.forEach((p) => {
+      if (
+        isTeammate(p.playerId) &&
+        p.card.color !== 'special' &&
+        !p.card.isJoker &&
+        !p.card.isMaker &&
+        p.card.color !== curLead &&
+        p.card.color !== trumpColor
+      ) {
+        avoidDefendingSuits.add(p.card.color);
+      }
+    });
+  }
+
   const smartDiscardOptions = {
     avoidSuit: avoidRepeatSuitForBaoon,
     preferSignalSuit: preferSignalSuitForBaoon,
     masterCardIds,
+    avoidDefendingSuits,
   };
 
   const buyerPlayInTrick =
@@ -2330,6 +2387,23 @@ export function selectBotMove(
   const partnerIsWinning = isPartnerWinning();
 
   if (partnerIsWinning) {
+    // إدارة "الليد" (من يبدأ الأكلة التالية) بين الزملاء:
+    // إذا كان الزميل الفائز حالياً بالأكلة هو الحاكم (buyerId)، يتعمّد البوت ألا يأخذ الأكلة من زميله الحاكم
+    // حتى لا يسحب منه المبادرة فيضطر للعب زات لا يناسب يد الحاكم!
+    const currentWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
+    if (buyerId !== null && buyerId !== undefined && currentWinnerId === buyerId && !isBuyerOpponent) {
+      const nonOvertakingMoves = legalMoves.filter(
+        (c) =>
+          !c.isJoker &&
+          !c.isMaker &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) !==
+            bot.id
+      );
+      if (nonOvertakingMoves.length > 0) {
+        return selectSmartDiscard(nonOvertakingMoves, trick, trumpColor, smartDiscardOptions);
+      }
+    }
+
     // Partner is winning: discard lowest power legal card to save strength.
     return selectSmartDiscard(legalMoves, trick, trumpColor, smartDiscardOptions);
   } else {
