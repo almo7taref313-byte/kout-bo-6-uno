@@ -1728,15 +1728,100 @@ export function selectBotMove(
     }
 
     // User Rule:
-    // "اذا كان البوت حاكم وانا في فريقه لعبت حكما صغيرا وهو بعدي وعنده حكما كبيرا ويوجد من الحكام ما هو اكبر من حكمي واصغر من حكم البوت الحاكم فيجب ان يلعب البوت الحاكم الحكم الكبير لديه"
-    if (isBotBuyer && trumpColor) {
-      const teammateTrumpPlays = trick.filter(
-        (p) =>
-          isTeammate(p.playerId) &&
-          p.card.color === trumpColor &&
-          !p.card.isJoker &&
-          !p.card.isMaker
+    // 1) "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
+    // 2) "اذا كان الزميل ضرب بحكم لا يجب ان يضرب فوقه الحاكم حكما اكبر الا اذا كان لا يملك زاتا اخر
+    //     وفي حال لا يملك الا حكاما لا يضرب بحكم صورة كبير بل يضرب بحكم اما اصغر من حكم زميله او اكبر منه بقليل ليستطيع ان يحكم بالكبير ليضمن الاكلة لاحقا"
+    const currentTrickWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
+    const teammateCutWithTrump =
+      isLeadOtherColor &&
+      isTeammate(currentTrickWinnerId) &&
+      trick.some((p) => {
+        if (!isTeammate(p.playerId)) return false;
+        return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
+      });
+
+    if (teammateCutWithTrump) {
+      const nonSupremeMoves = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
+      const safePool = nonSupremeMoves.length > 0 ? nonSupremeMoves : legalMoves;
+
+      // 1. إذا كان يملك من نفس الزات الملعوب يتبع الزات بأصغر ورقة
+      const leadCards = safePool.filter((c) => c.color === leadSuit);
+      if (leadCards.length > 0) {
+        leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return leadCards[0];
+      }
+
+      // 2. إذا كان قاصاً للزات الملعوب ويملك زاتاً آخر غير الحكم: لا يضرب فوق زميله بحكم أبداً بل يرمي من الزات الآخر
+      const nonTrumpOtherSuitMoves = safePool.filter(
+        (c) => (!trumpColor || c.color !== trumpColor) && !c.isJoker && !c.isMaker
       );
+      if (nonTrumpOtherSuitMoves.length > 0) {
+        return selectSmartDiscard(nonTrumpOtherSuitMoves, trick, trumpColor, smartDiscardOptions);
+      }
+
+      // 3. في حال لا يملك إلا حكاماً: لا يضرب بحكم صورة كبير، بل يضرب بحكم إما أصغر من حكم زميله أو أكبر منه بقليل ليحتفظ بالكبير ليحكم به لاحقاً
+      const suitedTrumpMoves = safePool.filter(
+        (c) => trumpColor && c.color === trumpColor && !c.isJoker && !c.isMaker
+      );
+      if (suitedTrumpMoves.length > 0) {
+        const teammateSuitedTrumpsInTrick = trick
+          .filter(
+            (p) =>
+              isTeammate(p.playerId) &&
+              trumpColor &&
+              p.card.color === trumpColor &&
+              !p.card.isJoker &&
+              !p.card.isMaker
+          )
+          .sort((a, b) => SUIT_RANKS.indexOf(b.card.rank) - SUIT_RANKS.indexOf(a.card.rank));
+
+        if (teammateSuitedTrumpsInTrick.length > 0) {
+          const teammateRankIdx = SUIT_RANKS.indexOf(teammateSuitedTrumpsInTrick[0].card.rank);
+
+          // أ) حكم أصغر من حكم زميله إن وُجد
+          const smallerTrumps = suitedTrumpMoves.filter(
+            (c) => SUIT_RANKS.indexOf(c.rank) < teammateRankIdx
+          );
+          if (smallerTrumps.length > 0) {
+            smallerTrumps.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+            return smallerTrumps[0];
+          }
+
+          // ب) إن لم يملك أصغر منه: يلعب حكماً أكبر منه بقليل (أصغر حكم فوق حكم زميله مع تجنب الصور الكبيرة)
+          const higherTrumps = [...suitedTrumpMoves].sort(
+            (a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank)
+          );
+          const nonPictureHigherTrumps = higherTrumps.filter(
+            (c) => !HIGH_CARD_RANKS.has(c.rank)
+          );
+          if (nonPictureHigherTrumps.length > 0) {
+            return nonPictureHigherTrumps[0];
+          }
+          return higherTrumps[0];
+        }
+
+        suitedTrumpMoves.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return suitedTrumpMoves[0];
+      }
+
+      return selectSmartDiscard(safePool, trick, trumpColor, smartDiscardOptions);
+    }
+
+    // User Rule (عندما تكون النزلة حكماً أصلاً والخصم المتبقي في الأكلة قد يملك حكماً أكبر):
+    // "اذا كان البوت حاكم وانا في فريقه لعبت حكما صغيرا وهو بعدي وعنده حكما كبيرا ويوجد من الحكام ما هو اكبر من حكمي واصغر من حكم البوت الحاكم فيجب ان يلعب البوت الحاكم الحكم الكبير لديه"
+    if (isBotBuyer && trumpColor && leadSuit === trumpColor && !opponentsExhaustedTrumps) {
+      const canRemainingOpponentPlayTrump = remainingOpponentsInTrick.some(
+        (pid) => !opponentsVoidInTrump.has(pid)
+      );
+      const teammateTrumpPlays = canRemainingOpponentPlayTrump
+        ? trick.filter(
+            (p) =>
+              isTeammate(p.playerId) &&
+              p.card.color === trumpColor &&
+              !p.card.isJoker &&
+              !p.card.isMaker
+          )
+        : [];
 
       if (teammateTrumpPlays.length > 0) {
         teammateTrumpPlays.sort(
@@ -1787,7 +1872,7 @@ export function selectBotMove(
                 !p.card.isJoker &&
                 !p.card.isMaker &&
                 p.card.rank === rank
-              );
+            );
             if (playedByTeammateInCurrentTrick) return false;
 
             return true;
@@ -1812,7 +1897,14 @@ export function selectBotMove(
     // User Rule:
     // "يلعب الحكم الكبير اذا الحاكم صاحبه ولعب حكم صغير والفريق الاخر ممكن يملك حكم اكبر"
     // "الجيكر والمكر لا يستعملهم البوت في حال لعب الحاكم (خال،باش،ميم،غلام،عشره=٠)"
-    if (isSmallTrumpPlayedByBuyer && buyerPlayInTrick && buyerTeam && bot.team === buyerTeam && bot.id !== buyerId) {
+    if (
+      leadSuit === trumpColor &&
+      isSmallTrumpPlayedByBuyer &&
+      buyerPlayInTrick &&
+      buyerTeam &&
+      bot.team === buyerTeam &&
+      bot.id !== buyerId
+    ) {
       // Check if an opponent still hasn't played in this trick OR already over-trumped the buyer
       const playedIds = new Set(trick.map((t) => t.playerId));
       const opponentYetToPlay = [0, 1, 2, 3, 4, 5].some(
@@ -1846,30 +1938,6 @@ export function selectBotMove(
           if (makerMove) return makerMove;
         }
       }
-    }
-
-    // User Rule:
-    // "اذا لعب احد اعضاء الفريق حكما على لون اخر فالبوت في نفس الفريق لا يلعب جيكر/ميكر لان الاكلة ستصبح للفريق بوجود حكم"
-    const currentTrickWinnerId = evaluateTrickWinner(trick, trumpColor, highestBid);
-    const teammateCutWithTrump =
-      isLeadOtherColor &&
-      isTeammate(currentTrickWinnerId) &&
-      trick.some((p) => {
-        if (!isTeammate(p.playerId)) return false;
-        return (trumpColor && p.card.color === trumpColor) || p.card.isJoker || p.card.isMaker;
-      });
-
-    if (teammateCutWithTrump) {
-      const nonSupremeMoves = legalMoves.filter((c) => !c.isJoker && !c.isMaker);
-      const safePool = nonSupremeMoves.length > 0 ? nonSupremeMoves : legalMoves;
-
-      const leadCards = safePool.filter((c) => c.color === leadSuit);
-      if (leadCards.length > 0) {
-        leadCards.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
-        return leadCards[0];
-      }
-
-      return selectSmartDiscard(safePool, trick, trumpColor, smartDiscardOptions);
     }
 
     // User Rule:
