@@ -159,20 +159,13 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
               {scoreTeamA}
             </span>
 
-            <div className="flex items-center justify-center gap-1">
-              <span
-                className={`${
-                  isLandscapeMode ? 'text-base sm:text-lg' : 'text-lg sm:text-2xl'
-                } font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none tracking-tight text-center`}
-              >
-                {targetScore}
-              </span>
-              {isBidBrokenKout && (
-                <span className="px-1.5 py-0.5 rounded bg-rose-600/95 border border-amber-300 text-[9px] sm:text-[10px] font-black text-amber-200 animate-bounce leading-none">
-                  كوت!
-                </span>
-              )}
-            </div>
+            <span
+              className={`${
+                isLandscapeMode ? 'text-base sm:text-lg' : 'text-lg sm:text-2xl'
+              } font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none tracking-tight text-center`}
+            >
+              {targetScore}
+            </span>
 
             <span
               className={`${
