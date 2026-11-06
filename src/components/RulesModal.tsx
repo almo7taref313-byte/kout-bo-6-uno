@@ -210,6 +210,9 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   • <b>إشارة الشراء بـ 8:</b> إذا اشترى اللاعب <b>8</b> فهي إشارة واضحة لفريقه بأنه يملك <b>الجيكر والميكر</b>، فيجب على أحد زملائه في الفريق أن يشتري <b>باون (9)</b>.
                 </p>
                 <p className="text-slate-700 text-[10.5px] font-medium">
+                  • <b>ملاحظة:</b> الجيكر والميكر في الباون بعد الحكام.
+                </p>
+                <p className="text-slate-700 text-[10.5px] font-medium">
                   • <b>هدف الفوز:</b> يحدد اللاعب هدف المباراة من الشاشة الرئيسية (<b>26</b> أو <b>51</b> أو <b>101</b> نقطة).
                 </p>
                 <p className="text-slate-700 text-[10.5px] font-medium">

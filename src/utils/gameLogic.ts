@@ -806,13 +806,38 @@ export function selectBotMove(
         if (didNotFollowSuit || didCutNonTrumpWithTrump) {
           if (!isSameTeam) {
             opponentVoidSuits.add(tLead);
-          } else if (p.playerId !== bot.id && didNotFollowSuit) {
+          } else if (p.playerId !== bot.id) {
             partnerVoidSuits.add(tLead);
           }
         }
       });
     }
   });
+
+  // انتباه البوت لزملائه في الفريق:
+  // إذا لُعب زات غير الحكم وكان أحد زملاء البوت في الفريق قاصاً لهذا الزات (لا يملك منه أوراقاً في يده الآن، سواء رمى غيره أو لعب آخر ورقة منه في الأكلة التي أكلها البوت)
+  // ويملك الزميل حكماً في يده ليضرب به، يضيف هذا الزات إلى partnerVoidSuits؛ وإذا لم يعد لدى الزميل القاص أي حكم يُستبعد الزات.
+  if (trumpColor && context?.players && context.players.length > 0) {
+    (['red', 'blue', 'green', 'yellow'] as SuitColor[]).forEach((col) => {
+      if (col === trumpColor || !suitsPlayedBefore.has(col)) return;
+      const hasVoidTeammateWithTrump = context.players!.some((pl) => {
+        const isSameTeam = pl.team ? pl.team === bot.team : pl.id % 2 === bot.id % 2;
+        if (!isSameTeam || pl.id === bot.id) return false;
+        const isVoidInCol = !pl.hand.some(
+          (c) => c.color === col && !c.isJoker && !c.isMaker
+        );
+        const hasTrumpToStrike = pl.hand.some(
+          (c) => c.color === trumpColor || c.isJoker || c.isMaker
+        );
+        return isVoidInCol && hasTrumpToStrike;
+      });
+      if (hasVoidTeammateWithTrump) {
+        partnerVoidSuits.add(col);
+      } else {
+        partnerVoidSuits.delete(col);
+      }
+    });
+  }
 
   const isLead = trick.length === 0;
 
@@ -2108,17 +2133,17 @@ export function selectBotMove(
 
     // قاعدة أساسية: "في حال كانت كروت الحكم فقط عند فريقه لا يحكم ويلعب زات آخر حتى لا يقلل عدد كروت الحكم عند فريقه"
     if (opponentsExhaustedTrumps && allNonTrumpLeadMoves.length > 0) {
-      const feedableToPartnerWhenNoEnemyTrumps = uncutNonTrumps.filter(
-        (c) =>
-          partnerVoidSuits.has(c.color) &&
-          c.color !== lastTrickLeadSuit &&
-          !isBuyerOpponent
+      const feedableToPartnerWhenNoEnemyTrumps = uncutNonTrumps.filter((c) =>
+        partnerVoidSuits.has(c.color)
       );
       if (feedableToPartnerWhenNoEnemyTrumps.length > 0) {
-        feedableToPartnerWhenNoEnemyTrumps.sort(
-          (a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank)
+        const sameSuitAsLast = feedableToPartnerWhenNoEnemyTrumps.filter(
+          (c) => c.color === lastTrickLeadSuit
         );
-        return feedableToPartnerWhenNoEnemyTrumps[0];
+        const poolToFeed =
+          sameSuitAsLast.length > 0 ? sameSuitAsLast : feedableToPartnerWhenNoEnemyTrumps;
+        poolToFeed.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return poolToFeed[0];
       }
 
       // إذا أشار الزميل إلى امتلاك خال زات معين (عبر تكراره في دورتين أو أكثر)، يمرر له البوت هذا الزات
@@ -2216,18 +2241,18 @@ export function selectBotMove(
     // 1. إذا كان يوجد زات آخر غير مقصوص (uncutNonTrumps.length > 0) يتم استبعاد الزات المقصوص نهائياً:
     if (uncutNonTrumps.length > 0) {
       // RULE A (Highest Priority Feed):
-      // "في حال كان احد اعضاء الفريق قاص للزات وباقي اللاعبين لم يقصو الزات واكل الاكلة بوت زميل اللاعب القاص للزات فيجب ان يلعب الزات نفسه بعد الاكلة ليتسنى للاعب القاص ان يضرب بالحكم"
-      // مع الالتزام بقاعدة: "اذا لعب الزات مرة لا يجب ان يلعبه البوت مرة اخرى مباشرة بعدما اكل الاكلة خصوصا اذا كان الحاكم خصما."
+      // "يجب ان ينتبه البوت لزملائه بالفريق اذا لُعِبَ زات غير الحكم وكان الزميل قاص هذا الزات واكل البوت الاكلة يعيد الزات نفسه برقم صغير ليضرب الزميل بحكمه"
       const feedableToPartner = uncutNonTrumps.filter(
-        (c) =>
-          partnerVoidSuits.has(c.color) &&
-          !opponentVoidSuits.has(c.color) &&
-          c.color !== lastTrickLeadSuit &&
-          !isBuyerOpponent
+        (c) => partnerVoidSuits.has(c.color) && !opponentVoidSuits.has(c.color)
       );
       if (feedableToPartner.length > 0) {
-        feedableToPartner.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
-        return feedableToPartner[0];
+        const sameSuitAsLastTrick = feedableToPartner.filter(
+          (c) => c.color === lastTrickLeadSuit
+        );
+        const targetFeedPool =
+          sameSuitAsLastTrick.length > 0 ? sameSuitAsLastTrick : feedableToPartner;
+        targetFeedPool.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+        return targetFeedPool[0];
       }
 
       // قاعدة سحب الحكام:
