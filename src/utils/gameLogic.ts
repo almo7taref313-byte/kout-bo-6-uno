@@ -1261,6 +1261,7 @@ export function selectBotMove(
   // قاعدة فورية ملزمة:
   // 1) "اذا لعبت حكما صغيرا ولعب الخصم خال الحكم فيجب على البوت في الفريق ان يلعب الجيكر فورا."
   // 2) "في حال كان الفريق حاكما والحاكم لعب حكما صغيرا وخال الحكم لعب من قبل الخصم يجب لعب الجيكر من فريق الحاكم مباشرة."
+  // 3) "في حال لعب الحاكم خال الحكم يضربه البوت بالجيكر حتى ان كانت اول دورة."
   if (!isLead && trumpColor && !shouldForbidJokerOnBuyerSmallTrump) {
     const teammatePlayedSmallTrump = trick.some(
       (p) =>
@@ -1276,6 +1277,12 @@ export function selectBotMove(
         p.playerId !== bot.id &&
         p.card.color === trumpColor &&
         p.card.rank === '1'
+    );
+    const opponentBuyerPlayedTrumpKhaleInCurrentTrick = Boolean(
+      isBuyerOpponent &&
+        buyerPlayInTrick &&
+        buyerPlayInTrick.card.color === trumpColor &&
+        buyerPlayInTrick.card.rank === '1'
     );
     const opponentPlayedTrumpKhaleInPast = playedTricks.some((t) =>
       t.some(
@@ -1298,6 +1305,7 @@ export function selectBotMove(
     );
 
     if (
+      opponentBuyerPlayedTrumpKhaleInCurrentTrick ||
       (teammatePlayedSmallTrump && opponentPlayedTrumpKhaleInCurrentTrick) ||
       isBuyerTeamBotRespondingToBuyerSmallTrump
     ) {
@@ -1307,6 +1315,40 @@ export function selectBotMove(
       if (jokerInHand) {
         return jokerInHand;
       }
+    }
+  }
+
+  // في حال الشراء (5، 6، 7) وفي أول دورة:
+  // إذا لعب الحاكم زاتاً ليس حكماً والبوت لديه جيكر أو ميكر (وليس هو البوت الأخير قبل الحاكم) لا يلعبه ويعطي فرصة لزملائه
+  const currentTrickEffectiveLead = !isLead
+    ? getEffectiveLeadColor(trick, highestBid, trumpColor)
+    : null;
+  const isLastBotBeforeBuyerInTrick = Boolean(
+    !isLead &&
+      (trick.length === 5 ||
+        (buyerId !== null &&
+          buyerId !== undefined &&
+          (bot.id + 1) % 6 === buyerId &&
+          trick.some((p) => p.playerId === buyerId)))
+  );
+  const shouldHoldWildInFirstRoundForTeammates = Boolean(
+    !isLead &&
+      playedTricks.length === 0 &&
+      highestBid >= 5 &&
+      highestBid <= 7 &&
+      currentTrickEffectiveLead &&
+      currentTrickEffectiveLead !== 'special' &&
+      (!trumpColor || currentTrickEffectiveLead !== trumpColor) &&
+      !hasTrumpKingInCurrentTrick &&
+      !isLastBotBeforeBuyerInTrick
+  );
+
+  if (shouldHoldWildInFirstRoundForTeammates) {
+    const nonWildFirstRound = legalMoves.filter(
+      (c) => !c.isJoker && !c.isMaker && c.rank !== 'wild_draw4' && c.rank !== 'wild_color'
+    );
+    if (nonWildFirstRound.length > 0) {
+      legalMoves = nonWildFirstRound;
     }
   }
 
@@ -1322,14 +1364,16 @@ export function selectBotMove(
     (c) =>
       (c.isJoker || c.isMaker) &&
       !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker) &&
-      !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker))
+      !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker)) &&
+      !shouldHoldWildInFirstRoundForTeammates
   );
   const nonWildCardsInHand = bot.hand.filter((c) => !c.isJoker && !c.isMaker);
   const legalWildMoves = legalMoves.filter(
     (c) =>
       (c.isJoker || c.isMaker) &&
       !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker) &&
-      !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker))
+      !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker)) &&
+      !shouldHoldWildInFirstRoundForTeammates
   );
 
   if (!isLead && legalWildMoves.length > 0) {
@@ -1352,24 +1396,37 @@ export function selectBotMove(
       }
     }
 
-    // 2. الميكر/الجيكر يلعب في أول دورة إذا كان أحدهما عند آخر لاعب في الطاولة قبل اللاعب البادئ في الدورة
-    // بشرط ألا تكون الأكلة حالياً لفريق البوت (لا يضرب بالميكر والأكلة لنا خصوصاً أنه اللاعب الأخير)
-    if (playedTricks.length === 0 && trick.length === 5 && !isTeamCurrentlyWinning) {
-      const makerMove = legalWildMoves.find((c) => c.isMaker);
-      if (
-        makerMove &&
-        evaluateTrickWinner([...trick, { playerId: bot.id, card: makerMove }], trumpColor, highestBid) ===
-          bot.id
-      ) {
-        return makerMove;
-      }
-      const jokerMove = legalWildMoves.find((c) => c.isJoker);
-      if (
-        jokerMove &&
-        evaluateTrickWinner([...trick, { playerId: bot.id, card: jokerMove }], trumpColor, highestBid) ===
-          bot.id
-      ) {
-        return jokerMove;
+    // 2. إذا كان البوت الأخير قبل الحاكم (أو آخر لاعب في الطاولة قبل البادئ) لديه جيكر أو ميكر في أول دورة:
+    // يضرب به وإن كانت أول دورة سواء كان الزات عادياً أو حكماً (بشرط ألا تكون الأكلة محسومة لفريقه):
+    // - فإن كان في الأكلة خال الحكم يضرب بالجيكر حصراً
+    // - وإن لم يكن في الأكلة خال الحكم يضرب بالميكر إن وُجد أو الجيكر
+    if (playedTricks.length === 0 && isLastBotBeforeBuyerInTrick && !isTeamCurrentlyWinning) {
+      if (hasTrumpKingInCurrentTrick) {
+        const jokerMove = legalWildMoves.find((c) => c.isJoker);
+        if (
+          jokerMove &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: jokerMove }], trumpColor, highestBid) ===
+            bot.id
+        ) {
+          return jokerMove;
+        }
+      } else {
+        const makerMove = legalWildMoves.find((c) => c.isMaker);
+        if (
+          makerMove &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: makerMove }], trumpColor, highestBid) ===
+            bot.id
+        ) {
+          return makerMove;
+        }
+        const jokerMove = legalWildMoves.find((c) => c.isJoker);
+        if (
+          jokerMove &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: jokerMove }], trumpColor, highestBid) ===
+            bot.id
+        ) {
+          return jokerMove;
+        }
       }
     }
 
