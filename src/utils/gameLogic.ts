@@ -1355,7 +1355,7 @@ export function selectBotMove(
       highestBid <= 7 &&
       currentTrickEffectiveLead &&
       currentTrickEffectiveLead !== 'special' &&
-      (!trumpColor || currentTrickEffectiveLead !== trumpColor) &&
+      (!trumpColor || currentTrickEffectiveLead !== trumpColor || isSmallTrumpPlayedByBuyer) &&
       !hasTrumpKingInCurrentTrick &&
       !isLastBotBeforeBuyerInTrick
   );
@@ -2239,15 +2239,17 @@ export function selectBotMove(
       }
     }
 
-    // If opponent is the buyer and played a small trump (2..9) in a high contract (>= 6), counter with Joker/Maker
-    // (في أول دورة في المشتريات 6 و7 يترك الفرصة لزملائه إلا إذا كان هو البوت الأخير قبل الحاكم)
+    // If opponent is the buyer and played a small trump (2..9) in contracts (5, 6, 7+), counter with Maker/Joker:
+    // في أول دورة في المشتريات (5، 6، 7): إذا بدأ الحاكم الخصم بحكم صغير (2..9)، يترك البوت غير الأخير الفرصة لزملائه
+    // ولا يضرب الأكلة إلا إذا كان هو البوت الأخير قبل الحاكم (مع تقديم الميكر على الجيكر عند عدم وجود خال الحكم في الأكلة)
     const isTrumpLead = leadSuit === trumpColor;
     if (
-      highestBid >= 6 &&
+      highestBid >= 5 &&
       isTrumpLead &&
       isSmallTrumpPlayedByBuyer &&
       isBuyerOpponent &&
-      (playedTricks.length > 0 || isLastBotBeforeBuyerInTrick || highestBid >= 8)
+      !isTeamCurrentlyWinning &&
+      (playedTricks.length > 0 ? highestBid >= 6 : isLastBotBeforeBuyerInTrick || highestBid >= 8)
     ) {
       if (hasTrumpKingFallen || (playedTricks.length === 0 && !hasTrumpKingInCurrentTrick)) {
         const makerMove = legalMoves.find((c) => c.isMaker);
