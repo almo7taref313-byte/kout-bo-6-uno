@@ -616,7 +616,9 @@ export function selectBotBestTrump(hand: Card[]): SuitColor {
     const strength = suitCards.reduce((sum, c) => {
       const idx = Math.max(0, SUIT_RANKS.indexOf(c.rank));
       const honorBonus = HIGH_CARD_RANKS.has(c.rank) ? 6 : 0;
-      return sum + idx + honorBonus;
+      // إعطاء أولوية ووزن كبير لوجود الخال (1) عند تساوي عدد أوراق الحكم
+      const khaleBonus = c.rank === '1' ? 100 : 0;
+      return sum + idx + honorBonus + khaleBonus;
     }, 0);
 
     if (count > bestCount || (count === bestCount && strength > bestStrength)) {
@@ -1969,7 +1971,27 @@ export function selectBotMove(
           .sort((a, b) => SUIT_RANKS.indexOf(b.card.rank) - SUIT_RANKS.indexOf(a.card.rank));
 
         if (teammateSuitedTrumpsInTrick.length > 0) {
-          const teammateRankIdx = SUIT_RANKS.indexOf(teammateSuitedTrumpsInTrick[0].card.rank);
+          const teammateTrumpCard = teammateSuitedTrumpsInTrick[0].card;
+          const teammateRankIdx = SUIT_RANKS.indexOf(teammateTrumpCard.rank);
+
+          // إذا كان البوت لا يملك إلا حكاماً وهناك خصم بعده قاصّ لنفس الزات ويملك حكماً وكان حكم الزميل صغيراً:
+          // يرفع سقف الحكم بورقة متوسطة/قوية (غير الخال/الأعلى) لمنع الخصم القاصّ من سرقة الأكلة بحكم رخيص
+          if (
+            canAnyRemainingOpponentCutLeadWithTrump &&
+            !HIGH_CARD_RANKS.has(teammateTrumpCard.rank)
+          ) {
+            const protectiveTrumps = suitedTrumpMoves
+              .filter(
+                (c) =>
+                  SUIT_RANKS.indexOf(c.rank) > teammateRankIdx &&
+                  c.rank !== '1' &&
+                  !isMasterCardInSuit(c, true)
+              )
+              .sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+            if (protectiveTrumps.length > 0) {
+              return protectiveTrumps[0];
+            }
+          }
 
           // أ) حكم أصغر من حكم زميله إن وُجد
           const smallerTrumps = suitedTrumpMoves.filter(
@@ -2227,6 +2249,16 @@ export function selectBotMove(
           winningSuitedTrumps.sort(
             (a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank)
           );
+          // إذا كان هناك خصم بعد البوت في نفس الأكلة قاصّ لهذا الزات أيضاً ويملك حكماً:
+          // لا يضرب بأصغر حكم (مثل 2 حكم) فيسرقها الخصم بسهولة، بل يضرب بحكم متوسط/قوي (دون حرق خال الحكم)
+          if (canAnyRemainingOpponentCutLeadWithTrump && winningSuitedTrumps.length >= 2) {
+            const strongNonMasterCutTrumps = winningSuitedTrumps
+              .filter((c) => c.rank !== '1' && !isMasterCardInSuit(c, true))
+              .sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+            if (strongNonMasterCutTrumps.length > 0) {
+              return strongNonMasterCutTrumps[0];
+            }
+          }
           return winningSuitedTrumps[0];
         }
       } else if (!isOpponentCurrentlyWinning) {
