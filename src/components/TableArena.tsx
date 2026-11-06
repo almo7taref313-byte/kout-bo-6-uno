@@ -521,12 +521,20 @@ export const TableArena: React.FC<TableArenaProps> = ({
             bubbleSeatPos = 'bottom-left';
           }
 
-          // موقع شارة الحكم البيضاوية (الرقم أو كلمة "ملزوم"):
+          // موقع شارة الحكم البيضاوية (الرقم أو كلمة "ملزوم" أو "باون"):
           // - للاعبين يمين ويسار الطاولة (1, 2, 4, 5): فوق رأس اللاعب مباشرة
           // - للاعبين فوق وتحت الطاولة (0, 3): بجانب صورة اللاعب (يسار الصورة)
+          const isBaoonBid = !isForcedBid && highestBid === 9;
+          const isWordBadge = isForcedBid || isBaoonBid;
+          const buyerBadgeText = isForcedBid
+            ? 'ملزوم'
+            : isBaoonBid
+            ? 'باون'
+            : String(highestBid);
+
           const targetBadgePosClass =
             relPos === 0 || relPos === 3
-              ? isForcedBid
+              ? isWordBadge
                 ? '-left-[56px] sm:-left-[66px] top-1/2 -translate-y-1/2'
                 : '-left-[48px] sm:-left-[58px] top-1/2 -translate-y-1/2'
               : '-top-[31px] sm:-top-[36px] left-1/2 -translate-x-1/2';
@@ -591,12 +599,12 @@ export const TableArena: React.FC<TableArenaProps> = ({
                   
                   {isBuyer && (
                     <div
-                      dir={isForcedBid ? 'rtl' : 'ltr'}
+                      dir={isWordBadge ? 'rtl' : 'ltr'}
                       className={`absolute ${targetBadgePosClass} z-40 pointer-events-none select-none transition-all duration-300`}
                     >
                       <div
                         className={`${
-                          isForcedBid
+                          isWordBadge
                             ? 'w-[52px] h-[28px] sm:w-[60px] sm:h-[33px]'
                             : 'w-[44px] h-[28px] sm:w-[52px] sm:h-[33px]'
                         } p-0 rounded-full grid place-items-center tabular-nums ${
@@ -617,13 +625,13 @@ export const TableArena: React.FC<TableArenaProps> = ({
                         }}
                         title={
                           buyerTrumpInfo
-                            ? `الحكم: ${buyerTrumpInfo.name} (${isForcedBid ? 'ملزوم' : highestBid})`
-                            : `الحكم: ${isForcedBid ? 'ملزوم' : highestBid}`
+                            ? `الحكم: ${buyerTrumpInfo.name} (${buyerBadgeText})`
+                            : `الحكم: ${buyerBadgeText}`
                         }
                       >
                         <span
                           style={
-                            isForcedBid
+                            isWordBadge
                               ? ({
                                   lineHeight: 1,
                                 } as React.CSSProperties)
@@ -635,7 +643,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                                 } as React.CSSProperties)
                           }
                           className={`block font-black ${
-                            isForcedBid
+                            isWordBadge
                               ? 'text-[12.5px] sm:text-[14.5px] tracking-tight'
                               : 'text-[17px] sm:text-[20px]'
                           } text-center m-0 p-0 whitespace-nowrap ${
@@ -644,7 +652,7 @@ export const TableArena: React.FC<TableArenaProps> = ({
                               : 'drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.9)]'
                           }`}
                         >
-                          {isForcedBid ? 'ملزوم' : highestBid}
+                          {buyerBadgeText}
                         </span>
                       </div>
                     </div>

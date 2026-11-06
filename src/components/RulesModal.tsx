@@ -117,15 +117,15 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                     <span className="min-w-[32px] h-[18px] px-1.5 rounded-full bg-[#0082c8] border-2 border-white shadow text-white font-black text-[8.5px] flex items-center justify-center">
                       ملزوم
                     </span>
-                    <span className="min-w-[24px] h-[18px] px-1 rounded-full bg-[#009e49] border-2 border-white shadow text-white font-black text-[10px] flex items-center justify-center">
-                      👑
+                    <span className="min-w-[32px] h-[18px] px-1.5 rounded-full bg-[#009e49] border-2 border-white shadow text-white font-black text-[8.5px] flex items-center justify-center">
+                      باون
                     </span>
                   </div>
                 </div>
                 <p className="text-slate-600 text-[10.5px] font-medium">
                   • <b>حرف D:</b> موزع الورق (وآخر من يزايد)، وينتقل التوزيع للفريق الأقل نقاطاً.
                   <br />• <b>الفقاعات:</b> تعرض قرار اللاعب أثناء المزاد (طوف، 5–8، باون، ملزوم).
-                  <br />• <b>الشارة البيضاوية:</b> تلون <b>بلون الحكم</b> عند المشتري وبداخلها رقم الشراء (<b>5–8</b>) أو <b>«ملزوم»</b> أو <b>👑</b> للباون.
+                  <br />• <b>الشارة البيضاوية:</b> تلون <b>بلون الحكم</b> عند المشتري وبداخلها رقم الشراء (<b>5–8</b>) أو <b>«ملزوم»</b> أو <b>«باون»</b>.
                 </p>
               </div>
 
@@ -204,7 +204,10 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   🏆 المزايدة وحساب النقاط (26 / 51 / 101):
                 </h4>
                 <p className="text-slate-700 text-[10.5px] font-medium">
-                  • <b>المزاد:</b> يبدأ من <b>5 أكلات</b> حتى <b>8</b>، أو <b>باون (9 أكلات 👑)</b>، وإذا طوّف الجميع يلتزم الموزع بـ <b>«ملزوم»</b> (5 أكلات، وخسارتها 5 نقاط فقط).
+                  • <b>المزاد:</b> يبدأ من <b>5 أكلات</b> حتى <b>8</b>، أو <b>باون (9 أكلات)</b>، وإذا طوّف الجميع يلتزم الموزع بـ <b>«ملزوم»</b> (5 أكلات، وخسارتها 5 نقاط فقط).
+                </p>
+                <p className="text-slate-700 text-[10.5px] font-medium">
+                  • <b>إشارة الشراء بـ 8:</b> إذا اشترى اللاعب <b>8</b> فهي إشارة واضحة لفريقه بأنه يملك <b>الجيكر والميكر</b>، فيجب على أحد زملائه في الفريق أن يشتري <b>باون (9)</b>.
                 </p>
                 <p className="text-slate-700 text-[10.5px] font-medium">
                   • <b>هدف الفوز:</b> يحدد اللاعب هدف المباراة من الشاشة الرئيسية (<b>26</b> أو <b>51</b> أو <b>101</b> نقطة).

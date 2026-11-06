@@ -28,8 +28,6 @@ interface ScoreBoardProps {
   onOpenSettings?: () => void;
   onReturnToLobby: () => void;
   onExitGame: () => void;
-  hasLastTrick?: boolean;
-  onOpenLastTrick?: () => void;
 }
 
 export const ScoreBoard: React.FC<ScoreBoardProps> = ({
@@ -54,8 +52,6 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
   onOpenScreenModal,
   onOpenSettings,
   onExitGame,
-  hasLastTrick = false,
-  onOpenLastTrick,
 }) => {
   const trumpInfo = trumpColor && SUIT_COLORS[trumpColor] ? SUIT_COLORS[trumpColor] : null;
   const targetTricks = Math.min(9, Math.max(5, highestBid >= 5 ? highestBid : 5));
@@ -222,24 +218,8 @@ export const ScoreBoard: React.FC<ScoreBoardProps> = ({
           </div>
         </div>
 
-        {/* Left Section (in RTL): Last Trick + Table Color Toggle + Orientation Toggle + Sound + Exit */}
+        {/* Left Section (in RTL): Table Color Toggle + Orientation Toggle + Sound + Exit */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Last Trick viewer button */}
-          {hasLastTrick && onOpenLastTrick && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenLastTrick();
-              }}
-              className="px-2 h-7 sm:h-8 rounded-lg bg-[#2b303c] hover:bg-[#343a49] text-amber-300 font-black text-[10px] sm:text-xs flex items-center justify-center gap-1 transition active:scale-90 shadow cursor-pointer border border-amber-400/50 touch-manipulation"
-              title="عرض أوراق آخر أكلة طُويت"
-              aria-label="آخر أكلة"
-            >
-              <span>🃏</span>
-              <span className="hidden xs:inline">آخر أكلة</span>
-            </button>
-          )}
           {/* Table Color toggle button (Snowy Gray vs Classic Green) */}
           {onToggleTableColor && (
             <button

@@ -2290,9 +2290,18 @@ export function selectBotMove(
         return sortByMasterThenRankDesc(unplayedUncutNonTrumps)[0];
       }
 
+      const myTeamWonTricksCount = playedTricks.length - opponentWonTricksCount;
+      const tricksNeededToBreakOpponentBid = Math.max(1, 10 - (highestBid || 5));
+      const canDefendingBotSafelyPullBuyerTrump = Boolean(
+        isBuyerOpponent &&
+          suitedTrumps.some(isHighestRemainingTrump) &&
+          (opponentBuyerHasSuitedTrumps ||
+            myTeamWonTricksCount + 1 >= tricksNeededToBreakOpponentBid)
+      );
+
       // ب) إذا كانت جميع ألوان الزات في يد البوت قد لُعبت سابقاً، يمنع تكرار الزات الذي لُعب في الأكلة السابقة مباشرةً (lastTrickLeadSuit):
-      // وإذا كان الحاكم خصماً ولديه حكم أعلى ضامن للأكلة (Master Trump) يلعبه بدلاً من تكرار الزات الملعوب
-      if (isBuyerOpponent && suitedTrumps.length > 0 && !opponentsExhaustedTrumps) {
+      // وإذا كان الحاكم خصماً ولديه حكم أعلى من حكام الخصم صاحب الطلبة ويقلل حكامه (أو يكسب الجولة) يلعبه بدلاً من تكرار الزات الملعوب
+      if (isBuyerOpponent && suitedTrumps.length > 0 && !opponentsExhaustedTrumps && canDefendingBotSafelyPullBuyerTrump) {
         const masterTrumps = suitedTrumps.filter(isHighestRemainingTrump);
         if (masterTrumps.length > 0) {
           masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
@@ -2305,10 +2314,20 @@ export function selectBotMove(
       }
 
       // ج) إذا لم يبقَ في الزات غير المقصوص سوى نفس الزات الذي أكل به الأكلة للتو (lastTrickLeadSuit):
-      // إذا كان البوت يملك حكماً (أو زاتاً آخر غير lastTrickLeadSuit) يغير اللعب ولا يعيد نفس الزات مباشرةً (بشرط أن الخصم لم يستنفد حكامه)
-      if (suitedTrumps.length > 0 && !opponentsExhaustedTrumps && (!isBuyerOpponent || !canStrikeWithTrumpNextTrick)) {
-        suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-        return suitedTrumps[0];
+      // إذا كان البوت في فريق الحاكم يملك حكماً يغير اللعب ولا يعيد نفس الزات مباشرةً؛
+      // أما إذا كان الخصم هو صاحب الطلبة والحكم، فلا يحكم البوت المدافع إلا إذا ضمن أن حكمه أكبر من حكام الخصم ويقلل حكامه ويكسب الجولة!
+      if (
+        suitedTrumps.length > 0 &&
+        !opponentsExhaustedTrumps &&
+        (!isBuyerOpponent || (canDefendingBotSafelyPullBuyerTrump && !canStrikeWithTrumpNextTrick))
+      ) {
+        const candidateTrumps = isBuyerOpponent
+          ? suitedTrumps.filter(isHighestRemainingTrump)
+          : suitedTrumps;
+        if (candidateTrumps.length > 0) {
+          candidateTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
+          return candidateTrumps[0];
+        }
       }
 
       if (notJustPlayedCutNonTrumps.length > 0 && !isBuyerOpponent && opponentsExhaustedTrumps) {
@@ -2336,25 +2355,30 @@ export function selectBotMove(
         suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
         return suitedTrumps[0];
       } else {
-        // إذا كان الخصم هو صاحب الحكم:
+        // إذا كان الخصم هو صاحب الطلبة والحكم:
         if (opponentsExhaustedTrumps) {
           return sortByMasterThenRankDesc(preferredCutPool)[0];
         }
-        // أ) يلعب الحكم الأكبر الذي ليس أكبر منه إن وُجد في يده
-        const masterTrumps = suitedTrumps.filter(isHighestRemainingTrump);
-        if (masterTrumps.length > 0) {
-          masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-          return masterTrumps[0];
+
+        const myTeamWonTricksCount = playedTricks.length - opponentWonTricksCount;
+        const tricksNeededToBreakOpponentBid = Math.max(1, 10 - (highestBid || 5));
+        const canDefendingBotSafelyPullBuyerTrump = Boolean(
+          suitedTrumps.some(isHighestRemainingTrump) &&
+            (opponentBuyerHasSuitedTrumps ||
+              myTeamWonTricksCount + 1 >= tricksNeededToBreakOpponentBid)
+        );
+
+        // أ) لا يحكم البوت المدافع إلا بضمان أن حكمه أكبر من حكام الخصم صاحب الطلبة وأنه سيقلل حكامه ويكسب الجولة
+        if (canDefendingBotSafelyPullBuyerTrump) {
+          const masterTrumps = suitedTrumps.filter(isHighestRemainingTrump);
+          if (masterTrumps.length > 0) {
+            masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
+            return masterTrumps[0];
+          }
         }
 
-        // ب) إذا كان لعب الحكم مضراً (لوجود حكم أكبر عند الخصم)، يلعب الزات المقصوص المختلف عن الزات الأخير (أصغر ورقة) ويحافظ على الحكم إذا ضمن أن يضرب بالحكم في الدورة التالية
-        if (canStrikeWithTrumpNextTrick && notJustPlayedCutNonTrumps.length > 0) {
-          return selectSmartDiscard(notJustPlayedCutNonTrumps, trick, trumpColor, smartDiscardOptions);
-        }
-
-        // إذا لم يكن قاصاً في أي زات آخر، يلعب الحكم
-        suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-        return suitedTrumps[0];
+        // ب) خلاف ذلك (حكمه أصغر من حكام الخصم صاحب الطلبة أو لا يقلل حكامه): لا يحكم أبداً بل يلعب من الزات الآخر ويحتفظ بحكمه
+        return selectSmartDiscard(preferredCutPool, trick, trumpColor, smartDiscardOptions);
       }
     }
 
