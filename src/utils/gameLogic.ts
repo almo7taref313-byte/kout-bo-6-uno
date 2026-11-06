@@ -1325,15 +1325,32 @@ export function selectBotMove(
     : null;
   const isLastBotBeforeBuyerInTrick = Boolean(
     !isLead &&
+      isBuyerOpponent &&
       (trick.length === 5 ||
         (buyerId !== null &&
           buyerId !== undefined &&
           (bot.id + 1) % 6 === buyerId &&
           trick.some((p) => p.playerId === buyerId)))
   );
+  const canWinFirstRoundWithNaturalMasterCard = Boolean(
+    !isLead &&
+      playedTricks.length === 0 &&
+      currentTrickEffectiveLead &&
+      currentTrickEffectiveLead !== 'special' &&
+      legalMoves.some(
+        (c) =>
+          !c.isJoker &&
+          !c.isMaker &&
+          c.color === currentTrickEffectiveLead &&
+          isMasterCardInSuit(c, false) &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
+            bot.id
+      )
+  );
   const shouldHoldWildInFirstRoundForTeammates = Boolean(
     !isLead &&
       playedTricks.length === 0 &&
+      isBuyerOpponent &&
       highestBid >= 5 &&
       highestBid <= 7 &&
       currentTrickEffectiveLead &&
@@ -1396,11 +1413,17 @@ export function selectBotMove(
       }
     }
 
-    // 2. إذا كان البوت الأخير قبل الحاكم (أو آخر لاعب في الطاولة قبل البادئ) لديه جيكر أو ميكر في أول دورة:
-    // يضرب به وإن كانت أول دورة سواء كان الزات عادياً أو حكماً (بشرط ألا تكون الأكلة محسومة لفريقه):
+    // 2. إذا كان البوت الأخير قبل الحاكم الخصم لديه جيكر أو ميكر في أول دورة:
+    // يضرب به وإن كانت أول دورة سواء كان الزات عادياً أو حكماً (بشرط ألا تكون الأكلة محسومة لفريقه وألا يملك خال الزات الملعوب ليكسبها طبيعياً):
     // - فإن كان في الأكلة خال الحكم يضرب بالجيكر حصراً
     // - وإن لم يكن في الأكلة خال الحكم يضرب بالميكر إن وُجد أو الجيكر
-    if (playedTricks.length === 0 && isLastBotBeforeBuyerInTrick && !isTeamCurrentlyWinning) {
+    if (
+      playedTricks.length === 0 &&
+      isBuyerOpponent &&
+      isLastBotBeforeBuyerInTrick &&
+      !isTeamCurrentlyWinning &&
+      !canWinFirstRoundWithNaturalMasterCard
+    ) {
       if (hasTrumpKingInCurrentTrick) {
         const jokerMove = legalWildMoves.find((c) => c.isJoker);
         if (
@@ -2217,15 +2240,22 @@ export function selectBotMove(
     }
 
     // If opponent is the buyer and played a small trump (2..9) in a high contract (>= 6), counter with Joker/Maker
+    // (في أول دورة في المشتريات 6 و7 يترك الفرصة لزملائه إلا إذا كان هو البوت الأخير قبل الحاكم)
     const isTrumpLead = leadSuit === trumpColor;
-    if (highestBid >= 6 && isTrumpLead && isSmallTrumpPlayedByBuyer && isBuyerOpponent) {
-      const jokerMove = legalMoves.find((c) => c.isJoker);
-      if (jokerMove) return jokerMove;
-
-      if (hasTrumpKingFallen) {
+    if (
+      highestBid >= 6 &&
+      isTrumpLead &&
+      isSmallTrumpPlayedByBuyer &&
+      isBuyerOpponent &&
+      (playedTricks.length > 0 || isLastBotBeforeBuyerInTrick || highestBid >= 8)
+    ) {
+      if (hasTrumpKingFallen || (playedTricks.length === 0 && !hasTrumpKingInCurrentTrick)) {
         const makerMove = legalMoves.find((c) => c.isMaker);
         if (makerMove) return makerMove;
       }
+
+      const jokerMove = legalMoves.find((c) => c.isJoker);
+      if (jokerMove) return jokerMove;
     }
   }
 
@@ -2371,8 +2401,8 @@ export function selectBotMove(
 
     // قاعدة أساسية: "في حال كانت كروت الحكم فقط عند فريقه لا يحكم ويلعب زات آخر حتى لا يقلل عدد كروت الحكم عند فريقه"
     if (opponentsExhaustedTrumps && allNonTrumpLeadMoves.length > 0) {
-      const feedableToPartnerWhenNoEnemyTrumps = allNonTrumpLeadMoves.filter((c) =>
-        partnerVoidSuits.has(c.color)
+      const feedableToPartnerWhenNoEnemyTrumps = allNonTrumpLeadMoves.filter(
+        (c) => partnerVoidSuits.has(c.color) && !isMasterCardInSuit(c, false)
       );
       if (feedableToPartnerWhenNoEnemyTrumps.length > 0) {
         const sameSuitAsLast = feedableToPartnerWhenNoEnemyTrumps.filter(
@@ -2506,7 +2536,35 @@ export function selectBotMove(
       return false;
     };
 
-    const feedableToPartner = allNonTrumpLeadMoves.filter((c) => canFeedSuitToPartner(c.color));
+    // اختيار ذكي لورقة الحكم عند المبادرة بسحب الحكام:
+    // إذا كان البوت يملك أعلى حكم متبقٍ (مثل خال الحكم، أو الباش بعد سقوط الخال) يلعب الأعلى؛
+    // أما إذا لم ينزل خال الحكم بعد وليس بيد البوت، فلا يحرق الباش أو الميم أو الغلام بل يلعب حكماً صغيراً لاستدراج خال الحكم أولاً
+    const pickSmartTrumpToLead = (trumps: Card[]): Card => {
+      const masterTrumps = trumps.filter(isHighestRemainingTrump);
+      if (masterTrumps.length > 0) {
+        masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
+        return masterTrumps[0];
+      }
+      if (!hasTrumpKingFallen && !botHoldsTrumpKing) {
+        const smallTrumps = trumps.filter((c) => !HIGH_CARD_RANKS.has(c.rank));
+        if (smallTrumps.length > 0) {
+          smallTrumps.sort((a, b) => getCardRankValue(a, trumpColor) - getCardRankValue(b, trumpColor));
+          return smallTrumps[0];
+        }
+        const sortedAsc = [...trumps].sort(
+          (a, b) => getCardRankValue(a, trumpColor) - getCardRankValue(b, trumpColor)
+        );
+        return sortedAsc[0];
+      }
+      const sortedDesc = [...trumps].sort(
+        (a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor)
+      );
+      return sortedDesc[0];
+    };
+
+    const feedableToPartner = allNonTrumpLeadMoves.filter(
+      (c) => canFeedSuitToPartner(c.color) && !isMasterCardInSuit(c, false)
+    );
     if (feedableToPartner.length > 0) {
       const sameSuitAsLastTrick = feedableToPartner.filter(
         (c) => c.color === lastTrickLeadSuit
@@ -2521,13 +2579,12 @@ export function selectBotMove(
     if (uncutNonTrumps.length > 0) {
       // قاعدة سحب الحكام:
       // في حال لُعب زات ليس حكماً وأكلها اللاعب (hasNonTrumpTrickBeenPlayed)، أو إذا كان العقد >= 6 أو قص الخصم زاتاً أو كان البوت زميل الحاكم:
-      // يبدأ بخال الحكم (أعلى حكم لديه) لتقليل فرص الخصم من الأكل بحكمه حتى يستنفد حكام الخصم، مع مراعاة إبقاء حكم واحد على الأقل بيد الحاكم!
+      // يبدأ بسحب الحكم لتقليل فرص الخصم من الأكل بحكمه حتى يستنفد حكام الخصم، مع مراعاة إبقاء حكم واحد على الأقل بيد الحاكم وعدم حرق الباش قبل نزول خال الحكم!
       if (
         canBuyerTeamPullTrumps &&
         (hasNonTrumpTrickBeenPlayed || !isBotBuyer || highestBid >= 6 || opponentVoidSuits.size > 0)
       ) {
-        suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-        return suitedTrumps[0];
+        return pickSmartTrumpToLead(suitedTrumps);
       }
 
       // RULE B (قبل تكرار أي زات ملعوب):
@@ -2620,8 +2677,7 @@ export function selectBotMove(
           ? suitedTrumps.filter(isHighestRemainingTrump)
           : suitedTrumps;
         if (candidateTrumps.length > 0) {
-          candidateTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-          return candidateTrumps[0];
+          return pickSmartTrumpToLead(candidateTrumps);
         }
       }
 
@@ -2646,9 +2702,8 @@ export function selectBotMove(
         if (opponentsExhaustedTrumps) {
           return sortByMasterThenRankDesc(preferredCutPool)[0];
         }
-        // خلاف ذلك، يلعب الفريق صاحب الحكم ورقة الحكم (بدءاً بخال الحكم/الأعلى) ولا يلعب الزات المقصوص
-        suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-        return suitedTrumps[0];
+        // خلاف ذلك، يلعب الفريق صاحب الحكم ورقة الحكم (مع عدم حرق الباش قبل نزول خال الحكم) ولا يلعب الزات المقصوص
+        return pickSmartTrumpToLead(suitedTrumps);
       } else {
         // إذا كان الخصم هو صاحب الطلبة والحكم:
         if (opponentsExhaustedTrumps) {
@@ -2678,8 +2733,7 @@ export function selectBotMove(
     }
 
     if (suitedTrumps.length > 0) {
-      suitedTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
-      return suitedTrumps[0];
+      return pickSmartTrumpToLead(suitedTrumps);
     }
 
     if (cutNonTrumps.length > 0) {
