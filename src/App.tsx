@@ -74,11 +74,11 @@ const getOrCreateDeviceId = (): string => {
 
 const DEFAULT_BOT_PROFILES = [
   { name: 'بواحمد', avatarId: 'kuwaiti_ghutra_white' },
-  { name: 'السلم', avatarId: 'kuwaiti_shemagh_red' },
+  { name: 'بدر', avatarId: 'kuwaiti_shemagh_red' },
   { name: 'جابر', avatarId: 'kuwaiti_gahfiya' },
-  { name: 'عبود', avatarId: 'kuwaiti_dishdasha_plain' },
-  { name: 'بدر', avatarId: 'kuwaiti_gahfiya_glasses' },
-  { name: 'بوسكندر', avatarId: 'kuwaiti_winter_ghutra' },
+  { name: 'السلم', avatarId: 'kuwaiti_dishdasha_plain' },
+  { name: 'بوسكندر', avatarId: 'kuwaiti_gahfiya_glasses' },
+  { name: 'عبود', avatarId: 'kuwaiti_winter_ghutra' },
 ];
 
 const getBotProfileForSeat = (seatIdx: number, humanAvatarId?: string, humanCustomPhoto?: string | null) => {
@@ -97,11 +97,11 @@ const getBotProfileForSeat = (seatIdx: number, humanAvatarId?: string, humanCust
 
 const DEFAULT_SEATS: SeatConfig[] = [
   { id: 0, name: 'أنت', team: 'A', avatarId: 'kuwaiti_ghutra_white', customPhoto: null, isHuman: true, isVacant: false },
-  { id: 1, name: 'السلم', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 1, name: 'بدر', team: 'B', avatarId: 'kuwaiti_shemagh_red', customPhoto: null, isHuman: false, isVacant: false },
   { id: 2, name: 'جابر', team: 'A', avatarId: 'kuwaiti_gahfiya', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 3, name: 'عبود', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 4, name: 'بدر', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
-  { id: 5, name: 'بوسكندر', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 3, name: 'السلم', team: 'B', avatarId: 'kuwaiti_dishdasha_plain', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 4, name: 'بوسكندر', team: 'A', avatarId: 'kuwaiti_gahfiya_glasses', customPhoto: null, isHuman: false, isVacant: false },
+  { id: 5, name: 'عبود', team: 'B', avatarId: 'kuwaiti_winter_ghutra', customPhoto: null, isHuman: false, isVacant: false },
 ];
 
 const createVacantPrivateSeats = (hostName: string, hostAvatar: string, hostPhoto: string | null, hostDeviceId: string): SeatConfig[] => {
