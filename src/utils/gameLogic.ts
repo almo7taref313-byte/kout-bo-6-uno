@@ -2872,6 +2872,12 @@ export function selectBotMove(
       }
       if (suitedTrumps.length > 0 && cutNonTrumps.length > 0) {
         if (buyerTeam === bot.team && (!isBotBuyer || suitedTrumps.length >= 2) && !opponentsExhaustedTrumps) {
+          if (!isBotBuyer) {
+            const sortedPartnerTrumpsDesc = [...suitedTrumps].sort(
+              (a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor)
+            );
+            return sortedPartnerTrumpsDesc[0];
+          }
           return selectSmartDiscard(suitedTrumps, trick, trumpColor, smartDiscardOptions);
         }
         const safeCutPool = notJustPlayedCutNonTrumps.length > 0 ? notJustPlayedCutNonTrumps : cutNonTrumps;
@@ -2905,9 +2911,17 @@ export function selectBotMove(
     };
 
     // اختيار ذكي لورقة الحكم عند المبادرة بسحب الحكام:
-    // إذا كان البوت يملك أعلى حكم متبقٍ (مثل خال الحكم، أو الباش بعد سقوط الخال) يلعب الأعلى؛
-    // أما إذا لم ينزل خال الحكم بعد وليس بيد البوت، فلا يحرق الباش أو الميم أو الغلام بل يلعب حكماً صغيراً لاستدراج خال الحكم أولاً
+    // - إذا كان زميل البوت هو صاحب الطلبة والشراء (buyerTeam === bot.team && !isBotBuyer):
+    //   يلعب أولاً الحكم الأكبر من أوراقه ولا يلعب الحكم الأصغر!
+    // - أما إذا كان البوت نفسه هو الحاكم (isBotBuyer):
+    //   إن ملك أعلى حكم متبقٍ يلعب الأعلى، وإن لم ينزل خال الحكم بعد وليس بيد البوت يلعب حكماً صغيراً لاستدراج خال الحكم أولاً.
     const pickSmartTrumpToLead = (trumps: Card[]): Card => {
+      if (buyerTeam === bot.team && !isBotBuyer) {
+        const sortedDescForPartner = [...trumps].sort(
+          (a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor)
+        );
+        return sortedDescForPartner[0];
+      }
       const masterTrumps = trumps.filter(isHighestRemainingTrump);
       if (masterTrumps.length > 0) {
         masterTrumps.sort((a, b) => getCardRankValue(b, trumpColor) - getCardRankValue(a, trumpColor));
