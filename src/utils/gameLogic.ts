@@ -1025,13 +1025,11 @@ export function selectBotMove(
       const tLead = getEffectiveLeadColor(t, highestBid, trumpColor);
       const play = t.find((p) => p.playerId === tid);
       if (!play || play.card.isJoker || play.card.isMaker || play.card.color === 'special') return;
-      const col = play.card.color;
-      suitSequence.push(col);
-
-      // إذا بدأ الزميل بهذا الزات أو رماه تخلصاً (على حكم أو زات آخر)
+      // إذا بدأ الزميل بهذا الزات أو رماه تخلصاً (على حكم أو زات آخر) — فقط عندما يختاره طوعاً وليس مجبراً على اتباع النزلة
       const isLeaderPlay = t[0]?.playerId === tid;
       const isOffSuitDiscard = tLead !== col;
-      if (isLeaderPlay || isOffSuitDiscard || highestBid === 9) {
+      if (isLeaderPlay || isOffSuitDiscard) {
+        suitSequence.push(col);
         voluntarySuitCounts[col] = (voluntarySuitCounts[col] || 0) + 1;
       }
     });
@@ -1209,12 +1207,37 @@ export function selectBotMove(
     }
   }
 
+  // قاعدة جديدة:
+  // "اذا كان اللعب زاتا والحاكم رمى حكما عليه البوت الزميل لا يرمي الميكر على حكم زميله الحاكم او غير الحاكم"
+  const earlyTrickLeadSuit = !isLead
+    ? getEffectiveLeadColor(trick, highestBid, trumpColor)
+    : null;
+  const teammateThrewTrumpOnNonTrumpLead = Boolean(
+    !isLead &&
+      trumpColor &&
+      earlyTrickLeadSuit &&
+      earlyTrickLeadSuit !== 'special' &&
+      earlyTrickLeadSuit !== trumpColor &&
+      trick.some(
+        (p) =>
+          isTeammate(p.playerId) &&
+          ((p.card.color === trumpColor && !p.card.isJoker && !p.card.isMaker) ||
+            p.card.isMaker ||
+            p.card.isJoker)
+      )
+  );
+
+  // منع رمي الميكر على حكم الزميل (سواء كان الزميل حاكماً أو غير حاكم) عندما يكون اللعب زاتاً غير الحكم
+  const shouldForbidMakerOnTeammateTrumpCut = Boolean(teammateThrewTrumpOnNonTrumpLead);
+
   // منع ضرب حكم الزميل (باش، ميم، غلام) بالميكر أو الجيكر في غير حالة الباون الاستثنائية أعلاه (طالما لم يأكلها الخصم بخال الحكم)
+  // أو إذا قطع الزميل زاتاً غير الحكم بحكم والأكلة لفريق البوت
   const shouldForbidWildOnTeammateTrumpHonor = Boolean(
-    teammatePlayedTrumpHonorInTrick &&
+    (teammatePlayedTrumpHonorInTrick &&
       !hasTrumpKingInCurrentTrick &&
       isTeamCurrentlyWinning &&
-      !(highestBid === 9 && !hasTrumpKingFallen && !botHoldsTrumpKing && !opponentsExhaustedTrumps)
+      !(highestBid === 9 && !hasTrumpKingFallen && !botHoldsTrumpKing && !opponentsExhaustedTrumps)) ||
+      (teammateThrewTrumpOnNonTrumpLead && isTeamCurrentlyWinning)
   );
 
   // البند الجديد:
@@ -1231,6 +1254,18 @@ export function selectBotMove(
       teammatePlayedMakerWithoutTrumpKing ||
       shouldForbidWildOnTeammateTrumpHonor
   );
+
+  if (shouldForbidMakerOnTeammateTrumpCut) {
+    const nonMakerLegal = legalMoves.filter((c) => !c.isMaker && c.rank !== 'wild_color');
+    if (nonMakerLegal.length > 0) {
+      legalMoves = nonMakerLegal;
+    } else {
+      const nonMakerRaw = rawLegalMoves.filter((c) => !c.isMaker && c.rank !== 'wild_color');
+      if (nonMakerRaw.length > 0) {
+        legalMoves = nonMakerRaw;
+      }
+    }
+  }
 
   if (shouldForbidJokerOnBuyerSmallTrump) {
     const nonJokerLegal = legalMoves.filter((c) => !c.isJoker && c.rank !== 'wild_draw4');
@@ -1382,6 +1417,7 @@ export function selectBotMove(
   const wildCardsInHand = bot.hand.filter(
     (c) =>
       (c.isJoker || c.isMaker) &&
+      !(shouldForbidMakerOnTeammateTrumpCut && c.isMaker) &&
       !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker) &&
       !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker)) &&
       !shouldHoldWildInFirstRoundForTeammates
@@ -1390,6 +1426,7 @@ export function selectBotMove(
   const legalWildMoves = legalMoves.filter(
     (c) =>
       (c.isJoker || c.isMaker) &&
+      !(shouldForbidMakerOnTeammateTrumpCut && c.isMaker) &&
       !(shouldForbidJokerOnBuyerSmallTrump && c.isJoker) &&
       !(shouldForbidWildOnTeammateTrumpHonor && (c.isJoker || c.isMaker)) &&
       !shouldHoldWildInFirstRoundForTeammates
@@ -2313,13 +2350,23 @@ export function selectBotMove(
     const lastTrick = playedTricks.length > 0 ? playedTricks[playedTricks.length - 1] : null;
     const lastTrickLeadSuit = lastTrick ? getEffectiveLeadColor(lastTrick, highestBid, trumpColor) : null;
 
-    // ترتيب احترافي للكروت عند المبادرة: يقدّم الكرت الذي أصبح بمثابة الخال (Master Card بعد عدّ الأوراق) ثم الأعلى رتبةً ("ويبتدئ بأكبر كرت عنده")
+    // ترتيب احترافي للكروت عند المبادرة:
+    // 1) يقدّم الكرت الذي أصبح بمثابة الخال (Master Card بعد عدّ الأوراق) ويبدأ بأكبره
+    // 2) أما إذا لم ينزل الخال بعد وليس بيد البوت (الكرت ليس Master Card)، فلا يبدأ بالباش (+2) أو الميم (⊘) ليهديه لخال الخصم، بل يبدأ برقم صغير لاستدراج الخال وحماية صوره!
     const sortByMasterThenRankDesc = (cards: Card[]): Card[] => {
       return [...cards].sort((a, b) => {
         const aMaster = isMasterCardInSuit(a, false) ? 1 : 0;
         const bMaster = isMasterCardInSuit(b, false) ? 1 : 0;
         if (aMaster !== bMaster) return bMaster - aMaster;
-        return SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank);
+        if (aMaster === 1 && bMaster === 1) {
+          return SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank);
+        }
+        const aIsProtectedHonor = a.rank === 'draw2' || a.rank === 'skip';
+        const bIsProtectedHonor = b.rank === 'draw2' || b.rank === 'skip';
+        if (aIsProtectedHonor !== bIsProtectedHonor) {
+          return aIsProtectedHonor ? 1 : -1;
+        }
+        return SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank);
       });
     };
 
@@ -2454,7 +2501,11 @@ export function selectBotMove(
     // قاعدة أساسية: "في حال كانت كروت الحكم فقط عند فريقه لا يحكم ويلعب زات آخر حتى لا يقلل عدد كروت الحكم عند فريقه"
     if (opponentsExhaustedTrumps && allNonTrumpLeadMoves.length > 0) {
       const feedableToPartnerWhenNoEnemyTrumps = allNonTrumpLeadMoves.filter(
-        (c) => partnerVoidSuits.has(c.color) && !isMasterCardInSuit(c, false)
+        (c) =>
+          partnerVoidSuits.has(c.color) &&
+          !isMasterCardInSuit(c, false) &&
+          c.rank !== 'draw2' &&
+          c.rank !== 'skip'
       );
       if (feedableToPartnerWhenNoEnemyTrumps.length > 0) {
         const sameSuitAsLast = feedableToPartnerWhenNoEnemyTrumps.filter(
@@ -2616,7 +2667,11 @@ export function selectBotMove(
     };
 
     const feedableToPartner = allNonTrumpLeadMoves.filter(
-      (c) => canFeedSuitToPartner(c.color) && !isMasterCardInSuit(c, false)
+      (c) =>
+        canFeedSuitToPartner(c.color) &&
+        !isMasterCardInSuit(c, false) &&
+        c.rank !== 'draw2' &&
+        c.rank !== 'skip'
     );
     if (feedableToPartner.length > 0) {
       const sameSuitAsLastTrick = feedableToPartner.filter(
