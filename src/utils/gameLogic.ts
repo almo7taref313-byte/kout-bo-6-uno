@@ -1536,13 +1536,17 @@ export function selectBotMove(
           bot.id;
         if (!winsCurrentTrick) return true;
 
-        // If this card wins Trick 6, check if we have a low non-trump exit card left to lead on Trick 7
+        // If this card wins Trick 6, check if we have a low exit card (non-trump or small non-master trump) left to lead on Trick 7
         const remainingNormals = nonWildCardsInHand.filter((other) => other.id !== c.id);
         const hasLowExitForNextTrick = remainingNormals.some(
           (other) =>
-            (!trumpColor || other.color !== trumpColor) &&
-            other.rank !== '1' &&
-            other.rank !== 'draw2'
+            !isMasterCardInSuit(other, false) &&
+            (((!trumpColor || other.color !== trumpColor) &&
+              other.rank !== '1' &&
+              other.rank !== 'draw2') ||
+              (Boolean(trumpColor && other.color === trumpColor) &&
+                !HIGH_CARD_RANKS.has(other.rank) &&
+                !opponentsExhaustedTrumps))
         );
         return hasLowExitForNextTrick;
       });
@@ -1559,14 +1563,20 @@ export function selectBotMove(
     }
 
     // 4. Lead-lock prevention in late round (hand.length <= 5):
-    // If all non-wild cards in the bot's hand are trumps or top honors ('1', 'draw2'),
+    // If all non-wild cards in the bot's hand are master trumps/high trumps or top honors ('1', 'draw2'),
     // taking the lead with a normal card could keep the bot leading every remaining trick until Trick 8!
+    // Small number trumps (when higher trumps are still unplayed) also count as safe exit cards.
     // Never trigger this to steal a teammate's winning trick!
     if (bot.hand.length <= 5 && nonWildCardsInHand.length > 1 && !isTeamCurrentlyWinning) {
-      const lowNonTrumpExitCards = nonWildCardsInHand.filter(
-        (c) => (!trumpColor || c.color !== trumpColor) && c.rank !== '1' && c.rank !== 'draw2'
+      const lowExitCards = nonWildCardsInHand.filter(
+        (c) =>
+          !isMasterCardInSuit(c, false) &&
+          (((!trumpColor || c.color !== trumpColor) && c.rank !== '1' && c.rank !== 'draw2') ||
+            (Boolean(trumpColor && c.color === trumpColor) &&
+              !HIGH_CARD_RANKS.has(c.rank) &&
+              !opponentsExhaustedTrumps))
       );
-      if (lowNonTrumpExitCards.length === 0 && canAnyWildWinCurrentTrick) {
+      if (lowExitCards.length === 0 && canAnyWildWinCurrentTrick) {
         return pickWildCard();
       }
     }
@@ -2129,12 +2139,17 @@ export function selectBotMove(
       const opponentCurrentlyWinning = !isTeammate(currentWinnerId) && currentWinnerId !== bot.id;
 
       if ((opponentYetToPlay && !opponentsExhaustedTrumps) || opponentCurrentlyWinning) {
-        // Play the highest suited trump (خال الحكم، باش، ميم، غلام، عشرة...) to protect partner buyer's small trump!
+        // Play the highest suited trump (خال الحكم، باش، ميم، غلام، عشرة...) to protect partner buyer's small trump,
+        // ONLY if that trump actually wins the current trick (never burn الميم or الغلام under an opponent's higher trump like الباش or الخال)!
         const myStrongSuitedTrumps = legalMoves.filter(
           (c) =>
             c.color === trumpColor &&
+            !c.isJoker &&
+            !c.isMaker &&
             getCardPower(c, trick, trumpColor, trick.length, highestBid) >
-              getCardPower(buyerPlayInTrick.card, trick, trumpColor, 0, highestBid)
+              getCardPower(buyerPlayInTrick.card, trick, trumpColor, 0, highestBid) &&
+            evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
+              bot.id
         );
         if (myStrongSuitedTrumps.length > 0) {
           myStrongSuitedTrumps.sort(
@@ -2359,9 +2374,12 @@ export function selectBotMove(
             return myMasterNonTrumps[0];
           }
 
-          // ثانياً: إذا أشار زميله في الباون بتكرار زات معين مرتين متتاليتين أو أكثر (إشارة امتلاك خال ذلك الزات)، يمرر له هذا الزات فوراً
-          const signaledPartnerMoves = nonTrumps.filter((c) =>
-            teammateSignaledKhaleSuits.has(c.color)
+          // ثانياً: إذا أشار زميله في الباون بتكرار زات معين مرتين متتاليتين أو أكثر (إشارة امتلاك خال ذلك الزات)، يمرر له هذا الزات فوراً (دون حرق الباش تحت خال زميله)
+          const signaledPartnerMoves = nonTrumps.filter(
+            (c) =>
+              teammateSignaledKhaleSuits.has(c.color) &&
+              c.rank !== 'draw2' &&
+              !isMasterCardInSuit(c, false)
           );
           if (signaledPartnerMoves.length > 0) {
             signaledPartnerMoves.sort(
@@ -2448,11 +2466,12 @@ export function selectBotMove(
         return poolToFeed[0];
       }
 
-      // إذا أشار الزميل إلى امتلاك خال زات معين (عبر تكراره في دورتين أو أكثر)، يمرر له البوت هذا الزات
+      // إذا أشار الزميل إلى امتلاك خال زات معين (عبر تكراره في دورتين أو أكثر)، يمرر له البوت هذا الزات (دون حرق الباش تحت خال زميله)
       const signaledByPartnerPool = allNonTrumpLeadMoves.filter(
         (c) =>
           teammateSignaledKhaleSuits.has(c.color) &&
           c.color !== lastTrickLeadSuit &&
+          c.rank !== 'draw2' &&
           !isMasterCardInSuit(c, false)
       );
       if (signaledByPartnerPool.length > 0) {
@@ -2661,7 +2680,11 @@ export function selectBotMove(
       );
       if (!hasOwnMasterUncut && teammateSignaledKhaleSuits.size > 0) {
         const partnerKhaleFeed = uncutNonTrumps.filter(
-          (c) => teammateSignaledKhaleSuits.has(c.color) && c.color !== lastTrickLeadSuit
+          (c) =>
+            teammateSignaledKhaleSuits.has(c.color) &&
+            c.color !== lastTrickLeadSuit &&
+            c.rank !== 'draw2' &&
+            !isMasterCardInSuit(c, false)
         );
         if (partnerKhaleFeed.length > 0) {
           partnerKhaleFeed.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
