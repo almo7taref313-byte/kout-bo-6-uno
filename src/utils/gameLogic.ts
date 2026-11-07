@@ -1638,6 +1638,145 @@ export function selectBotMove(
       return legalWildMoves[0];
     };
 
+    // 3. قاعدة إيقاف الخصم عند وصوله إلى 3 أكلات (منعه من الوصول إلى 4 أكلات، خصوصاً إذا كان فريقنا الحاكم):
+    // في حال وصل الفريق الخصم إلى 3 أكلات (opponentWonTricksCount >= 3) والجيكر أو الميكر عند البوت:
+    // يجب عليه إيقاف الخصم بالضرب بالجيكر أو الميكر (مع ضمان عدم وجود خال الحكم ليكسب الميكر الأكلة).
+    if (opponentWonTricksCount >= 3) {
+      const teammateHoldsTrumpKing = Boolean(
+        trumpColor &&
+          context?.players &&
+          context.players.some(
+            (pl) =>
+              isTeammate(pl.id) &&
+              pl.hand.some((c) => c.color === trumpColor && c.rank === '1')
+          )
+      );
+
+      const canRemainingOpponentPlayTrumpKing = Boolean(
+        trumpColor &&
+          !hasTrumpKingFallen &&
+          !hasTrumpKingInCurrentTrick &&
+          !botHoldsTrumpKing &&
+          !teammateHoldsTrumpKing &&
+          !opponentsExhaustedTrumps &&
+          remainingOpponentsEarly.some((pid) => {
+            if (opponentsVoidInTrump.has(pid)) return false;
+            const oppPl =
+              context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+            if (oppPl && oppPl.hand && oppPl.hand.length > 0) {
+              return oppPl.hand.some((c) => c.color === trumpColor && c.rank === '1');
+            }
+            return true;
+          })
+      );
+
+      const makerCandidate = legalWildMoves.find(
+        (c) =>
+          c.isMaker &&
+          !hasTrumpKingInCurrentTrick &&
+          !canRemainingOpponentPlayTrumpKing &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
+            bot.id
+      );
+
+      const jokerCandidate = legalWildMoves.find(
+        (c) =>
+          c.isJoker &&
+          evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
+            bot.id
+      );
+
+      const stopOpponentWildCard = makerCandidate || jokerCandidate;
+
+      if (stopOpponentWildCard) {
+        const canNormalCardGuaranteeWin = (card: Card): boolean => {
+          if (card.isJoker || card.isMaker) return false;
+          if (
+            evaluateTrickWinner(
+              [...trick, { playerId: bot.id, card }],
+              trumpColor,
+              highestBid
+            ) !== bot.id
+          ) {
+            return false;
+          }
+          if (remainingOpponentsEarly.length === 0) return true;
+          if (!isMasterCardInSuit(card, true)) return false;
+          if (trumpColor && card.color === trumpColor) return true;
+          // كرت زات غير الحكم: يجب التأكد من عدم قدرة أي خصم متبقٍ على قص الزات بالحكم
+          const canRemainingOppCut = Boolean(
+            trumpColor &&
+              !opponentsExhaustedTrumps &&
+              earlyTrickLeadSuit &&
+              remainingOpponentsEarly.some((pid) => {
+                if (opponentsVoidInTrump.has(pid)) return false;
+                const oppPl =
+                  context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+                if (oppPl && oppPl.hand && oppPl.hand.length > 0) {
+                  const hasTrump = oppPl.hand.some(
+                    (c) => c.color === trumpColor && !c.isJoker && !c.isMaker
+                  );
+                  const hasLead = oppPl.hand.some(
+                    (c) => c.color === earlyTrickLeadSuit && !c.isJoker && !c.isMaker
+                  );
+                  return hasTrump && !hasLead;
+                }
+                return opponentVoidSuits.has(earlyTrickLeadSuit);
+              })
+          );
+          return !canRemainingOppCut;
+        };
+
+        const hasGuaranteedNormalWinner = legalMoves.some(canNormalCardGuaranteeWin);
+
+        // أ) إذا كانت الأكلة حالياً بيد الخصم (!isTeamCurrentlyWinning) ولا يملك البوت ورقة عادية مضمونة 100% لكسبها
+        if (!isTeamCurrentlyWinning && !hasGuaranteedNormalWinner) {
+          return stopOpponentWildCard;
+        }
+
+        // ب) خصوصاً إذا كان فريقنا الحاكم (buyerTeam === bot.team) وكان الزميل متقدماً بورقة مهددة من خصم متبقٍ في الأكلة
+        if (
+          isTeamCurrentlyWinning &&
+          buyerTeam === bot.team &&
+          remainingOpponentsEarly.length > 0 &&
+          !hasGuaranteedNormalWinner
+        ) {
+          const currentWinningPlay = trick.find((p) => p.playerId === initialTrickWinnerId);
+          const winningCard = currentWinningPlay?.card;
+          const isWinningCardVulnerable = Boolean(
+            winningCard &&
+              !winningCard.isJoker &&
+              !winningCard.isMaker &&
+              remainingOpponentsEarly.some((pid) => {
+                const oppPl =
+                  context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+                if (oppPl && oppPl.hand && oppPl.hand.length > 0) {
+                  return oppPl.hand.some(
+                    (oppCard) =>
+                      !oppCard.isJoker &&
+                      !oppCard.isMaker &&
+                      (oppCard.color === earlyTrickLeadSuit ||
+                        !oppPl.hand.some(
+                          (c) => c.color === earlyTrickLeadSuit && !c.isJoker && !c.isMaker
+                        )) &&
+                      evaluateTrickWinner(
+                        [...trick, { playerId: pid, card: oppCard }],
+                        trumpColor,
+                        highestBid
+                      ) === pid
+                  );
+                }
+                return !isMasterCardInSuit(winningCard, true);
+              })
+          );
+
+          if (isWinningCardVulnerable) {
+            return stopOpponentWildCard;
+          }
+        }
+      }
+    }
+
     const canAnyWildWinCurrentTrick = legalWildMoves.some(
       (c) =>
         evaluateTrickWinner([...trick, { playerId: bot.id, card: c }], trumpColor, highestBid) ===
@@ -1822,7 +1961,7 @@ export function selectBotMove(
         : !opponentsVoidInTrump.has(buyerId) && !opponentsExhaustedTrumps)
   );
 
-  const dangerTrickThreshold = Math.max(1, (highestBid || 5) - 2);
+  const dangerTrickThreshold = Math.min(3, Math.max(1, (highestBid || 5) - 2));
   const isOpponentBelowDangerTricks = opponentWonTricksCount < dangerTrickThreshold;
 
   // 1. TACTICAL RULES WHEN RESPONDING (!isLead):
