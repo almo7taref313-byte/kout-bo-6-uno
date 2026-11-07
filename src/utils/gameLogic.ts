@@ -1298,24 +1298,63 @@ export function selectBotMove(
       !hasTrumpKingInCurrentTrick
   );
 
+  // فحص حالة الخطر القصوى عند وصول الخصم إلى 3 أكلات وفريقنا هو الحاكم:
+  // إذا قطع الزميل الزات بحكم صغير (ليس من صور الحكم خال/باش/ميم/غلام) وكان هناك خصم لم يلعب بعد في الأكلة
+  // يملك حكماً أعلى يهدد بسرقة الأكلة والوصول إلى 4 أكلات، نسمح للبوت بالتدخل بالجيكر أو الميكر لحماية الأكلة!
+  const isTeammateSmallTrumpCutThreatenedAtThreeTricks = Boolean(
+    opponentWonTricksCount >= 3 &&
+      buyerTeam === bot.team &&
+      isTeamCurrentlyWinning &&
+      teammateThrewTrumpOnNonTrumpLead &&
+      !teammatePlayedTrumpHonorInTrick &&
+      remainingOpponentsEarly.length > 0 &&
+      !lastRemainingOpponentHasNoTrump &&
+      remainingOpponentsEarly.some((pid) => {
+        if (opponentsVoidInTrump.has(pid)) return false;
+        const oppPl =
+          context?.players?.find((pl) => pl.id === pid) || context?.players?.[pid];
+        if (oppPl && oppPl.hand && oppPl.hand.length > 0) {
+          return oppPl.hand.some(
+            (oppCard) =>
+              !oppCard.isJoker &&
+              ((trumpColor && oppCard.color === trumpColor) || oppCard.isMaker) &&
+              (oppCard.isMaker ||
+                !oppPl.hand.some(
+                  (c) => c.color === earlyTrickLeadSuit && !c.isJoker && !c.isMaker
+                )) &&
+              evaluateTrickWinner(
+                [...trick, { playerId: pid, card: oppCard }],
+                trumpColor,
+                highestBid
+              ) === pid
+          );
+        }
+        return true;
+      })
+  );
+
   // يُمنع رمي الميكر على حكم الزميل إذا كان حكم الزميل ما زال رابحاً (isTeamCurrentlyWinning)،
   // أو إذا كانت ثاني دورة في الجولة (playedTricks.length === 1)،
   // أو إذا كان الخصم الأخير لا يملك حكماً والأكلة لم تُؤخذ بحكم أعلى من الخصم
+  // (باستثناء حالة الخطر عند 3 أكلات للخصم عندما يكون حكم الزميل الصغير مهدداً فعلياً من خصم متبقٍ)
   const shouldForbidMakerOnTeammateTrumpCut = Boolean(
-    (teammateThrewTrumpOnNonTrumpLead &&
-      (isTeamCurrentlyWinning ||
-        playedTricks.length <= 1 ||
-        hasTrumpKingInCurrentTrick)) ||
-      (!isLead &&
-        isTeamCurrentlyWinning &&
-        lastRemainingOpponentHasNoTrump)
+    !isTeammateSmallTrumpCutThreatenedAtThreeTricks &&
+      ((teammateThrewTrumpOnNonTrumpLead &&
+        (isTeamCurrentlyWinning ||
+          playedTricks.length <= 1 ||
+          hasTrumpKingInCurrentTrick)) ||
+        (!isLead &&
+          isTeamCurrentlyWinning &&
+          lastRemainingOpponentHasNoTrump))
   );
 
   // منع ضرب صورة حكم الزميل (خال، باش، ميم، غلام) بالميكر أو الجيكر في الباون أو غيره من الطلبات طالما أن ورقة الزميل رابحة للأكلة
-  // أو إذا قطع الزميل زاتاً غير الحكم بحكم والأكلة لفريق البوت
+  // أو إذا قطع الزميل زاتاً غير الحكم بحكم والأكلة لفريق البوت (مع استثناء حكم الزميل الصغير المهدد عند وصول الخصم إلى 3 أكلات)
   const shouldForbidWildOnTeammateTrumpHonor = Boolean(
     (teammatePlayedTrumpHonorInTrick && isTeamCurrentlyWinning) ||
-      (teammateThrewTrumpOnNonTrumpLead && isTeamCurrentlyWinning)
+      (teammateThrewTrumpOnNonTrumpLead &&
+        isTeamCurrentlyWinning &&
+        !isTeammateSmallTrumpCutThreatenedAtThreeTricks)
   );
 
   // البند الجديد:
@@ -1941,7 +1980,7 @@ export function selectBotMove(
         : !opponentsVoidInTrump.has(buyerId) && !opponentsExhaustedTrumps)
   );
 
-  const dangerTrickThreshold = Math.min(3, Math.max(1, (highestBid || 5) - 2));
+  const dangerTrickThreshold = Math.max(1, (highestBid || 5) - 2);
   const isOpponentBelowDangerTricks = opponentWonTricksCount < dangerTrickThreshold;
 
   // 1. TACTICAL RULES WHEN RESPONDING (!isLead):
@@ -2610,7 +2649,38 @@ export function selectBotMove(
           !isMasterCardInSuit(c, false)
       );
 
+    // المرحلة الأولى: تحديد "الورقة الواحدة المرشحة" من كل لون على حدة
+    // - إذا كان في اللون (باش +2 أو ميم ⊘) ولم ينزل خال اللون بعد -> يختار البوت أصغر رقم في هذا اللون لاستدراج الخال وحماية الباش/الميم
+    // - إذا لم يكن في اللون باش أو ميم -> يختار البوت أكبر ورقة في هذا اللون
+    // المرحلة الثانية: المفاضلة النهائية بين الأوراق المرشحة الصحيحة لكل لون بحيث لا يقفز رقم كبير أمام رقم صغير في لون محمي أبداً
     const sortByMasterThenRankDesc = (cards: Card[]): Card[] => {
+      const suitBuckets: Record<string, Card[]> = {};
+      cards.forEach((c) => {
+        if (!suitBuckets[c.color]) suitBuckets[c.color] = [];
+        suitBuckets[c.color].push(c);
+      });
+
+      const primaryCandidateIds = new Set<string>();
+      Object.entries(suitBuckets).forEach(([col, suitCards]) => {
+        const masters = suitCards.filter((c) => isMasterCardInSuit(c, false));
+        if (masters.length > 0) {
+          masters.sort((a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank));
+          primaryCandidateIds.add(masters[0].id);
+          return;
+        }
+        if (col !== 'special' && hasUnpromotedBashaOrMeemInSuit(col as SuitColor)) {
+          const nonProtected = suitCards.filter((c) => c.rank !== 'draw2' && c.rank !== 'skip');
+          const pool = nonProtected.length > 0 ? nonProtected : suitCards;
+          pool.sort((a, b) => SUIT_RANKS.indexOf(a.rank) - SUIT_RANKS.indexOf(b.rank));
+          primaryCandidateIds.add(pool[0].id);
+        } else {
+          const sortedDesc = [...suitCards].sort(
+            (a, b) => SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank)
+          );
+          primaryCandidateIds.add(sortedDesc[0].id);
+        }
+      });
+
       return [...cards].sort((a, b) => {
         const aMaster = isMasterCardInSuit(a, false) ? 1 : 0;
         const bMaster = isMasterCardInSuit(b, false) ? 1 : 0;
@@ -2618,6 +2688,11 @@ export function selectBotMove(
         if (aMaster === 1 && bMaster === 1) {
           return SUIT_RANKS.indexOf(b.rank) - SUIT_RANKS.indexOf(a.rank);
         }
+
+        const aIsPrimary = primaryCandidateIds.has(a.id) ? 1 : 0;
+        const bIsPrimary = primaryCandidateIds.has(b.id) ? 1 : 0;
+        if (aIsPrimary !== bIsPrimary) return bIsPrimary - aIsPrimary;
+
         const aIsProtectedHonor = a.rank === 'draw2' || a.rank === 'skip';
         const bIsProtectedHonor = b.rank === 'draw2' || b.rank === 'skip';
         if (aIsProtectedHonor !== bIsProtectedHonor) {
@@ -2964,11 +3039,23 @@ export function selectBotMove(
     // 1. إذا كان يوجد زات آخر غير مقصوص (uncutNonTrumps.length > 0) يتم استبعاد الزات المقصوص نهائياً:
     if (uncutNonTrumps.length > 0) {
       // قاعدة سحب الحكام:
-      // في حال لُعب زات ليس حكماً وأكلها اللاعب (hasNonTrumpTrickBeenPlayed)، أو إذا كان العقد >= 6 أو قص الخصم زاتاً أو كان البوت زميل الحاكم:
-      // يبدأ بسحب الحكم لتقليل فرص الخصم من الأكل بحكمه حتى يستنفد حكام الخصم، مع مراعاة إبقاء حكم واحد على الأقل بيد الحاكم وعدم حرق الباش قبل نزول خال الحكم!
+      // - إذا كان البوت هو الحاكم: يسحب الحكم بعد لعب زات، أو في المشترى >= 6، أو إذا قص الخصم زاتاً
+      // - إذا كان البوت زميل الحاكم (!isBotBuyer): يسحب الحكم إذا كان يملك أعلى حكم متبقٍ أو صورة حكم قوية،
+      //   أو بعد أن تكون قد لُعبت أكلة سابقة ولم يكن بيده خال زات غير مقصوص مضمون يريد أكله أولاً
+      const hasGuaranteedMasterInUncutNonTrump = uncutNonTrumps.some(
+        (c) => c.color !== lastTrickLeadSuit && isMasterCardInSuit(c, false)
+      );
+      const shouldPartnerPullTrumpsNow =
+        !isBotBuyer &&
+        (suitedTrumps.some(isHighestRemainingTrump) ||
+          suitedTrumps.some((c) => HIGH_CARD_RANKS.has(c.rank)) ||
+          ((hasNonTrumpTrickBeenPlayed || playedTricks.length > 0) &&
+            (!hasGuaranteedMasterInUncutNonTrump || opponentVoidSuits.size > 0 || highestBid >= 6)));
+
       if (
         canBuyerTeamPullTrumps &&
-        (hasNonTrumpTrickBeenPlayed || !isBotBuyer || highestBid >= 6 || opponentVoidSuits.size > 0)
+        (shouldPartnerPullTrumpsNow ||
+          (isBotBuyer && (hasNonTrumpTrickBeenPlayed || highestBid >= 6 || opponentVoidSuits.size > 0)))
       ) {
         return pickSmartTrumpToLead(suitedTrumps);
       }
@@ -3218,6 +3305,7 @@ export function selectBotMove(
     const allowWildInGenericWinningMoves =
       !hasNormalLegalMoves ||
       highestBid === 9 ||
+      opponentWonTricksCount >= 3 ||
       opponentWonTricksCount >= dangerTrickThreshold ||
       bot.hand.length <= 3 ||
       opponentPlayedHighTrumpHonorInTrick ||
