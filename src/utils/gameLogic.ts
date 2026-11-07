@@ -1025,6 +1025,7 @@ export function selectBotMove(
       const tLead = getEffectiveLeadColor(t, highestBid, trumpColor);
       const play = t.find((p) => p.playerId === tid);
       if (!play || play.card.isJoker || play.card.isMaker || play.card.color === 'special') return;
+      const col = play.card.color;
       // إذا بدأ الزميل بهذا الزات أو رماه تخلصاً (على حكم أو زات آخر) — فقط عندما يختاره طوعاً وليس مجبراً على اتباع النزلة
       const isLeaderPlay = t[0]?.playerId === tid;
       const isOffSuitDiscard = tLead !== col;
