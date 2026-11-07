@@ -1227,8 +1227,9 @@ export function selectBotMove(
       trick.some((p) => isTeammate(p.playerId) && (p.card.isMaker || p.card.rank === 'wild_color'))
   );
 
-  // ثالثاً: "في حال لعب البوت او اللاعب الحقيقي حكما (باش،ميم،غلام) لا يضرب بميكر او جيكر من زملائه البوتات
-  //         الا في حال الباون وخال الحكم لم ينزل فيضرب بالجيكر تحسبا ان يكون خال الحكم عند الخصم وحيدا"
+  // ثالثاً (قاعدة ثابتة):
+  // "عندما يلعب الحاكم (أو زميله) في الباون أو غيره من الطلبات صورة حكم (خال / باش / ميم / غلام)،
+  //  لا يضرب البوت الزميل بالجيكر/الميكر فوق ورقة زميله الرابحة بتاتاً."
   const teammatePlayedTrumpHonorInTrick = Boolean(
     !isLead &&
       trumpColor &&
@@ -1238,31 +1239,13 @@ export function selectBotMove(
           p.card.color === trumpColor &&
           !p.card.isJoker &&
           !p.card.isMaker &&
-          ['draw2', 'skip', 'reverse'].includes(p.card.rank)
+          ['1', 'draw2', 'skip', 'reverse'].includes(p.card.rank)
       )
   );
 
   const botHoldsTrumpKing = Boolean(
     trumpColor && bot.hand.some((c) => c.color === trumpColor && c.rank === '1')
   );
-
-  // في حال الباون ولعب الزميل حكماً (باش، ميم، غلام) وخال الحكم لم ينزل بعد وليس في يد البوت والخصم لم يستنفد حكامه:
-  // يضرب البوت بالجيكر فوراً تحسباً لأن يكون خال الحكم عند الخصم وحيداً
-  if (
-    teammatePlayedTrumpHonorInTrick &&
-    highestBid === 9 &&
-    !hasTrumpKingFallen &&
-    !botHoldsTrumpKing &&
-    !opponentsExhaustedTrumps &&
-    !teammatePlayedMakerWithoutTrumpKing
-  ) {
-    const jokerInHand =
-      rawLegalMoves.find((c) => c.isJoker || c.rank === 'wild_draw4') ||
-      bot.hand.find((c) => c.isJoker || c.rank === 'wild_draw4');
-    if (jokerInHand) {
-      return jokerInHand;
-    }
-  }
 
   // قاعدة جديدة مع قيد الدورة الثانية والخصم الأخير:
   // 1) "اذا كان اللعب زاتا والحاكم رمى حكما عليه البوت الزميل لا يرمي الميكر على حكم زميله الحاكم او غير الحاكم"
@@ -1328,13 +1311,10 @@ export function selectBotMove(
         lastRemainingOpponentHasNoTrump)
   );
 
-  // منع ضرب حكم الزميل (باش، ميم، غلام) بالميكر أو الجيكر في غير حالة الباون الاستثنائية أعلاه (طالما لم يأكلها الخصم بخال الحكم)
+  // منع ضرب صورة حكم الزميل (خال، باش، ميم، غلام) بالميكر أو الجيكر في الباون أو غيره من الطلبات طالما أن ورقة الزميل رابحة للأكلة
   // أو إذا قطع الزميل زاتاً غير الحكم بحكم والأكلة لفريق البوت
   const shouldForbidWildOnTeammateTrumpHonor = Boolean(
-    (teammatePlayedTrumpHonorInTrick &&
-      !hasTrumpKingInCurrentTrick &&
-      isTeamCurrentlyWinning &&
-      !(highestBid === 9 && !hasTrumpKingFallen && !botHoldsTrumpKing && !opponentsExhaustedTrumps)) ||
+    (teammatePlayedTrumpHonorInTrick && isTeamCurrentlyWinning) ||
       (teammateThrewTrumpOnNonTrumpLead && isTeamCurrentlyWinning)
   );
 
